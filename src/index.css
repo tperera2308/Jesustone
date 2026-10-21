@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --brand-primary: #d97706;
+    --brand-primary-rgb: 217, 119, 6;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .dark body,
+  html.dark {
+    background-color: #000000;
+    color: #f8fafc;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono, .tabular-nums {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* OLED Pure Black Overrides for Dark Mode */
+.dark .dark\:bg-slate-950 {
+  background-color: #000000 !important;
+}
+
+.dark .dark\:bg-slate-950\/95,
+.dark .dark\:bg-slate-950\/80,
+.dark .dark\:bg-slate-950\/75 {
+  background-color: rgba(0, 0, 0, 0.92) !important;
+}
+
+.dark .dark\:bg-slate-900 {
+  background-color: #09090b !important;
+}
+
+.dark .dark\:bg-slate-900\/95 {
+  background-color: rgba(9, 9, 11, 0.95) !important;
+}
+
+.dark .dark\:bg-slate-900\/60 {
+  background-color: rgba(5, 5, 7, 0.85) !important;
+}
+
+.dark .dark\:bg-slate-800 {
+  background-color: #141418 !important;
+}
+
+.dark .dark\:bg-slate-800\/50,
+.dark .dark\:bg-slate-800\/60,
+.dark .dark\:bg-slate-800\/70,
+.dark .dark\:bg-slate-800\/40 {
+  background-color: rgba(20, 20, 24, 0.72) !important;
+}
+
+.dark .dark\:border-slate-800,
+.dark .dark\:border-slate-800\/80 {
+  border-color: #1f1f24 !important;
+}
+
+.dark .dark\:border-slate-700 {
+  border-color: #27272e !important;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

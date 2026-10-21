@@ -1,0 +1,17 @@
+{
+  "appId": "com.jesustone.worship",
+  "appName": "jesustone",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "backgroundColor": "#000000",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "backgroundColor": "#000000",
+      "showSpinner": false
+    }
+  }
+}

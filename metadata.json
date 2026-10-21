@@ -1,0 +1,6 @@
+{
+  "name": "Halal - Worship & Band Manager",
+  "description": "Plataforma integral y PWA para la coordinación de grupos de alabanza, programación de servicios, cancionero con transpositor de acordes, devocionales, chat grupal y herramientas musicales (afinador cromático, piano y metrónomo).",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
