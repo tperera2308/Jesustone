@@ -89,6 +89,52 @@ const KEY_SEMITONE_INDEX: Record<string, number> = {
 
 const ALL_KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
+const SECTION_PRESETS = [
+  'Intro',
+  'Verso 1',
+  'Verso 2',
+  'Pre-Coro',
+  'Coro',
+  'Coro x2',
+  'Instrumental',
+  'Puente',
+  'Puente x2',
+  'Espontáneo',
+  'Coro Final',
+  'Final',
+];
+
+function extractStructureFromLyrics(lyricsAndChords: string): string[] {
+  const lines = lyricsAndChords.split('\n');
+  const extracted: string[] = [];
+  for (const line of lines) {
+    const match = line.trim().match(/^\[(.*)\]$/);
+    if (match && match[1].trim()) {
+      extracted.push(match[1].trim());
+    }
+  }
+  return extracted.length > 0
+    ? extracted
+    : ['Intro', 'Verso 1', 'Coro', 'Verso 2', 'Coro x2', 'Puente x2', 'Final'];
+}
+
+function getSectionBadgeColors(sectionName: string): string {
+  const lower = sectionName.toLowerCase();
+  if (lower.includes('intro') || lower.includes('instr') || lower.includes('final') || lower.includes('outro')) {
+    return 'bg-sky-500/15 text-sky-400 border-sky-500/30';
+  }
+  if (lower.includes('coro')) {
+    return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+  }
+  if (lower.includes('puente') || lower.includes('espont')) {
+    return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
+  }
+  if (lower.includes('pre')) {
+    return 'bg-violet-500/15 text-violet-300 border-violet-500/30';
+  }
+  return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+}
+
 function computeSemitoneDiff(origKey: string, targetKey: string): number {
   const origIdx = KEY_SEMITONE_INDEX[origKey];
   const targetIdx = KEY_SEMITONE_INDEX[targetKey];
@@ -129,11 +175,22 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   );
   const [semitones, setSemitones] = useState<number>(0);
   const [useSolfege, setUseSolfege] = useState<boolean>(false);
+  const [lyricsOnly, setLyricsOnly] = useState<boolean>(false);
   const [viewFormat, setViewFormat] = useState<'text' | 'image'>('text');
   const [isEditingLyrics, setIsEditingLyrics] = useState<boolean>(false);
   const [editedLyrics, setEditedLyrics] = useState<string>('');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showManagePlaylistModal, setShowManagePlaylistModal] = useState<boolean>(false);
+
+  // Song Structure Editor State
+  const [isEditingStructure, setIsEditingStructure] = useState<boolean>(false);
+  const [structureDraft, setStructureDraft] = useState<string[]>([]);
+  const [customSectionInput, setCustomSectionInput] = useState<string>('');
+
+  // Song Group Notes & Personal Notes State
+  const [groupNotesDraft, setGroupNotesDraft] = useState<string>('');
+  const [personalNotesDraft, setPersonalNotesDraft] = useState<string>('');
+  const [notesSavedFeedback, setNotesSavedFeedback] = useState<string>('');
 
   // Stage Mode / Modo Atril Fullscreen State
   const [isStageMode, setIsStageMode] = useState<boolean>(false);
@@ -176,6 +233,17 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const [newCharacteristics, setNewCharacteristics] = useState(
     'Entrada con Piano, Coro Congregacional'
   );
+  const [newStructure, setNewStructure] = useState<string[]>([
+    'Intro',
+    'Verso 1',
+    'Coro',
+    'Verso 2',
+    'Coro x2',
+    'Puente x2',
+    'Final',
+  ]);
+  const [newCustomSection, setNewCustomSection] = useState('');
+  const [newGroupNotes, setNewGroupNotes] = useState('');
   const [newSpotifyUrl, setNewSpotifyUrl] = useState('https://open.spotify.com');
   const [newLyrics, setNewLyrics] = useState(
     `[Intro]\nG   D/F#   Em7   Cadd9\n\n[Verso 1]\nG                      D/F#\nEscribe aquí la letra con acordes arriba\nEm7                    Cadd9\nTodos en el grupo podrán ver esta canción y su archivo`
@@ -249,6 +317,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   useEffect(() => {
     setIsPlayingRef(false);
     setActiveChordIdx(0);
+    setIsEditingStructure(false);
     if (playIntervalRef.current) {
       window.clearInterval(playIntervalRef.current);
       playIntervalRef.current = null;
@@ -256,8 +325,15 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     if (activeSong) {
       setEditedLyrics(activeSong.lyricsAndChords);
       setSongMetronomeBpm(activeSong.bpm);
+      const resolvedStructure =
+        activeSong.structure && activeSong.structure.length > 0
+          ? activeSong.structure
+          : extractStructureFromLyrics(activeSong.lyricsAndChords);
+      setStructureDraft(resolvedStructure);
+      setGroupNotesDraft(activeSong.groupNotes ?? activeSong.notes ?? '');
+      setPersonalNotesDraft(activeSong.personalNotes?.[activeMember.id] ?? '');
     }
-  }, [selectedSongId, activeSong?.id]);
+  }, [selectedSongId, activeSong?.id, activeMember.id]);
 
   // Integrated In-Song Metronome Engine
   useEffect(() => {
@@ -561,6 +637,72 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     setIsEditingLyrics(false);
   };
 
+  const activeSongStructure = activeSong
+    ? activeSong.structure && activeSong.structure.length > 0
+      ? activeSong.structure
+      : extractStructureFromLyrics(activeSong.lyricsAndChords)
+    : [];
+
+  const handleSaveStructure = () => {
+    if (!activeSong) return;
+    const cleaned = structureDraft.map((s) => s.trim()).filter(Boolean);
+    onUpdateSong({
+      ...activeSong,
+      structure: cleaned,
+    });
+    setIsEditingStructure(false);
+    setNotesSavedFeedback('Estructura de la canción guardada para todo el grupo');
+    window.setTimeout(() => setNotesSavedFeedback(''), 3000);
+  };
+
+  const handleAddSectionToDraft = (sectionLabel: string) => {
+    const clean = sectionLabel.trim();
+    if (!clean) return;
+    setStructureDraft((prev) => [...prev, clean]);
+    setCustomSectionInput('');
+  };
+
+  const handleMoveSectionInDraft = (index: number, direction: -1 | 1) => {
+    setStructureDraft((prev) => {
+      const targetIdx = index + direction;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      return copy;
+    });
+  };
+
+  const handleRemoveSectionFromDraft = (index: number) => {
+    setStructureDraft((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleSaveSongGroupNotes = () => {
+    if (!activeSong) return;
+    onUpdateSong({
+      ...activeSong,
+      groupNotes: groupNotesDraft.trim(),
+      notes: groupNotesDraft.trim(),
+    });
+    setNotesSavedFeedback('Notas grupales de la canción guardadas para toda la banda');
+    window.setTimeout(() => setNotesSavedFeedback(''), 3000);
+  };
+
+  const handleSaveSongPersonalNotes = () => {
+    if (!activeSong) return;
+    const nextPersonal = {
+      ...(activeSong.personalNotes || {}),
+      [activeMember.id]: personalNotesDraft.trim(),
+    };
+    onUpdateSong({
+      ...activeSong,
+      personalNotes: nextPersonal,
+    });
+    setNotesSavedFeedback(`Tu nota personal fue guardada (${activeMember.name})`);
+    window.setTimeout(() => setNotesSavedFeedback(''), 3000);
+  };
+
   const handleCreateNewSong = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -580,6 +722,11 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         defaultChords
       );
 
+    const finalStructure =
+      newStructure.length > 0
+        ? newStructure
+        : extractStructureFromLyrics(newLyrics);
+
     onAddSong({
       title: newTitle.trim(),
       artist: newArtist.trim() || 'jesustone Worship',
@@ -588,6 +735,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       timeSignature: newTimeSig,
       style: newStyle,
       characteristics: chars.length > 0 ? chars : ['Congregacional'],
+      structure: finalStructure,
       spotifyUrl: newSpotifyUrl.trim() || 'https://open.spotify.com',
       spotifyTrackId: `SP-${Date.now().toString().slice(-4)}`,
       referenceDuration: '04:30',
@@ -596,7 +744,13 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       chordSheetImageUrl: imageSheet,
       attachedFileName:
         newFileName || `${newTitle.trim().replace(/\s+/g, '_')}_Acordes.svg`,
-      notes: `Agregada al repertorio general por ${activeMember.name}.`,
+      notes:
+        newGroupNotes.trim() ||
+        `Agregada al repertorio general por ${activeMember.name}.`,
+      groupNotes:
+        newGroupNotes.trim() ||
+        `Agregada al repertorio general por ${activeMember.name}.`,
+      personalNotes: {},
       addedByUserId: activeMember.id,
       addedByName: activeMember.name,
       addedByRole: activeMember.role,
@@ -606,6 +760,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
     setNewTitle('');
     setNewArtist('');
+    setNewGroupNotes('');
     setNewImageDataUrl('');
     setNewFileName('');
     setShowAddModal(false);
@@ -654,15 +809,68 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       ? 'text-lg sm:text-xl'
       : 'text-xl sm:text-2xl';
 
+  // Helper to filter lines when lyricsOnly mode is enabled (for vocalists)
+  const renderSheetLines = (text: string, isStage: boolean) => {
+    const rawLines = text.split('\n');
+    const filteredLines: { line: string; isSectionHeader: boolean; chordLine: boolean }[] = [];
+
+    for (const rawLine of rawLines) {
+      const trimmed = rawLine.trim();
+      const isSectionHeader = /^\[.*\]$/.test(trimmed);
+      const chordLine = !isSectionHeader && isChordLine(rawLine);
+
+      if (lyricsOnly && chordLine) {
+        continue;
+      }
+
+      // Collapse consecutive empty lines in lyricsOnly mode
+      if (
+        lyricsOnly &&
+        trimmed === '' &&
+        filteredLines.length > 0 &&
+        filteredLines[filteredLines.length - 1].line.trim() === ''
+      ) {
+        continue;
+      }
+
+      filteredLines.push({
+        line: rawLine,
+        isSectionHeader,
+        chordLine,
+      });
+    }
+
+    return filteredLines.map((item, idx) => (
+      <div
+        key={idx}
+        className={`whitespace-pre ${
+          item.isSectionHeader
+            ? isStage
+              ? 'mt-8 mb-2 font-sans font-extrabold text-sm sm:text-base uppercase tracking-widest text-amber-400 bg-amber-500/10 inline-block px-3 py-1 rounded-lg'
+              : 'mt-4 mb-1 font-sans font-bold text-xs uppercase tracking-wider text-amber-500 dark:text-amber-400 bg-amber-500/10 inline-block px-2.5 py-0.5 rounded-md'
+            : item.chordLine
+            ? isStage
+              ? 'font-extrabold text-emerald-400 mt-3'
+              : `font-bold ${accent.textClass} mt-1`
+            : isStage
+            ? 'text-slate-100'
+            : 'text-slate-800 dark:text-slate-200'
+        }`}
+      >
+        {item.line || ' '}
+      </div>
+    ));
+  };
+
   return (
     <div className="space-y-6">
       {/* =====================================================================
-          MODO ESCENARIO / ATRIL A PANTALLA COMPLETA (CON AUTO-SCROLL, CLIC EN VIVO Y SETLIST)
+          MODO ESCENARIO / ATRIL A PANTALLA COMPLETA (CON AUTO-SCROLL, CLIC EN VIVO, SOLO LETRA Y ESTRUCTURA)
          ===================================================================== */}
       {isStageMode && activeSong && (
-        <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black text-white flex flex-col overflow-hidden">
           {/* Barra Superior del Modo Escenario */}
-          <header className="px-4 sm:px-6 py-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <header className="px-4 sm:px-6 py-3 bg-neutral-950 border-b border-neutral-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3 min-w-0">
               <div
                 className={`px-3 py-1.5 rounded-xl font-mono text-sm font-bold ${accent.bgClass}`}
@@ -690,10 +898,24 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
             </div>
 
-            {/* Controles Rápidos en Vivo: Metrónomo + Auto-Scroll + Tono + Letra + Salir */}
+            {/* Controles Rápidos en Vivo: Solo Letra + Metrónomo + Auto-Scroll + Tono + Letra + Salir */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Toggle Modo Solo Letra (Voces) vs Acordes + Letra */}
+              <button
+                type="button"
+                onClick={() => setLyricsOnly(!lyricsOnly)}
+                className={`min-h-[38px] px-3.5 py-1.5 rounded-2xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                  lyricsOnly
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                    : 'bg-neutral-900 text-neutral-200 border-neutral-700 hover:bg-neutral-800'
+                }`}
+              >
+                <Mic className="w-3.5 h-3.5" />
+                <span>{lyricsOnly ? 'Vista: Solo Letra (Voces)' : 'Modo Solo Letra'}</span>
+              </button>
+
               {/* Metrónomo integrado en Modo Escenario */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-800 border border-slate-700">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-neutral-900 border border-neutral-800">
                 <button
                   type="button"
                   onClick={() =>
@@ -733,14 +955,14 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
 
               {/* Control de Auto-Scroll */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-800 border border-slate-700">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-neutral-900 border border-neutral-800">
                 <button
                   type="button"
                   onClick={() => setIsAutoScrolling(!isAutoScrolling)}
                   className={`px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
                     isAutoScrolling
                       ? 'bg-amber-500 text-slate-950'
-                      : 'bg-slate-700 text-slate-200'
+                      : 'bg-neutral-800 text-slate-200'
                   }`}
                 >
                   {isAutoScrolling ? (
@@ -767,28 +989,30 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
 
               {/* Transposición rápida en escenario */}
-              <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-2xl bg-slate-800 border border-slate-700">
-                <button
-                  type="button"
-                  onClick={() => setSemitones((s) => s - 1)}
-                  className="px-2 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-mono font-bold"
-                >
-                  -1
-                </button>
-                <span className="px-2 font-mono text-xs font-bold text-amber-400">
-                  {currentKeyDisplay}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSemitones((s) => s + 1)}
-                  className="px-2 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs font-mono font-bold"
-                >
-                  +1
-                </button>
-              </div>
+              {!lyricsOnly && (
+                <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-2xl bg-neutral-900 border border-neutral-800">
+                  <button
+                    type="button"
+                    onClick={() => setSemitones((s) => s - 1)}
+                    className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-mono font-bold"
+                  >
+                    -1
+                  </button>
+                  <span className="px-2 font-mono text-xs font-bold text-amber-400">
+                    {currentKeyDisplay}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSemitones((s) => s + 1)}
+                    className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-mono font-bold"
+                  >
+                    +1
+                  </button>
+                </div>
+              )}
 
               {/* Tamaño de fuente */}
-              <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-2xl bg-slate-800 border border-slate-700">
+              <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-2xl bg-neutral-900 border border-neutral-800">
                 <Type className="w-3.5 h-3.5 text-slate-400 mr-1" />
                 {(
                   [
@@ -827,58 +1051,96 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             </div>
           </header>
 
-          {/* Cuerpo Principal del Atril (Alto Contraste) */}
+          {/* Cuerpo Principal del Atril (OLED Black Alto Contraste) */}
           <div
             ref={stageScrollContainerRef}
-            className="flex-1 overflow-y-auto px-6 sm:px-12 py-8 max-w-5xl w-full mx-auto space-y-6"
+            className="flex-1 overflow-y-auto px-6 sm:px-12 py-6 max-w-5xl w-full mx-auto space-y-5"
           >
-            {/* Acordes de referencia rápidos */}
-            <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-800">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-2">
-                Progresión Principal ({currentKeyDisplay} · {activeSong.bpm} BPM ·{' '}
-                {activeSong.timeSignature}):
-              </span>
-              {transposedPreviewChords.map((chord, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() =>
-                    playChordVoicing(
-                      transposeSingleChord(
-                        activeSong.chordProgPreview[idx],
-                        semitones,
-                        false
-                      )
-                    )
-                  }
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-amber-500/40 font-mono text-sm font-bold text-amber-300 flex items-center gap-1.5 hover:bg-slate-800"
-                >
-                  <Volume2 className="w-3.5 h-3.5 opacity-70" />
-                  {chord}
-                </button>
-              ))}
-            </div>
+            {/* Mapa de Estructura de la Canción en Escenario */}
+            {activeSongStructure.length > 0 && (
+              <div className="p-3.5 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 block">
+                  Estructura / Orden de Secciones:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {activeSongStructure.map((sec, idx) => (
+                    <React.Fragment key={`${sec}-${idx}`}>
+                      <span
+                        className={`px-2.5 py-1 rounded-xl border text-xs font-bold ${getSectionBadgeColors(
+                          sec
+                        )}`}
+                      >
+                        <span className="font-mono opacity-70 mr-1">{idx + 1}.</span>
+                        {sec}
+                      </span>
+                      {idx < activeSongStructure.length - 1 && (
+                        <span className="text-neutral-600 font-bold text-xs">→</span>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {/* Letra y Acordes en tamaño de Atril */}
-            <div className={`font-mono leading-relaxed ${stageFontClass} pb-32`}>
-              {transposedText.split('\n').map((line, idx) => {
-                const isSectionHeader = /^\[.*\]$/.test(line.trim());
-                const chordLine = !isSectionHeader && isChordLine(line);
-                return (
-                  <div
-                    key={idx}
-                    className={`whitespace-pre ${
-                      isSectionHeader
-                        ? 'mt-8 mb-2 font-sans font-extrabold text-sm sm:text-base uppercase tracking-widest text-amber-400 bg-amber-500/10 inline-block px-3 py-1 rounded-lg'
-                        : chordLine
-                        ? 'font-extrabold text-emerald-400 mt-3'
-                        : 'text-slate-100'
-                    }`}
-                  >
-                    {line || ' '}
+            {/* Notas Grupales y Nota Personal en Escenario (si existen) */}
+            {((activeSong.groupNotes || activeSong.notes) ||
+              activeSong.personalNotes?.[activeMember.id]) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(activeSong.groupNotes || activeSong.notes) && (
+                  <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800 text-xs">
+                    <span className="font-bold text-amber-400 uppercase tracking-wider block mb-0.5">
+                      Nota Grupal de la Banda:
+                    </span>
+                    <p className="text-neutral-200">
+                      {activeSong.groupNotes || activeSong.notes}
+                    </p>
                   </div>
-                );
-              })}
+                )}
+                {activeSong.personalNotes?.[activeMember.id] && (
+                  <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 text-xs">
+                    <span className="font-bold text-emerald-400 uppercase tracking-wider block mb-0.5">
+                      Mi Nota Personal ({activeMember.name}):
+                    </span>
+                    <p className="text-emerald-100">
+                      {activeSong.personalNotes[activeMember.id]}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Acordes de referencia rápidos (se ocultan si está en Modo Solo Letra para Voces) */}
+            {!lyricsOnly && (
+              <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-neutral-800">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-2">
+                  Progresión Principal ({currentKeyDisplay} · {activeSong.bpm} BPM ·{' '}
+                  {activeSong.timeSignature}):
+                </span>
+                {transposedPreviewChords.map((chord, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() =>
+                      playChordVoicing(
+                        transposeSingleChord(
+                          activeSong.chordProgPreview[idx],
+                          semitones,
+                          false
+                        )
+                      )
+                    }
+                    className="px-3.5 py-1.5 rounded-xl bg-neutral-900 border border-amber-500/40 font-mono text-sm font-bold text-amber-300 flex items-center gap-1.5 hover:bg-neutral-800"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 opacity-70" />
+                    {chord}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Letra (con o sin Acordes según Modo Solo Letra) en tamaño de Atril */}
+            <div className={`font-mono leading-relaxed ${stageFontClass} pb-32`}>
+              {renderSheetLines(transposedText, true)}
             </div>
           </div>
 
@@ -1523,107 +1785,297 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               )}
             </div>
 
-            {/* Botones Grandes para Alternar entre LETRA Y ACORDES o ARCHIVO / PARTITURA ADJUNTA */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Selector de Vista: 1) Acordes + Letra · 2) Modo Solo Letra (Voces) · 3) Archivo / Hoja */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <button
                 type="button"
-                onClick={() => setViewFormat('text')}
-                className={`min-h-[54px] p-3 rounded-2xl border font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-                  viewFormat === 'text'
+                onClick={() => {
+                  setViewFormat('text');
+                  setLyricsOnly(false);
+                }}
+                className={`min-h-[52px] p-3 rounded-2xl border font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                  viewFormat === 'text' && !lyricsOnly
                     ? `${accent.bgClass} border-transparent shadow-sm`
                     : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                 }`}
               >
                 <FileText className="w-4 h-4" />
-                Letra y Acordes Transponibles
+                <span>Acordes + Letra</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setViewFormat('text');
+                  setLyricsOnly(true);
+                }}
+                className={`min-h-[52px] p-3 rounded-2xl border font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                  viewFormat === 'text' && lyricsOnly
+                    ? 'bg-amber-500 text-slate-950 border-transparent shadow-sm'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <Mic className="w-4 h-4" />
+                <span>Modo Solo Letra (Voces)</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setViewFormat('image')}
-                className={`min-h-[54px] p-3 rounded-2xl border font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                className={`min-h-[52px] p-3 rounded-2xl border font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
                   viewFormat === 'image'
                     ? `${accent.bgClass} border-transparent shadow-sm`
                     : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                 }`}
               >
                 <ImageIcon className="w-4 h-4" />
-                Ver Archivo / Hoja ({activeSong.attachedFileName || 'Partitura'})
+                <span>Archivo / Hoja</span>
               </button>
             </div>
 
-            {/* Barra de Referencia Spotify y Audio Armónico */}
-            <div className="p-4 rounded-2xl bg-slate-900 dark:bg-slate-950 text-white border border-slate-800 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => setIsPlayingRef(!isPlayingRef)}
-                    className="w-12 h-12 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center shrink-0 transition-transform active:scale-95"
-                  >
-                    {isPlayingRef ? (
-                      <Pause className="w-5 h-5 fill-current" />
-                    ) : (
-                      <Play className="w-5 h-5 fill-current ml-0.5" />
-                    )}
-                  </button>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold">
-                      <Music2 className="w-3.5 h-3.5" />
-                      <span>Spotify &amp; Guía Armónica en Vivo</span>
-                    </div>
-                    <p className="text-sm font-bold truncate">
-                      {activeSong.title} — Tono actual: {currentKeyDisplay}
-                    </p>
-                  </div>
+            {/* ===============================================================
+                APARTADO DE ESTRUCTURA DE LA CANCIÓN (ORDEN DE LAS SECCIONES)
+               =============================================================== */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-slate-950 text-white border border-slate-800 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                    <ListMusic className="w-4 h-4" />
+                    <span>Estructura / Orden de las Secciones</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Mapa del orden en que se toca la canción (Intro, Versos, Coros, Repeticiones, Puente y Final)
+                  </p>
                 </div>
 
-                <a
-                  href={activeSong.spotifyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="min-h-[40px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white self-end sm:self-center whitespace-nowrap shrink-0"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStructureDraft(activeSongStructure);
+                    setIsEditingStructure(!isEditingStructure);
+                  }}
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-amber-300"
                 >
-                  <span>Escuchar en Spotify</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                  {isEditingStructure ? 'Cancelar' : 'Editar Estructura'}
+                </button>
               </div>
 
-              <div className="grid grid-cols-4 gap-2">
-                {transposedPreviewChords.map((chord, idx) => {
-                  const isCurrentBeat = isPlayingRef && activeChordIdx === idx;
-                  return (
-                    <button
-                      key={`${chord}-${idx}`}
-                      type="button"
-                      onClick={() =>
-                        playChordVoicing(
-                          transposeSingleChord(
-                            activeSong.chordProgPreview[idx],
-                            semitones,
-                            false
+              {!isEditingStructure ? (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {activeSongStructure.map((sec, idx) => (
+                    <React.Fragment key={`${sec}-${idx}`}>
+                      <span
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold ${getSectionBadgeColors(
+                          sec
+                        )}`}
+                      >
+                        <span className="font-mono opacity-75 mr-1">
+                          {idx + 1}.
+                        </span>
+                        {sec}
+                      </span>
+                      {idx < activeSongStructure.length - 1 && (
+                        <span className="text-slate-600 font-bold text-xs">
+                          →
+                        </span>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3 pt-2 border-t border-slate-800">
+                  {/* Botones rápidos para añadir secciones */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Toca para añadir una sección al final del orden:</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setStructureDraft(
+                            extractStructureFromLyrics(activeSong.lyricsAndChords)
                           )
-                        )
-                      }
-                      className={`min-h-[42px] py-2 px-3 rounded-xl font-mono text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 border transition-all ${
-                        isCurrentBeat
-                          ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
-                          : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
-                      }`}
+                        }
+                        className="text-amber-400 hover:underline font-semibold"
+                      >
+                        Detectar de la letra
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SECTION_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => handleAddSectionToDraft(preset)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200"
+                        >
+                          + {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Input personalizado para secciones o repeticiones especiales */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={customSectionInput}
+                      onChange={(e) => setCustomSectionInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSectionToDraft(customSectionInput);
+                        }
+                      }}
+                      placeholder="Sección personalizada (ej. Puente Suave x3, Solo Guitarra, Coro sin batería)..."
+                      className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleAddSectionToDraft(customSectionInput)}
+                      className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold ${accent.bgClass}`}
                     >
-                      <Volume2 className="w-3.5 h-3.5 opacity-60 shrink-0" />
-                      <span>{chord}</span>
+                      + Agregar
                     </button>
-                  );
-                })}
-              </div>
+                  </div>
+
+                  {/* Orden actual editable (mover o eliminar bloques) */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {structureDraft.map((sec, idx) => (
+                      <div
+                        key={`${sec}-${idx}`}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs font-bold ${getSectionBadgeColors(
+                          sec
+                        )}`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleMoveSectionInDraft(idx, -1)}
+                          disabled={idx === 0}
+                          className="opacity-70 hover:opacity-100 disabled:opacity-25 px-0.5"
+                          title="Mover antes"
+                        >
+                          ←
+                        </button>
+                        <span>
+                          {idx + 1}. {sec}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveSectionInDraft(idx, 1)}
+                          disabled={idx === structureDraft.length - 1}
+                          className="opacity-70 hover:opacity-100 disabled:opacity-25 px-0.5"
+                          title="Mover después"
+                        >
+                          →
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSectionFromDraft(idx)}
+                          className="ml-1 text-rose-400 hover:text-rose-300 font-bold"
+                          title="Quitar sección"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setStructureDraft([])}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                    >
+                      Limpiar todo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveStructure}
+                      className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                    >
+                      Guardar Estructura de la Canción
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Barra de Referencia Spotify y Audio Armónico (se oculta si está activo Solo Letra) */}
+            {!lyricsOnly && (
+              <div className="p-4 rounded-2xl bg-slate-900 dark:bg-slate-950 text-white border border-slate-800 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => setIsPlayingRef(!isPlayingRef)}
+                      className="w-12 h-12 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center shrink-0 transition-transform active:scale-95"
+                    >
+                      {isPlayingRef ? (
+                        <Pause className="w-5 h-5 fill-current" />
+                      ) : (
+                        <Play className="w-5 h-5 fill-current ml-0.5" />
+                      )}
+                    </button>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold">
+                        <Music2 className="w-3.5 h-3.5" />
+                        <span>Spotify &amp; Guía Armónica en Vivo</span>
+                      </div>
+                      <p className="text-sm font-bold truncate">
+                        {activeSong.title} — Tono actual: {currentKeyDisplay}
+                      </p>
+                    </div>
+                  </div>
+
+                  <a
+                    href={activeSong.spotifyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-h-[40px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white self-end sm:self-center whitespace-nowrap shrink-0"
+                  >
+                    <span>Escuchar en Spotify</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {transposedPreviewChords.map((chord, idx) => {
+                    const isCurrentBeat = isPlayingRef && activeChordIdx === idx;
+                    return (
+                      <button
+                        key={`${chord}-${idx}`}
+                        type="button"
+                        onClick={() =>
+                          playChordVoicing(
+                            transposeSingleChord(
+                              activeSong.chordProgPreview[idx],
+                              semitones,
+                              false
+                            )
+                          )
+                        }
+                        className={`min-h-[42px] py-2 px-3 rounded-xl font-mono text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 border transition-all ${
+                          isCurrentBeat
+                            ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
+                            : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
+                        }`}
+                      >
+                        <Volume2 className="w-3.5 h-3.5 opacity-60 shrink-0" />
+                        <span>{chord}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {viewFormat === 'text' ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Letra y acordes compartidos con todo el grupo
+                    {lyricsOnly
+                      ? 'Modo Solo Letra activo: Acordes ocultos para lectura limpia de voces'
+                      : 'Letra y acordes compartidos con todo el grupo'}
                   </span>
                   <button
                     type="button"
@@ -1657,24 +2109,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   </div>
                 ) : (
                   <div className="p-5 sm:p-6 rounded-2xl bg-slate-50/80 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono text-xs sm:text-sm leading-relaxed overflow-x-auto">
-                    {transposedText.split('\n').map((line, idx) => {
-                      const isSectionHeader = /^\[.*\]$/.test(line.trim());
-                      const chordLine = !isSectionHeader && isChordLine(line);
-                      return (
-                        <div
-                          key={idx}
-                          className={`whitespace-pre ${
-                            isSectionHeader
-                              ? 'mt-4 mb-1 font-sans font-bold text-xs uppercase tracking-wider text-slate-400'
-                              : chordLine
-                              ? `font-bold ${accent.textClass} mt-1`
-                              : 'text-slate-800 dark:text-slate-200'
-                          }`}
-                        >
-                          {line || ' '}
-                        </div>
-                      );
-                    })}
+                    {renderSheetLines(transposedText, false)}
                   </div>
                 )}
               </div>
@@ -1723,6 +2158,90 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 </div>
               </div>
             )}
+
+            {/* ===============================================================
+                SECCIÓN DE NOTAS GRUPALES Y NOTAS PERSONALES DE LA CANCIÓN
+               =============================================================== */}
+            <div className="space-y-3">
+              {notesSavedFeedback && (
+                <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{notesSavedFeedback}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Tarjeta 1: Notas Grupales de la Canción (Visibles para toda la banda) */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <FileText className={`w-4 h-4 ${accent.textClass}`} />
+                        <span>Notas Grupales de la Canción</span>
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
+                        Para todo el grupo
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Indicaciones generales de entrada, cortes, dinámicas o arreglos que ve toda la banda.
+                    </p>
+                    <textarea
+                      rows={3}
+                      value={groupNotesDraft}
+                      onChange={(e) => setGroupNotesDraft(e.target.value)}
+                      placeholder="Ej. Entramos solo piano y voz en Verso 1; batería entra en el Coro; en el Puente subir intensidad..."
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveSongGroupNotes}
+                      className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Guardar Nota Grupal</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tarjeta 2: Mis Notas Personales en esta Canción (Privadas por integrante) */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <User className="w-4 h-4 text-emerald-500" />
+                        <span>Mis Notas Personales ({activeMember.name})</span>
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
+                        Solo para ti
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Tus apuntes privados para esta canción (efectos, segunda voz, capo, recordatorios tuyos).
+                    </p>
+                    <textarea
+                      rows={3}
+                      value={personalNotesDraft}
+                      onChange={(e) => setPersonalNotesDraft(e.target.value)}
+                      placeholder="Escribe aquí tus apuntes personales de esta canción (nadie más modificará tu nota)..."
+                      className="w-full p-3 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveSongPersonalNotes}
+                      className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Guardar Mi Nota Personal</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* ===============================================================
                 SECCIÓN DE NOTAS DE VOZ Y CLIPS DE AUDIO DE LA CANCIÓN
@@ -1946,6 +2465,74 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 </div>
               </div>
 
+              {/* Estructura de la Canción al crearla */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Estructura / Orden de las Secciones
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {SECTION_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() =>
+                        setNewStructure((prev) => [...prev, preset])
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+                    >
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newCustomSection}
+                    onChange={(e) => setNewCustomSection(e.target.value)}
+                    placeholder="Otra sección (ej. Puente x3, Solo Batería)..."
+                    className="flex-1 min-h-[38px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newCustomSection.trim()) {
+                        setNewStructure((prev) => [
+                          ...prev,
+                          newCustomSection.trim(),
+                        ]);
+                        setNewCustomSection('');
+                      }
+                    }}
+                    className={`min-h-[38px] px-3 py-1 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                  >
+                    + Añadir
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {newStructure.map((sec, idx) => (
+                    <span
+                      key={`${sec}-${idx}`}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 text-amber-300 text-xs font-bold"
+                    >
+                      <span>
+                        {idx + 1}. {sec}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNewStructure((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                        className="text-rose-400 hover:text-rose-300 font-bold"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Letra y Acordes en Texto
@@ -1955,6 +2542,19 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   value={newLyrics}
                   onChange={(e) => setNewLyrics(e.target.value)}
                   className="w-full p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Notas Grupales de la Canción (Opcional — para toda la banda)
+                </label>
+                <input
+                  type="text"
+                  value={newGroupNotes}
+                  onChange={(e) => setNewGroupNotes(e.target.value)}
+                  placeholder="Ej. Empieza solo acústica; en el coro 2 entran todos con fuerza..."
+                  className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
                 />
               </div>
 

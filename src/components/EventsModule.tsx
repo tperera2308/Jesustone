@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Clock,
   Copy,
+  FileText,
   HelpCircle,
   ListMusic,
   Lock,
@@ -31,6 +32,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  User,
   UserCheck,
   UserX,
   X,
@@ -48,6 +50,11 @@ interface EventsModuleProps {
   onUpdateRSVP: (eventId: string, role: InstrumentRole, status: RSVPStatus) => void;
   onReassignRole: (eventId: string, role: InstrumentRole, memberId: string) => void;
   onUpdateEventPlaylist: (eventId: string, updatedSongs: EventSongItem[]) => void;
+  onUpdateEventNotes: (
+    eventId: string,
+    updatedGroupNotes: string,
+    updatedPersonalNotes?: Record<string, string>
+  ) => void;
   onCreateEvent: (newEvent: Omit<WorshipEvent, 'id'>) => void;
   onDeleteEvent: (eventId: string) => void;
   onAddAlert: (alert: Omit<NoticeAlert, 'id' | 'createdAt'>) => void;
@@ -85,6 +92,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   onUpdateRSVP,
   onReassignRole,
   onUpdateEventPlaylist,
+  onUpdateEventNotes,
   onCreateEvent,
   onDeleteEvent,
   onAddAlert,
@@ -102,6 +110,11 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [showPlaylistEditor, setShowPlaylistEditor] = useState(false);
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+
+  // Event Group Notes & Personal Notes State
+  const [eventGroupNotesDraft, setEventGroupNotesDraft] = useState<string>('');
+  const [eventPersonalNotesDraft, setEventPersonalNotesDraft] = useState<string>('');
+  const [eventNotesSavedNotice, setEventNotesSavedNotice] = useState<string>('');
 
   // Availability Form State (for any member or leader)
   const [availDate, setAvailDate] = useState('2026-11-01');
@@ -181,6 +194,37 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
   const activeEvent =
     events.find((e) => e.id === selectedEventId) || filteredEvents[0] || events[0];
+
+  useEffect(() => {
+    if (activeEvent) {
+      setEventGroupNotesDraft(activeEvent.notes || '');
+      setEventPersonalNotesDraft(
+        activeEvent.personalNotes?.[activeMember.id] || ''
+      );
+    }
+  }, [activeEvent?.id, activeMember.id]);
+
+  const handleSaveActiveEventGroupNotes = () => {
+    if (!activeEvent) return;
+    onUpdateEventNotes(
+      activeEvent.id,
+      eventGroupNotesDraft.trim(),
+      activeEvent.personalNotes || {}
+    );
+    setEventNotesSavedNotice('Notas grupales del evento guardadas para todo el equipo');
+    window.setTimeout(() => setEventNotesSavedNotice(''), 3000);
+  };
+
+  const handleSaveActiveEventPersonalNotes = () => {
+    if (!activeEvent) return;
+    const nextPersonal = {
+      ...(activeEvent.personalNotes || {}),
+      [activeMember.id]: eventPersonalNotesDraft.trim(),
+    };
+    onUpdateEventNotes(activeEvent.id, activeEvent.notes || '', nextPersonal);
+    setEventNotesSavedNotice(`Tu nota personal para este evento fue guardada (${activeMember.name})`);
+    window.setTimeout(() => setEventNotesSavedNotice(''), 3000);
+  };
 
   // Apply 1-tap Event Template
   const applyEventTemplate = (
@@ -834,6 +878,90 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* =============================================================
+                  NOTAS GRUPALES Y NOTAS PERSONALES DE ESTE EVENTO
+                 ============================================================= */}
+              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                {eventNotesSavedNotice && (
+                  <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                    <Check className="w-4 h-4 shrink-0" />
+                    <span>{eventNotesSavedNotice}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Tarjeta 1: Notas Grupales del Evento */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <FileText className={`w-4 h-4 ${accent.textClass}`} />
+                          <span>Notas Grupales del Evento</span>
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
+                          Para todo el grupo
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Indicaciones generales de horarios, código de vestimenta, prueba de sonido o transiciones del servicio.
+                      </p>
+                      <textarea
+                        rows={3}
+                        value={eventGroupNotesDraft}
+                        onChange={(e) => setEventGroupNotesDraft(e.target.value)}
+                        placeholder="Ej. Prueba de sonido puntual a las 08:30 hrs; vestimenta tonos neutros; transición continua entre canción 1 y 2..."
+                        className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleSaveActiveEventGroupNotes}
+                        className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Guardar Nota Grupal del Evento</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tarjeta 2: Mis Notas Personales en este Evento */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-3 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <User className="w-4 h-4 text-emerald-500" />
+                          <span>Mis Notas Personales ({activeMember.name})</span>
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
+                          Solo para ti
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Tus recordatorios privados para este evento (cables, pedales, partes que te tocan o pendientes).
+                      </p>
+                      <textarea
+                        rows={3}
+                        value={eventPersonalNotesDraft}
+                        onChange={(e) => setEventPersonalNotesDraft(e.target.value)}
+                        placeholder="Escribe aquí tus apuntes personales para este evento..."
+                        className="w-full p-3 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleSaveActiveEventPersonalNotes}
+                        className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Guardar Mi Nota del Evento</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

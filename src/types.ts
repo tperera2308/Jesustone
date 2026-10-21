@@ -111,6 +111,7 @@ export interface WorshipEvent {
   preacherOrTheme: string;
   alertReminder?: string;
   notes: string;
+  personalNotes?: Record<string, string>; // keyed by memberId / userId
   songs: EventSongItem[];
   assignments: ServiceAssignment[];
 }
@@ -137,6 +138,7 @@ export interface Song {
   timeSignature: TimeSignature;
   style: 'Adoración' | 'Alabanza / Júbilo' | 'Intimidad' | 'Congregacional';
   characteristics: string[];
+  structure?: string[]; // Ordered song sections, e.g. ['Intro', 'Verso 1', 'Coro', 'Puente x2', 'Final']
   spotifyUrl: string;
   spotifyTrackId?: string;
   referenceDuration: string;
@@ -145,6 +147,8 @@ export interface Song {
   chordSheetImageUrl?: string;
   attachedFileName?: string;
   notes?: string;
+  groupNotes?: string; // Shared band notes for the song
+  personalNotes?: Record<string, string>; // Private notes per memberId / userId
   addedByUserId: string;
   addedByName: string;
   addedByRole: UserRole;

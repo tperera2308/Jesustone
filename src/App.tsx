@@ -914,6 +914,25 @@ export default function App() {
     }
   };
 
+  const handleUpdateEventNotes = (
+    eventId: string,
+    updatedGroupNotes: string,
+    updatedPersonalNotes?: Record<string, string>
+  ) => {
+    updateActiveGroup((g) => ({
+      ...g,
+      events: g.events.map((ev) =>
+        ev.id === eventId
+          ? {
+              ...ev,
+              notes: updatedGroupNotes,
+              personalNotes: updatedPersonalNotes ?? ev.personalNotes ?? {},
+            }
+          : ev
+      ),
+    }));
+  };
+
   const handleCreateEvent = (newEv: Omit<WorshipEvent, 'id'>) => {
     const created: WorshipEvent = {
       ...newEv,
@@ -1621,6 +1640,7 @@ export default function App() {
               onUpdateRSVP={handleUpdateRSVP}
               onReassignRole={handleReassignRole}
               onUpdateEventPlaylist={handleUpdateEventPlaylist}
+              onUpdateEventNotes={handleUpdateEventNotes}
               onCreateEvent={handleCreateEvent}
               onDeleteEvent={handleDeleteEvent}
               onAddAlert={handleAddAlert}
