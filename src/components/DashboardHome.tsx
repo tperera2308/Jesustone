@@ -43,7 +43,13 @@ interface DashboardHomeProps {
   onNavigate: (tab: NavigationTab) => void;
   onOpenIdentityModal: (section: 'grupo' | 'temas' | 'invitaciones') => void;
   onOpenAuthModal: () => void;
-  onUpdateRSVP: (eventId: string, role: InstrumentRole, status: RSVPStatus) => void;
+  onUpdateRSVP: (
+    eventId: string,
+    role: InstrumentRole,
+    status: RSVPStatus,
+    assignmentIndex?: number,
+    assignmentId?: string
+  ) => void;
   onOpenSongInSongbook: (songId: string, customKey?: string) => void;
   onOpenMetronomeWithSong: (bpm: number, timeSignature: TimeSignature) => void;
 }
@@ -67,15 +73,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   const isLeader = activeMember.role === 'leader';
   const nextEvent = events[0];
 
-  const myAssignments = events
-    .map((ev) => {
-      const found = ev.assignments.find((a) => a.memberId === activeMember.id);
-      return found ? { event: ev, assignment: found } : null;
-    })
-    .filter(Boolean) as {
-    event: WorshipEvent;
-    assignment: WorshipEvent['assignments'][0];
-  }[];
+  const myAssignments = events.flatMap((ev) =>
+    ev.assignments
+      .map((a, index) => ({ event: ev, assignment: a, index }))
+      .filter((item) => item.assignment.memberId === activeMember.id)
+  );
 
   return (
     <div className="space-y-6">
@@ -520,9 +522,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
             {myAssignments.length > 0 ? (
               <div className="space-y-3">
-                {myAssignments.map(({ event, assignment }) => (
+                {myAssignments.map(({ event, assignment, index }) => (
                   <div
-                    key={event.id}
+                    key={`${event.id}-${assignment.id || assignment.role}-${index}`}
                     className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3"
                   >
                     <div>
@@ -543,7 +545,13 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       <button
                         type="button"
                         onClick={() =>
-                          onUpdateRSVP(event.id, assignment.role, 'confirmed')
+                          onUpdateRSVP(
+                            event.id,
+                            assignment.role,
+                            'confirmed',
+                            index,
+                            assignment.id
+                          )
                         }
                         className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                           assignment.rsvpStatus === 'confirmed'
@@ -558,7 +566,13 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       <button
                         type="button"
                         onClick={() =>
-                          onUpdateRSVP(event.id, assignment.role, 'declined')
+                          onUpdateRSVP(
+                            event.id,
+                            assignment.role,
+                            'declined',
+                            index,
+                            assignment.id
+                          )
                         }
                         className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                           assignment.rsvpStatus === 'declined'

@@ -88,6 +88,7 @@ export interface GmailInvitation {
 export type RSVPStatus = 'confirmed' | 'pending' | 'declined';
 
 export interface ServiceAssignment {
+  id?: string;
   role: InstrumentRole;
   memberId: string;
   memberName: string;

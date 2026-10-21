@@ -24,6 +24,7 @@ import {
   NoticeAlert,
   NotificationCategory,
   RSVPStatus,
+  ServiceAssignment,
   Song,
   TimeSignature,
   WorshipEvent,
@@ -800,7 +801,9 @@ export default function App() {
   const handleUpdateRSVP = (
     eventId: string,
     role: InstrumentRole,
-    status: RSVPStatus
+    status: RSVPStatus,
+    assignmentIndex?: number,
+    assignmentId?: string
   ) => {
     const targetEv = activeGroup.events.find((e) => e.id === eventId);
     updateActiveGroup((g) => ({
@@ -809,9 +812,18 @@ export default function App() {
         if (ev.id !== eventId) return ev;
         return {
           ...ev,
-          assignments: ev.assignments.map((a) =>
-            a.role === role ? { ...a, rsvpStatus: status } : a
-          ),
+          assignments: ev.assignments.map((a, idx) => {
+            if (assignmentId && a.id === assignmentId) {
+              return { ...a, rsvpStatus: status };
+            }
+            if (assignmentIndex !== undefined) {
+              return idx === assignmentIndex ? { ...a, rsvpStatus: status } : a;
+            }
+            if (a.role === role && a.memberId === activeMember.id) {
+              return { ...a, rsvpStatus: status };
+            }
+            return a;
+          }),
         };
       }),
     }));
@@ -832,7 +844,8 @@ export default function App() {
   const handleReassignRole = (
     eventId: string,
     role: InstrumentRole,
-    memberId: string
+    memberId: string,
+    assignmentIndex?: number
   ) => {
     const memberObj = activeGroup.members.find((m) => m.id === memberId);
     const targetEv = activeGroup.events.find((e) => e.id === eventId);
@@ -843,16 +856,20 @@ export default function App() {
         if (ev.id !== eventId) return ev;
         return {
           ...ev,
-          assignments: ev.assignments.map((a) =>
-            a.role === role
+          assignments: ev.assignments.map((a, idx) => {
+            const isMatch =
+              assignmentIndex !== undefined
+                ? idx === assignmentIndex
+                : a.role === role;
+            return isMatch
               ? {
                   ...a,
                   memberId: memberObj.id,
                   memberName: memberObj.name,
                   rsvpStatus: 'pending',
                 }
-              : a
-          ),
+              : a;
+          }),
         };
       }),
     }));
@@ -873,6 +890,18 @@ export default function App() {
         },
       ]);
     }
+  };
+
+  const handleUpdateEventAssignments = (
+    eventId: string,
+    updatedAssignments: ServiceAssignment[]
+  ) => {
+    updateActiveGroup((g) => ({
+      ...g,
+      events: g.events.map((ev) =>
+        ev.id === eventId ? { ...ev, assignments: updatedAssignments } : ev
+      ),
+    }));
   };
 
   const handleUpdateEventPlaylist = (
@@ -1639,6 +1668,7 @@ export default function App() {
               accentColor={identity.accentColor}
               onUpdateRSVP={handleUpdateRSVP}
               onReassignRole={handleReassignRole}
+              onUpdateEventAssignments={handleUpdateEventAssignments}
               onUpdateEventPlaylist={handleUpdateEventPlaylist}
               onUpdateEventNotes={handleUpdateEventNotes}
               onCreateEvent={handleCreateEvent}

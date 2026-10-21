@@ -8,6 +8,7 @@ import {
   MemberAvailabilityRecord,
   NoticeAlert,
   RSVPStatus,
+  ServiceAssignment,
   Song,
   WorshipEvent,
 } from '../types';
@@ -20,6 +21,8 @@ import {
   CalendarOff,
   Check,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Copy,
   FileText,
@@ -47,8 +50,23 @@ interface EventsModuleProps {
   availabilityRecords: MemberAvailabilityRecord[];
   activeMember: BandMember;
   accentColor: AccentColorId;
-  onUpdateRSVP: (eventId: string, role: InstrumentRole, status: RSVPStatus) => void;
-  onReassignRole: (eventId: string, role: InstrumentRole, memberId: string) => void;
+  onUpdateRSVP: (
+    eventId: string,
+    role: InstrumentRole,
+    status: RSVPStatus,
+    assignmentIndex?: number,
+    assignmentId?: string
+  ) => void;
+  onReassignRole: (
+    eventId: string,
+    role: InstrumentRole,
+    memberId: string,
+    assignmentIndex?: number
+  ) => void;
+  onUpdateEventAssignments: (
+    eventId: string,
+    updatedAssignments: ServiceAssignment[]
+  ) => void;
   onUpdateEventPlaylist: (eventId: string, updatedSongs: EventSongItem[]) => void;
   onUpdateEventNotes: (
     eventId: string,
@@ -70,6 +88,52 @@ interface EventsModuleProps {
 
 const ALL_KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 
+const MONTH_NAMES_ES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+
+const DAY_NAMES_SHORT_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+function getTodayDateStr(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getNextDayOfWeekDateStr(targetDayOfWeek: number): string {
+  const now = new Date();
+  const currentDay = now.getDay();
+  let diff = (targetDayOfWeek - currentDay + 7) % 7;
+  if (diff === 0) diff = 7;
+  now.setDate(now.getDate() + diff);
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatReadableDateEs(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  const dt = new Date(y, m - 1, d);
+  const dayName = DAY_NAMES_SHORT_ES[dt.getDay()] || '';
+  const monthName = (MONTH_NAMES_ES[m - 1] || '').slice(0, 3);
+  return `${dayName} ${String(d).padStart(2, '0')} ${monthName} ${y}`;
+}
+
 function addDaysToDateStr(dateStr: string, daysToAdd: number): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   if (!y || !m || !d) return dateStr;
@@ -81,6 +145,467 @@ function addDaysToDateStr(dateStr: string, daysToAdd: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+interface InteractiveDatePickerProps {
+  value: string;
+  onChange: (newDate: string) => void;
+  label?: string;
+}
+
+const InteractiveDatePicker: React.FC<InteractiveDatePickerProps> = ({
+  value,
+  onChange,
+  label,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [manualText, setManualText] = useState(value);
+
+  const parsedParts = value.split('-').map(Number);
+  const selectedYear = parsedParts[0] || new Date().getFullYear();
+  const selectedMonth = (parsedParts[1] || new Date().getMonth() + 1) - 1; // 0-indexed
+  const selectedDay = parsedParts[2] || new Date().getDate();
+
+  const [viewYear, setViewYear] = useState(selectedYear);
+  const [viewMonth, setViewMonth] = useState(selectedMonth);
+
+  useEffect(() => {
+    setManualText(value);
+    const parts = value.split('-').map(Number);
+    if (parts[0] && parts[1]) {
+      setViewYear(parts[0]);
+      setViewMonth(parts[1] - 1);
+    }
+  }, [value]);
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
+
+  const handleSelectDay = (day: number) => {
+    const mm = String(viewMonth + 1).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    const formatted = `${viewYear}-${mm}-${dd}`;
+    onChange(formatted);
+    setIsOpen(false);
+  };
+
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((y) => y - 1);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((y) => y + 1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
+
+  const handleDirectPartChange = (newY: number, newMZero: number, newD: number) => {
+    const maxD = new Date(newY, newMZero + 1, 0).getDate();
+    const clampedD = Math.min(newD, maxD);
+    const formatted = `${newY}-${String(newMZero + 1).padStart(2, '0')}-${String(clampedD).padStart(2, '0')}`;
+    onChange(formatted);
+  };
+
+  const handleManualInputChange = (raw: string) => {
+    setManualText(raw);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      onChange(raw);
+    }
+  };
+
+  return (
+    <div className="relative">
+      {label && (
+        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+          {label}
+        </label>
+      )}
+
+      {/* Botón principal que abre/cierra el calendario interactivo */}
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:border-amber-500/60 text-left flex items-center justify-between gap-2 transition-all"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
+          <div className="truncate">
+            <span className="block text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+              {formatReadableDateEs(value)}
+            </span>
+            <span className="block text-[10px] font-mono text-slate-500 dark:text-slate-400">
+              {value} · Toca para elegir
+            </span>
+          </div>
+        </div>
+        <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+          {isOpen ? 'Cerrar' : 'Calendario'}
+        </span>
+      </button>
+
+      {/* Panel de Calendario Desplegable + Teclado + Selectores Rápidos */}
+      {isOpen && (
+        <div className="mt-2 p-3.5 rounded-2xl border border-amber-500/40 bg-white dark:bg-slate-900 shadow-2xl space-y-3 z-40">
+          {/* Atajos de 1 toque */}
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                onChange(getTodayDateStr());
+                setIsOpen(false);
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/20 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(getNextDayOfWeekDateStr(0));
+                setIsOpen(false);
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-[11px] font-bold text-amber-600 dark:text-amber-400"
+            >
+              Próximo Domingo
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(getNextDayOfWeekDateStr(4));
+                setIsOpen(false);
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/20 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+            >
+              Próximo Jueves
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onChange(getNextDayOfWeekDateStr(6));
+                setIsOpen(false);
+              }}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/20 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+            >
+              Próximo Sábado
+            </button>
+          </div>
+
+          {/* Cabecera del Calendario: Mes Anterior / Mes y Año / Mes Siguiente */}
+          <div className="flex items-center justify-between gap-1 bg-slate-50 dark:bg-slate-800/80 p-1.5 rounded-xl">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+              title="Mes anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-1.5">
+              <select
+                value={viewMonth}
+                onChange={(e) => {
+                  const newM = Number(e.target.value);
+                  setViewMonth(newM);
+                  handleDirectPartChange(viewYear, newM, selectedDay);
+                }}
+                className="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white"
+              >
+                {MONTH_NAMES_ES.map((mName, idx) => (
+                  <option key={mName} value={idx}>
+                    {mName}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={viewYear}
+                onChange={(e) => {
+                  const newY = Number(e.target.value);
+                  setViewYear(newY);
+                  handleDirectPartChange(newY, viewMonth, selectedDay);
+                }}
+                className="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white"
+              >
+                {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map((yr) => (
+                  <option key={yr} value={yr}>
+                    {yr}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+              title="Mes siguiente"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Cuadrícula de días del mes */}
+          <div>
+            <div className="grid grid-cols-7 gap-1 text-center mb-1">
+              {DAY_NAMES_SHORT_ES.map((dName) => (
+                <span
+                  key={dName}
+                  className="text-[10px] font-bold uppercase text-slate-400 py-1"
+                >
+                  {dName}
+                </span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
+                <div key={`empty-${idx}`} className="h-9" />
+              ))}
+              {Array.from({ length: daysInMonth }).map((_, idx) => {
+                const dayNumber = idx + 1;
+                const isSelected =
+                  viewYear === selectedYear &&
+                  viewMonth === selectedMonth &&
+                  dayNumber === selectedDay;
+                const isSunday =
+                  new Date(viewYear, viewMonth, dayNumber).getDay() === 0;
+
+                return (
+                  <button
+                    key={dayNumber}
+                    type="button"
+                    onClick={() => handleSelectDay(dayNumber)}
+                    className={`h-9 rounded-xl text-xs font-mono font-bold flex items-center justify-center transition-all ${
+                      isSelected
+                        ? 'bg-amber-500 text-slate-950 shadow-md scale-105'
+                        : isSunday
+                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
+                        : 'bg-slate-50 dark:bg-slate-800/70 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {dayNumber}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Escritura manual con teclado por si el usuario prefiere escribir la fecha */}
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-[11px] font-bold text-slate-500 shrink-0">
+                O escribe (AAAA-MM-DD):
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={manualText}
+                onChange={(e) => handleManualInputChange(e.target.value)}
+                placeholder="2026-11-01"
+                className="w-full min-h-[36px] px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold shrink-0"
+            >
+              Listo
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const HOURS_24 = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES_STEP_5 = [
+  '00',
+  '05',
+  '10',
+  '15',
+  '20',
+  '25',
+  '30',
+  '35',
+  '40',
+  '45',
+  '50',
+  '55',
+];
+
+const QUICK_TIMES = [
+  '08:00',
+  '08:30',
+  '08:45',
+  '09:00',
+  '09:30',
+  '10:00',
+  '10:30',
+  '11:00',
+  '17:00',
+  '18:00',
+  '19:00',
+  '19:30',
+  '20:00',
+];
+
+function format12HourLabel(time24: string): string {
+  const [hStr, mStr] = time24.split(':');
+  const h = Number(hStr);
+  const m = mStr || '00';
+  if (Number.isNaN(h)) return time24;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m} ${suffix}`;
+}
+
+interface InteractiveTimePickerProps {
+  value: string;
+  onChange: (newTime: string) => void;
+  label: string;
+}
+
+const InteractiveTimePicker: React.FC<InteractiveTimePickerProps> = ({
+  value,
+  onChange,
+  label,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [manualTime, setManualTime] = useState(value);
+
+  const parts = value.split(':');
+  const currentHour = parts[0] && parts[0].length === 2 ? parts[0] : '09';
+  const currentMin = parts[1] && parts[1].length === 2 ? parts[1] : '00';
+
+  useEffect(() => {
+    setManualTime(value);
+  }, [value]);
+
+  const handleHourChange = (newH: string) => {
+    onChange(`${newH}:${currentMin}`);
+  };
+
+  const handleMinChange = (newM: string) => {
+    onChange(`${currentHour}:${newM}`);
+  };
+
+  const handleManualInput = (raw: string) => {
+    setManualTime(raw);
+    if (/^([01]\d|2[0-3]):([0-5]\d)$/.test(raw)) {
+      onChange(raw);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+        {label}
+      </label>
+
+      {/* Controles directos de Hora y Minuto + Botón de horarios rápidos */}
+      <div className="flex items-center gap-1.5 min-h-[46px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+        <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+
+        {/* Selector directo de Hora */}
+        <select
+          value={currentHour}
+          onChange={(e) => handleHourChange(e.target.value)}
+          aria-label={`${label} - Hora`}
+          className="px-1.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
+        >
+          {HOURS_24.map((h) => (
+            <option key={h} value={h}>
+              {h} h
+            </option>
+          ))}
+        </select>
+
+        <span className="font-mono font-bold text-slate-500">:</span>
+
+        {/* Selector directo de Minutos */}
+        <select
+          value={MINUTES_STEP_5.includes(currentMin) ? currentMin : '00'}
+          onChange={(e) => handleMinChange(e.target.value)}
+          aria-label={`${label} - Minutos`}
+          className="px-1.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
+        >
+          {MINUTES_STEP_5.map((m) => (
+            <option key={m} value={m}>
+              {m} m
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          className="ml-auto px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-[10px] font-bold text-amber-600 dark:text-amber-400 shrink-0"
+        >
+          {isOpen ? 'Cerrar' : format12HourLabel(value)}
+        </button>
+      </div>
+
+      {/* Panel desplegable de horarios rápidos + teclado numérico */}
+      {isOpen && (
+        <div className="mt-2 p-3 rounded-2xl border border-amber-500/40 bg-white dark:bg-slate-900 shadow-2xl space-y-2.5 z-40">
+          <p className="text-[11px] font-bold text-slate-500">
+            Toque rápido de horario ({format12HourLabel(value)}):
+          </p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+            {QUICK_TIMES.map((qt) => (
+              <button
+                key={qt}
+                type="button"
+                onClick={() => {
+                  onChange(qt);
+                  setIsOpen(false);
+                }}
+                className={`px-2 py-1.5 rounded-lg font-mono text-xs font-bold transition-all ${
+                  value === qt
+                    ? 'bg-amber-500 text-slate-950'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-amber-500/20'
+                }`}
+              >
+                {qt}
+              </button>
+            ))}
+          </div>
+
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-500 shrink-0">
+              Escribir (HH:MM):
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={manualTime}
+              onChange={(e) => handleManualInput(e.target.value)}
+              placeholder="08:45"
+              className="w-full min-h-[34px] px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white"
+            />
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold shrink-0"
+            >
+              Listo
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const EventsModule: React.FC<EventsModuleProps> = ({
   events,
   songs,
@@ -91,6 +616,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   accentColor,
   onUpdateRSVP,
   onReassignRole,
+  onUpdateEventAssignments,
   onUpdateEventPlaylist,
   onUpdateEventNotes,
   onCreateEvent,
@@ -117,14 +643,14 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [eventNotesSavedNotice, setEventNotesSavedNotice] = useState<string>('');
 
   // Availability Form State (for any member or leader)
-  const [availDate, setAvailDate] = useState('2026-11-01');
+  const [availDate, setAvailDate] = useState(() => getTodayDateStr());
   const [availStatus, setAvailStatus] = useState<'unavailable' | 'available'>('unavailable');
   const [availReason, setAvailReason] = useState('');
 
   // New Event Form State + Recurrence + Templates
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<'sunday' | 'rehearsal' | 'special'>('sunday');
-  const [newDate, setNewDate] = useState('2026-11-01');
+  const [newDate, setNewDate] = useState(() => getTodayDateStr());
   const [newTime, setNewTime] = useState('10:30');
   const [newCallTime, setNewCallTime] = useState('08:45');
   const [newLocation, setNewLocation] = useState('Auditorio Central');
@@ -150,38 +676,83 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     );
   };
 
-  const buildSmartRoleMemberMapForDate = (
+  const buildSmartAssignmentsForDate = (
     dateStr: string
-  ): Record<InstrumentRole, string> => {
-    const map: Record<string, string> = {};
+  ): ServiceAssignment[] => {
     const availableMembers = members.filter(
       (m) => getMemberAvailabilityForDate(m.id, dateStr)?.status !== 'unavailable'
     );
     const pool = availableMembers.length > 0 ? availableMembers : members;
 
-    ALL_INSTRUMENT_ROLES.forEach((role, idx) => {
-      const matchingAvailable = availableMembers.find((m) =>
-        m.instruments.includes(role)
-      );
-      const fallbackMember =
-        matchingAvailable ||
-        pool[idx % pool.length] ||
-        members[0];
-      map[role] = fallbackMember?.id || '';
-    });
-    return map as Record<InstrumentRole, string>;
+    return pool.map((m, idx) => ({
+      id: `asg-${Date.now()}-${idx}-${m.id}`,
+      memberId: m.id,
+      memberName: m.name,
+      role: m.instruments[0] || 'Coros',
+      rsvpStatus: 'pending' as RSVPStatus,
+    }));
   };
 
-  const [roleMemberMap, setRoleMemberMap] = useState<Record<InstrumentRole, string>>(() =>
-    buildSmartRoleMemberMapForDate('2026-11-01')
+  const [draftAssignments, setDraftAssignments] = useState<ServiceAssignment[]>(
+    () => buildSmartAssignmentsForDate(getTodayDateStr())
   );
 
-  // When newDate changes in Create Event modal, auto-prioritize available members
+  // State for adding a new member+instrument row inside an already created event
+  const [addActiveMemberId, setAddActiveMemberId] = useState<string>(
+    members[0]?.id || ''
+  );
+  const [addActiveRole, setAddActiveRole] =
+    useState<InstrumentRole>('Coros');
+
+  // When Create Event modal opens, initialize draftAssignments if empty
   useEffect(() => {
-    if (showCreateModal) {
-      setRoleMemberMap(buildSmartRoleMemberMapForDate(newDate));
+    if (showCreateModal && draftAssignments.length === 0 && members.length > 0) {
+      setDraftAssignments(buildSmartAssignmentsForDate(newDate));
     }
-  }, [newDate, showCreateModal, availabilityRecords.length, members.length]);
+  }, [showCreateModal, members.length]);
+
+  const handleAddDraftAssignment = (memberObj?: BandMember, customRole?: InstrumentRole) => {
+    const targetMember = memberObj || members[0];
+    if (!targetMember) return;
+    const roleToUse = customRole || targetMember.instruments[0] || 'Coros';
+    setDraftAssignments((prev) => [
+      ...prev,
+      {
+        id: `asg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        memberId: targetMember.id,
+        memberName: targetMember.name,
+        role: roleToUse,
+        rsvpStatus: 'pending',
+      },
+    ]);
+  };
+
+  const handleUpdateDraftAssignmentMember = (index: number, newMemberId: string) => {
+    const mObj = members.find((m) => m.id === newMemberId);
+    if (!mObj) return;
+    setDraftAssignments((prev) =>
+      prev.map((item, idx) =>
+        idx === index
+          ? {
+              ...item,
+              memberId: mObj.id,
+              memberName: mObj.name,
+              role: mObj.instruments[0] || item.role,
+            }
+          : item
+      )
+    );
+  };
+
+  const handleUpdateDraftAssignmentRole = (index: number, newRole: InstrumentRole) => {
+    setDraftAssignments((prev) =>
+      prev.map((item, idx) => (idx === index ? { ...item, role: newRole } : item))
+    );
+  };
+
+  const handleRemoveDraftAssignment = (index: number) => {
+    setDraftAssignments((prev) => prev.filter((_, idx) => idx !== index));
+  };
 
   // New Alert Form State
   const [alertTitle, setAlertTitle] = useState('');
@@ -265,6 +836,15 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       setNewTheme(last.preacherOrTheme);
       setNewNotes(last.notes);
       setSelectedSongItems(last.songs);
+      if (last.assignments && last.assignments.length > 0) {
+        setDraftAssignments(
+          last.assignments.map((a, idx) => ({
+            ...a,
+            id: `asg-copy-${Date.now()}-${idx}`,
+            rsvpStatus: 'pending' as RSVPStatus,
+          }))
+        );
+      }
     }
   };
 
@@ -272,26 +852,13 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const handleDuplicateEventNextWeek = (ev: WorshipEvent) => {
     if (!isLeader) return;
     const nextDate = addDaysToDateStr(ev.date, 7);
-    const smartMap = buildSmartRoleMemberMapForDate(nextDate);
-    const assignments = ALL_INSTRUMENT_ROLES.map((role) => {
-      const prevAssign = ev.assignments.find((a) => a.role === role);
-      const isPrevUnavailable =
-        prevAssign &&
-        getMemberAvailabilityForDate(prevAssign.memberId, nextDate)?.status ===
-          'unavailable';
-      const chosenMemberId =
-        !isPrevUnavailable && prevAssign
-          ? prevAssign.memberId
-          : smartMap[role] || members[0]?.id || '';
-      const memberObj =
-        members.find((m) => m.id === chosenMemberId) || members[0];
-      return {
-        role,
-        memberId: memberObj.id,
-        memberName: memberObj.name,
-        rsvpStatus: 'pending' as RSVPStatus,
-      };
-    });
+    const assignments: ServiceAssignment[] = ev.assignments.map((prevAssign, idx) => ({
+      id: `asg-${Date.now()}-${idx}`,
+      role: prevAssign.role,
+      memberId: prevAssign.memberId,
+      memberName: prevAssign.memberName,
+      rsvpStatus: 'pending' as RSVPStatus,
+    }));
 
     onCreateEvent({
       title: `${ev.title}`,
@@ -315,18 +882,14 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     const totalWeeks = Math.max(1, Math.min(4, recurrenceWeeks));
     for (let weekIdx = 0; weekIdx < totalWeeks; weekIdx++) {
       const eventDate = addDaysToDateStr(newDate, weekIdx * 7);
-      const weekMap =
-        weekIdx === 0
-          ? roleMemberMap
-          : buildSmartRoleMemberMapForDate(eventDate);
 
-      const assignments = ALL_INSTRUMENT_ROLES.map((role) => {
-        const mId = weekMap[role] || members[0]?.id || 'm1';
-        const memberObj = members.find((m) => m.id === mId) || members[0];
+      const assignments: ServiceAssignment[] = draftAssignments.map((item, idx) => {
+        const memberObj = members.find((m) => m.id === item.memberId) || members[0];
         return {
-          role,
-          memberId: memberObj.id,
-          memberName: memberObj.name,
+          id: `asg-${Date.now()}-${weekIdx}-${idx}`,
+          role: item.role,
+          memberId: memberObj?.id || item.memberId,
+          memberName: memberObj?.name || item.memberName,
           rsvpStatus: 'pending' as RSVPStatus,
         };
       });
@@ -744,17 +1307,87 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               {/* Matriz de Roles + Estado de Disponibilidad para la Fecha del Evento */}
               <div className="space-y-3 pt-2">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <UserCheck className="w-5 h-5 text-emerald-500" />
-                    Matriz de Roles y Confirmación (RSVP) — {activeEvent.date}
-                  </h3>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Muestra alertas automáticas si un miembro bloqueó esta fecha
-                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <UserCheck className="w-5 h-5 text-emerald-500" />
+                      Integrantes e Instrumentos Asignados ({activeEvent.assignments.length}) — {activeEvent.date}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Sin límite por instrumento: puedes asignar varias voces principales, múltiples coros o instrumentos repetidos.
+                    </p>
+                  </div>
                 </div>
 
+                {/* Barra para que el Líder agregue más miembros/voces/instrumentos al evento activo */}
+                {isLeader && (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                      + Agregar al evento:
+                    </span>
+                    <select
+                      value={addActiveMemberId || members[0]?.id || ''}
+                      onChange={(e) => {
+                        const mId = e.target.value;
+                        setAddActiveMemberId(mId);
+                        const mObj = members.find((m) => m.id === mId);
+                        if (mObj?.instruments[0]) {
+                          setAddActiveRole(mObj.instruments[0]);
+                        }
+                      }}
+                      className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white flex-1"
+                    >
+                      {members.map((m) => {
+                        const av = getMemberAvailabilityForDate(m.id, activeEvent.date);
+                        return (
+                          <option key={m.id} value={m.id}>
+                            {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
+                            {m.name} ({m.instruments.join(', ') || 'Miembro'})
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    <select
+                      value={addActiveRole}
+                      onChange={(e) => setAddActiveRole(e.target.value as InstrumentRole)}
+                      className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white"
+                    >
+                      {ALL_INSTRUMENT_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetM =
+                          members.find((m) => m.id === addActiveMemberId) ||
+                          members[0];
+                        if (!targetM) return;
+                        const newRow: ServiceAssignment = {
+                          id: `asg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                          memberId: targetM.id,
+                          memberName: targetM.name,
+                          role: addActiveRole,
+                          rsvpStatus: 'pending',
+                        };
+                        onUpdateEventAssignments(activeEvent.id, [
+                          ...activeEvent.assignments,
+                          newRow,
+                        ]);
+                      }}
+                      className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Agregar Miembro</span>
+                    </button>
+                  </div>
+                )}
+
                 <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-                  {activeEvent.assignments.map((assign) => {
+                  {activeEvent.assignments.map((assign, assignIdx) => {
                     const isCurrentUser = assign.memberId === activeMember.id;
                     const memberAvail = getMemberAvailabilityForDate(
                       assign.memberId,
@@ -764,7 +1397,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
                     return (
                       <div
-                        key={assign.role}
+                        key={assign.id || `${assign.memberId}-${assign.role}-${assignIdx}`}
                         className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3.5 ${
                           isBlockedDate
                             ? 'bg-rose-500/5'
@@ -773,10 +1406,31 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             : 'bg-white dark:bg-slate-900'
                         }`}
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0 flex-1">
-                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 w-36 shrink-0">
-                            {assign.role}
-                          </span>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                          {isLeader ? (
+                            <select
+                              value={assign.role}
+                              onChange={(e) => {
+                                const newRole = e.target.value as InstrumentRole;
+                                const updated = activeEvent.assignments.map(
+                                  (a, i) =>
+                                    i === assignIdx ? { ...a, role: newRole } : a
+                                );
+                                onUpdateEventAssignments(activeEvent.id, updated);
+                              }}
+                              className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-xs font-bold text-amber-600 dark:text-amber-400 sm:w-44 shrink-0"
+                            >
+                              {ALL_INSTRUMENT_ROLES.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 sm:w-40 shrink-0">
+                              {assign.role}
+                            </span>
+                          )}
 
                           <div className="flex flex-wrap items-center gap-2 min-w-0">
                             {isLeader ? (
@@ -786,7 +1440,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                   onReassignRole(
                                     activeEvent.id,
                                     assign.role,
-                                    e.target.value
+                                    e.target.value,
+                                    assignIdx
                                   )
                                 }
                                 className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
@@ -833,7 +1488,13 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           <button
                             type="button"
                             onClick={() =>
-                              onUpdateRSVP(activeEvent.id, assign.role, 'confirmed')
+                              onUpdateRSVP(
+                                activeEvent.id,
+                                assign.role,
+                                'confirmed',
+                                assignIdx,
+                                assign.id
+                              )
                             }
                             className={`min-h-[42px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
                               assign.rsvpStatus === 'confirmed'
@@ -848,7 +1509,13 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           <button
                             type="button"
                             onClick={() =>
-                              onUpdateRSVP(activeEvent.id, assign.role, 'pending')
+                              onUpdateRSVP(
+                                activeEvent.id,
+                                assign.role,
+                                'pending',
+                                assignIdx,
+                                assign.id
+                              )
                             }
                             className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
                               assign.rsvpStatus === 'pending'
@@ -863,7 +1530,13 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           <button
                             type="button"
                             onClick={() =>
-                              onUpdateRSVP(activeEvent.id, assign.role, 'declined')
+                              onUpdateRSVP(
+                                activeEvent.id,
+                                assign.role,
+                                'declined',
+                                assignIdx,
+                                assign.id
+                              )
                             }
                             className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
                               assign.rsvpStatus === 'declined'
@@ -874,6 +1547,22 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             <XCircle className="w-3.5 h-3.5" />
                             Declinar
                           </button>
+
+                          {isLeader && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = activeEvent.assignments.filter(
+                                  (_, i) => i !== assignIdx
+                                );
+                                onUpdateEventAssignments(activeEvent.id, updated);
+                              }}
+                              title="Quitar de este evento"
+                              className="min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1004,15 +1693,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Fecha
-                  </label>
-                  <input
-                    type="date"
-                    required
+                  <InteractiveDatePicker
+                    label="Fecha"
                     value={availDate}
-                    onChange={(e) => setAvailDate(e.target.value)}
-                    className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-mono text-slate-900 dark:text-white"
+                    onChange={(d) => setAvailDate(d)}
                   />
                 </div>
 
@@ -1367,41 +2051,26 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Fecha Inicial
-                  </label>
-                  <input
-                    type="date"
-                    required
+                  <InteractiveDatePicker
+                    label="Fecha"
                     value={newDate}
-                    onChange={(e) => setNewDate(e.target.value)}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                    onChange={(d) => setNewDate(d)}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Hora Citación
-                  </label>
-                  <input
-                    type="time"
-                    required
+                  <InteractiveTimePicker
+                    label="Hora Citación"
                     value={newCallTime}
-                    onChange={(e) => setNewCallTime(e.target.value)}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                    onChange={(t) => setNewCallTime(t)}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Hora Inicio
-                  </label>
-                  <input
-                    type="time"
-                    required
+                  <InteractiveTimePicker
+                    label="Hora Inicio"
                     value={newTime}
-                    onChange={(e) => setNewTime(e.target.value)}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                    onChange={(t) => setNewTime(t)}
                   />
                 </div>
                 <div>
@@ -1487,62 +2156,169 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   </div>
                 </div>
 
-                {/* Asignación de Roles para el nuevo evento con aviso de disponibilidad */}
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-700/80 space-y-2">
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Asignación de Instrumentos para este Evento:
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {ALL_INSTRUMENT_ROLES.map((role) => {
-                      const selectedMemberId =
-                        roleMemberMap[role] || members[0]?.id || '';
-                      const selAvail = getMemberAvailabilityForDate(
-                        selectedMemberId,
-                        newDate
-                      );
-                      const isBlocked = selAvail?.status === 'unavailable';
-                      return (
-                        <div
-                          key={role}
-                          className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 ${
-                            isBlocked
-                              ? 'border-rose-500/50 bg-rose-500/10'
-                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
-                          }`}
-                        >
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">
-                            {role}
-                          </span>
-                          <select
-                            value={selectedMemberId}
-                            onChange={(e) =>
-                              setRoleMemberMap((prev) => ({
-                                ...prev,
-                                [role]: e.target.value,
-                              }))
-                            }
-                            className="min-h-[34px] px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white max-w-[180px]"
-                          >
-                            {members.map((m) => {
-                              const av = getMemberAvailabilityForDate(
-                                m.id,
-                                newDate
-                              );
-                              return (
-                                <option key={m.id} value={m.id}>
-                                  {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
-                                  {m.name}
-                                  {av?.status === 'unavailable'
-                                    ? ' (No disp.)'
-                                    : ''}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </div>
-                      );
-                    })}
+                {/* Asignación Individual e Ilimitada de Miembros e Instrumentos para el nuevo evento */}
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-700/80 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">
+                        Asignación de Instrumentos y Voces para este Evento ({draftAssignments.length} asignados):
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Agrega miembros individualmente sin límite y asígnales su instrumento o voz aunque se repitan (ej. 2 Vocalistas líderes, 6 Coros, 2 Guitarras).
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleAddDraftAssignment()}
+                        className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 ${accent.bgClass}`}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Agregar Fila</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDraftAssignments(buildSmartAssignmentsForDate(newDate))
+                        }
+                        className="min-h-[36px] px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300"
+                      >
+                        Cargar Disponibles
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Botones rápidos de 1 toque por cada miembro para agregarlo al instante */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Toca un miembro para sumarlo al evento (puedes agregarlo varias veces si hace voz + instrumento):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {members.map((m) => {
+                        const isBlocked =
+                          getMemberAvailabilityForDate(m.id, newDate)?.status ===
+                          'unavailable';
+                        const countInDraft = draftAssignments.filter(
+                          (a) => a.memberId === m.id
+                        ).length;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => handleAddDraftAssignment(m)}
+                            className={`px-2.5 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1 transition-all ${
+                              isBlocked
+                                ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                : countInDraft > 0
+                                ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-amber-500'
+                            }`}
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>{m.name}</span>
+                            {countInDraft > 0 && (
+                              <span className="px-1.5 py-0.2 rounded-full bg-emerald-600 text-white text-[10px] font-mono">
+                                {countInDraft}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Lista dinámica de miembros asignados y su instrumento */}
+                  {draftAssignments.length === 0 ? (
+                    <div className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-xs text-slate-500">
+                      No hay miembros asignados todavía. Toca «+ Agregar Fila» o toca el nombre de cada miembro arriba.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                      {draftAssignments.map((item, idx) => {
+                        const selAvail = getMemberAvailabilityForDate(
+                          item.memberId,
+                          newDate
+                        );
+                        const isBlocked = selAvail?.status === 'unavailable';
+
+                        return (
+                          <div
+                            key={item.id || `draft-${idx}`}
+                            className={`p-2.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                              isBlocked
+                                ? 'border-rose-500/50 bg-rose-500/10'
+                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-[11px] font-bold text-slate-500 flex items-center justify-center shrink-0">
+                                {idx + 1}
+                              </span>
+
+                              {/* Selector de Miembro */}
+                              <select
+                                value={item.memberId}
+                                onChange={(e) =>
+                                  handleUpdateDraftAssignmentMember(idx, e.target.value)
+                                }
+                                className="min-h-[38px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white flex-1 min-w-0"
+                              >
+                                {members.map((m) => {
+                                  const av = getMemberAvailabilityForDate(
+                                    m.id,
+                                    newDate
+                                  );
+                                  return (
+                                    <option key={m.id} value={m.id}>
+                                      {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
+                                      {m.name}
+                                      {av?.status === 'unavailable'
+                                        ? ' (No disp.)'
+                                        : ''}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
+
+                            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                              {/* Selector de Instrumento / Voz (se pueden repetir sin límite) */}
+                              <select
+                                value={item.role}
+                                onChange={(e) =>
+                                  handleUpdateDraftAssignmentRole(
+                                    idx,
+                                    e.target.value as InstrumentRole
+                                  )
+                                }
+                                className="min-h-[38px] px-2.5 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs font-bold text-amber-700 dark:text-amber-300"
+                              >
+                                {ALL_INSTRUMENT_ROLES.map((roleOpt) => (
+                                  <option
+                                    key={roleOpt}
+                                    value={roleOpt}
+                                    className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                  >
+                                    {roleOpt}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDraftAssignment(idx)}
+                                title="Quitar miembro del evento"
+                                className="min-h-[38px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 
