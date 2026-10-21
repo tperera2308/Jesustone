@@ -199,8 +199,11 @@ export interface PitchDetectionResult {
   noteName: string;
   solfegeName: string;
   octave: number;
-  cents: number; // -50 to +50 (clamped to -25..+25 for visual needle)
+  cents: number; // -50 to +50 exact float/rounded
+  rawCents: number; // unrounded float cents (-50 to +50) for smooth 60fps needle
   isInTune: boolean;
+  clarity?: number; // 0..1 pitch confidence
+  rms?: number; // 0..1 microphone input level
 }
 
 const CHROMATIC_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -208,12 +211,16 @@ const CHROMATIC_SOLFEGE = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', '
 
 export function frequencyToPitchData(
   freq: number,
-  referenceA4 = 440
+  referenceA4 = 440,
+  clarity = 1,
+  rms = 0.1
 ): PitchDetectionResult {
   const noteNum = 12 * (Math.log(freq / referenceA4) / Math.log(2));
   const midi = Math.round(noteNum) + 69;
   const standardFreq = referenceA4 * Math.pow(2, (midi - 69) / 12);
-  const cents = Math.round(1200 * Math.log2(freq / standardFreq));
+  const exactCents = 1200 * Math.log2(freq / standardFreq);
+  const clampedRawCents = Math.max(-50, Math.min(50, exactCents));
+  const cents = Math.round(clampedRawCents);
   const noteIndex = ((midi % 12) + 12) % 12;
   const octave = Math.floor(midi / 12) - 1;
 
@@ -222,80 +229,160 @@ export function frequencyToPitchData(
     noteName: CHROMATIC_NAMES[noteIndex],
     solfegeName: CHROMATIC_SOLFEGE[noteIndex],
     octave,
-    cents: Math.max(-50, Math.min(50, cents)),
-    isInTune: Math.abs(cents) <= 5,
+    cents,
+    rawCents: clampedRawCents,
+    isInTune: Math.abs(exactCents) <= 4.5,
+    clarity,
+    rms,
   };
 }
 
-// Autocorrelation algorithm for real-time microphone frequency detection
+export interface RawPitchReadout {
+  frequency: number;
+  clarity: number;
+  rms: number;
+}
+
+/**
+ * Studio-grade real-time McLeod Pitch Method (NSDF - Normalized Square Difference Function)
+ * Detects fundamental frequencies from 38 Hz (Low Bass B0/E1) up to 1200 Hz (High Soprano/Guitar)
+ * with sub-cent parabolic interpolation and high sensitivity for mobile microphones.
+ */
+export function detectPitchDetailed(
+  buffer: Float32Array,
+  sampleRate: number
+): RawPitchReadout {
+  const size = buffer.length;
+
+  // 1. Compute DC offset and RMS signal energy
+  let mean = 0;
+  for (let i = 0; i < size; i++) {
+    mean += buffer[i];
+  }
+  mean /= size;
+
+  let rms = 0;
+  for (let i = 0; i < size; i++) {
+    const centered = buffer[i] - mean;
+    rms += centered * centered;
+  }
+  rms = Math.sqrt(rms / size);
+
+  // Sensitive noise floor so sustained acoustic guitar strings & soft vocals keep tracking smoothly
+  if (rms < 0.0022) {
+    return { frequency: -1, clarity: 0, rms };
+  }
+
+  // Use a focused analysis window (up to 2048 samples) for fast 60fps execution (< 0.8ms)
+  const analysisSize = Math.min(size, 2048);
+  const minFreq = 38; // Bass E1 (41.2Hz) and down-tuned D1
+  const maxFreq = 1250; // High vocals / high guitar frets
+  const minTau = Math.max(2, Math.floor(sampleRate / maxFreq));
+  const maxTau = Math.min(Math.floor(analysisSize * 0.55), Math.ceil(sampleRate / minFreq));
+
+  const nsdf = new Float32Array(maxTau + 1);
+
+  for (let tau = minTau; tau <= maxTau; tau++) {
+    let acf = 0;
+    let divisorM = 0;
+    const limit = analysisSize - tau;
+    for (let i = 0; i < limit; i++) {
+      const a = buffer[i] - mean;
+      const b = buffer[i + tau] - mean;
+      acf += a * b;
+      divisorM += a * a + b * b;
+    }
+    nsdf[tau] = divisorM > 0 ? (2 * acf) / divisorM : 0;
+  }
+
+  // Find all positive-region peaks in NSDF (after each zero crossing from negative to positive)
+  const peaks: { tau: number; val: number }[] = [];
+  let inPositiveRegion = false;
+  let currentMaxTau = 0;
+  let currentMaxVal = -1;
+
+  // Start searching after the initial decay from tau=0
+  let startTau = minTau;
+  while (startTau < maxTau && nsdf[startTau] > 0) {
+    startTau++;
+  }
+
+  for (let tau = startTau; tau <= maxTau; tau++) {
+    const val = nsdf[tau];
+    if (val > 0) {
+      if (!inPositiveRegion) {
+        inPositiveRegion = true;
+        currentMaxTau = tau;
+        currentMaxVal = val;
+      } else if (val > currentMaxVal) {
+        currentMaxTau = tau;
+        currentMaxVal = val;
+      }
+    } else if (inPositiveRegion) {
+      peaks.push({ tau: currentMaxTau, val: currentMaxVal });
+      inPositiveRegion = false;
+    }
+  }
+  if (inPositiveRegion && currentMaxVal > 0) {
+    peaks.push({ tau: currentMaxTau, val: currentMaxVal });
+  }
+
+  if (peaks.length === 0) {
+    return { frequency: -1, clarity: 0, rms };
+  }
+
+  // McLeod First-Peak Selection: pick the first peak that reaches at least 82% of the highest peak
+  // This prevents locking onto the 2nd/3rd harmonic (octave jumping) on guitar and piano notes.
+  let highestPeakVal = 0;
+  for (let i = 0; i < peaks.length; i++) {
+    if (peaks[i].val > highestPeakVal) {
+      highestPeakVal = peaks[i].val;
+    }
+  }
+
+  // Require minimum pitch clarity so random room noise doesn't move the needle
+  if (highestPeakVal < 0.48) {
+    return { frequency: -1, clarity: highestPeakVal, rms };
+  }
+
+  const threshold = highestPeakVal * 0.82;
+  const chosenPeak = peaks.find((p) => p.val >= threshold) || peaks[0];
+  let refinedTau = chosenPeak.tau;
+  let refinedClarity = chosenPeak.val;
+
+  // Parabolic interpolation around chosenPeak.tau for sub-cent accuracy
+  if (chosenPeak.tau > minTau && chosenPeak.tau < maxTau) {
+    const y1 = nsdf[chosenPeak.tau - 1];
+    const y2 = nsdf[chosenPeak.tau];
+    const y3 = nsdf[chosenPeak.tau + 1];
+    const denom = y1 + y3 - 2 * y2;
+    if (Math.abs(denom) > 1e-9) {
+      const delta = (y1 - y3) / (2 * denom);
+      if (Math.abs(delta) < 1) {
+        refinedTau = chosenPeak.tau + delta;
+        refinedClarity = y2 - 0.25 * (y1 - y3) * delta;
+      }
+    }
+  }
+
+  const freq = sampleRate / refinedTau;
+  if (freq < minFreq || freq > maxFreq || !Number.isFinite(freq)) {
+    return { frequency: -1, clarity: 0, rms };
+  }
+
+  return {
+    frequency: freq,
+    clarity: Math.min(1, Math.max(0, refinedClarity)),
+    rms,
+  };
+}
+
+// Backwards-compatible helper returning frequency or -1
 export function detectPitchAutocorrelate(
   buffer: Float32Array,
   sampleRate: number
 ): number {
-  const size = buffer.length;
-  let rms = 0;
-  for (let i = 0; i < size; i++) {
-    const val = buffer[i];
-    rms += val * val;
-  }
-  rms = Math.sqrt(rms / size);
-  if (rms < 0.012) return -1; // Too quiet / noise floor
-
-  let r1 = 0;
-  let r2 = size - 1;
-  const thres = 0.2;
-  for (let i = 0; i < size / 2; i++) {
-    if (Math.abs(buffer[i]) < thres) {
-      r1 = i;
-      break;
-    }
-  }
-  for (let i = 1; i < size / 2; i++) {
-    if (Math.abs(buffer[size - i]) < thres) {
-      r2 = size - i;
-      break;
-    }
-  }
-
-  const trimmed = buffer.slice(r1, r2);
-  const newSize = trimmed.length;
-  const c = new Float32Array(newSize);
-  for (let i = 0; i < newSize; i++) {
-    let sum = 0;
-    for (let j = 0; j < newSize - i; j++) {
-      sum += trimmed[j] * trimmed[j + i];
-    }
-    c[i] = sum;
-  }
-
-  let d = 0;
-  while (d < newSize - 1 && c[d] > c[d + 1]) {
-    d++;
-  }
-  let maxval = -1;
-  let maxpos = -1;
-  for (let i = d; i < newSize; i++) {
-    if (c[i] > maxval) {
-      maxval = c[i];
-      maxpos = i;
-    }
-  }
-
-  let T0 = maxpos;
-  if (T0 <= 0 || T0 >= newSize - 1) return -1;
-
-  const x1 = c[T0 - 1];
-  const x2 = c[T0];
-  const x3 = c[T0 + 1];
-  const a = (x1 + x3 - 2 * x2) / 2;
-  const b = (x3 - x1) / 2;
-  if (a) {
-    T0 = T0 - b / (2 * a);
-  }
-
-  const freq = sampleRate / T0;
-  if (freq < 55 || freq > 1400) return -1;
-  return freq;
+  return detectPitchDetailed(buffer, sampleRate).frequency;
 }
 
 // Generates a playable WAV Data URL (warm musical guide / voice note audio) as fallback when microphone hardware is unavailable

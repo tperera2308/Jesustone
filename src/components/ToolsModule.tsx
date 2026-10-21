@@ -5,7 +5,7 @@ import {
   PianoKeyDefinition,
   PianoTimbre,
   TWO_OCTAVE_KEYS,
-  detectPitchAutocorrelate,
+  detectPitchDetailed,
   frequencyToPitchData,
   getAudioContext,
   playMetronomeClick,
@@ -50,6 +50,15 @@ const PITCH_PIPE_NOTES = [
   { label: 'B4 (Si)', freq: 493.88 },
 ];
 
+const GUITAR_STANDARD_STRINGS = [
+  { stringNum: 6, label: '6ª E2', note: 'E', octave: 2, freq: 82.41 },
+  { stringNum: 5, label: '5ª A2', note: 'A', octave: 2, freq: 110.0 },
+  { stringNum: 4, label: '4ª D3', note: 'D', octave: 3, freq: 146.83 },
+  { stringNum: 3, label: '3ª G3', note: 'G', octave: 3, freq: 196.0 },
+  { stringNum: 2, label: '2ª B3', note: 'B', octave: 3, freq: 246.94 },
+  { stringNum: 1, label: '1ª E4', note: 'E', octave: 4, freq: 329.63 },
+];
+
 export const ToolsModule: React.FC<ToolsModuleProps> = ({
   accentColor,
   songs,
@@ -64,18 +73,24 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
   >(() => (initialBpm ? 'metronome' : null));
 
   // =========================================================================
-  // 1. CHROMATIC TUNER & PITCH PIPE STATE
+  // 1. CHROMATIC TUNER & PITCH PIPE STATE (60 FPS REAL-TIME NSDF ENGINE)
   // =========================================================================
   const [isMicListening, setIsMicListening] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [referenceA4, setReferenceA4] = useState<number>(440);
+  const [hasActiveSignal, setHasActiveSignal] = useState<boolean>(false);
+  const [inputLevelPct, setInputLevelPct] = useState<number>(0);
+  const [smoothedNeedleCents, setSmoothedNeedleCents] = useState<number>(0);
   const [pitchData, setPitchData] = useState<PitchDetectionResult>({
     frequency: 440.0,
     noteName: 'A',
     solfegeName: 'La',
     octave: 4,
     cents: 0,
+    rawCents: 0,
     isInTune: true,
+    clarity: 1,
+    rms: 0,
   });
   const [activePitchPipeFreq, setActivePitchPipeFreq] = useState<number | null>(null);
 
@@ -83,6 +98,15 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const pitchPipeOscRef = useRef<OscillatorNode | null>(null);
+  const referenceA4Ref = useRef<number>(referenceA4);
+  const smoothedFreqRef = useRef<number>(440);
+  const smoothedCentsRef = useRef<number>(0);
+  const recentFreqsRef = useRef<number[]>([]);
+  const lastSignalTimestampRef = useRef<number>(0);
+
+  useEffect(() => {
+    referenceA4Ref.current = referenceA4;
+  }, [referenceA4]);
 
   const stopMicrophone = () => {
     if (rafIdRef.current) {
@@ -94,6 +118,8 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
       mediaStreamRef.current = null;
     }
     setIsMicListening(false);
+    setHasActiveSignal(false);
+    setInputLevelPct(0);
   };
 
   const startMicrophone = async () => {
@@ -104,27 +130,109 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
           echoCancellation: false,
           autoGainControl: false,
           noiseSuppression: false,
+          channelCount: 1,
         },
       });
       mediaStreamRef.current = stream;
       const ctx = getAudioContext();
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+
       const source = ctx.createMediaStreamSource(stream);
+
+      // Hardware-accelerated pre-filtering for crystal-clear fundamental pitch detection:
+      // 1) High-pass filter at 35Hz removes AC hum / handling thumps
+      const highpass = ctx.createBiquadFilter();
+      highpass.type = 'highpass';
+      highpass.frequency.value = 35;
+
+      // 2) Low-pass filter at 1300Hz attenuates fret buzz / string squeak / upper harmonics
+      const lowpass = ctx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.value = 1300;
+
+      // 3) Clean pre-gain boost (x3.5) so mobile microphones capture sustained strings easily
+      const preGain = ctx.createGain();
+      preGain.gain.value = 3.5;
+
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
-      source.connect(analyser);
+      analyser.smoothingTimeConstant = 0;
+
+      source.connect(highpass);
+      highpass.connect(lowpass);
+      lowpass.connect(preGain);
+      preGain.connect(analyser);
+
       analyserRef.current = analyser;
+      recentFreqsRef.current = [];
+      lastSignalTimestampRef.current = performance.now();
       setIsMicListening(true);
 
       const buffer = new Float32Array(analyser.fftSize);
+
       const updatePitch = () => {
         if (!analyserRef.current) return;
         analyserRef.current.getFloatTimeDomainData(buffer);
-        const detectedFreq = detectPitchAutocorrelate(buffer, ctx.sampleRate);
-        if (detectedFreq !== -1) {
-          setPitchData(frequencyToPitchData(detectedFreq, referenceA4));
+
+        const now = performance.now();
+        const readout = detectPitchDetailed(buffer, ctx.sampleRate);
+
+        // Visual microphone level meter (0 to 100%)
+        const visualLevel = Math.min(100, Math.round(Math.sqrt(readout.rms) * 240));
+        setInputLevelPct((prev) => Math.round(prev * 0.65 + visualLevel * 0.35));
+
+        if (readout.frequency !== -1 && readout.clarity >= 0.5) {
+          lastSignalTimestampRef.current = now;
+          setHasActiveSignal(true);
+
+          // 3-point median filter to reject any single-frame octave glitch on pluck attack
+          const recent = recentFreqsRef.current;
+          recent.push(readout.frequency);
+          if (recent.length > 3) recent.shift();
+          const sorted = [...recent].sort((a, b) => a - b);
+          const medianFreq = sorted[Math.floor(sorted.length / 2)];
+
+          // If note jumped by more than a semitone (>6%), snap immediately; otherwise smooth exponentially
+          const prevFreq = smoothedFreqRef.current;
+          const relDiff = Math.abs(medianFreq - prevFreq) / Math.max(1, prevFreq);
+          const nextFreq =
+            relDiff > 0.055
+              ? medianFreq
+              : prevFreq + (medianFreq - prevFreq) * 0.34;
+          smoothedFreqRef.current = nextFreq;
+
+          const nextPitchData = frequencyToPitchData(
+            nextFreq,
+            referenceA4Ref.current,
+            readout.clarity,
+            readout.rms
+          );
+
+          // Smooth ballistic needle cents at 60 FPS
+          smoothedCentsRef.current =
+            smoothedCentsRef.current +
+            (nextPitchData.rawCents - smoothedCentsRef.current) * 0.32;
+
+          setSmoothedNeedleCents(smoothedCentsRef.current);
+          setPitchData(nextPitchData);
+        } else {
+          // If silent for > 900ms, gently relax the needle back toward 0 cents
+          const silenceMs = now - lastSignalTimestampRef.current;
+          if (silenceMs > 900) {
+            setHasActiveSignal(false);
+            smoothedCentsRef.current *= 0.88;
+            if (Math.abs(smoothedCentsRef.current) < 0.2) {
+              smoothedCentsRef.current = 0;
+            }
+            setSmoothedNeedleCents(smoothedCentsRef.current);
+          }
         }
+
         rafIdRef.current = requestAnimationFrame(updatePitch);
       };
+
       rafIdRef.current = requestAnimationFrame(updatePitch);
     } catch {
       setMicError(
@@ -146,6 +254,7 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
 
     if (activePitchPipeFreq === freq) {
       setActivePitchPipeFreq(null);
+      setHasActiveSignal(false);
       return;
     }
 
@@ -163,7 +272,11 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
 
     pitchPipeOscRef.current = osc;
     setActivePitchPipeFreq(freq);
-    setPitchData(frequencyToPitchData(freq, referenceA4));
+    const data = frequencyToPitchData(freq, referenceA4, 1, 0.25);
+    setPitchData(data);
+    smoothedCentsRef.current = data.rawCents;
+    setSmoothedNeedleCents(data.rawCents);
+    setHasActiveSignal(true);
   };
 
   useEffect(() => {
@@ -179,8 +292,9 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
     };
   }, []);
 
-  const clampedCents = Math.max(-25, Math.min(25, pitchData.cents));
-  const needleAngleDeg = (clampedCents / 25) * 65;
+  // Full -50 to +50 cents range mapped smoothly across -72° to +72° arc
+  const clampedCents = Math.max(-50, Math.min(50, smoothedNeedleCents));
+  const needleAngleDeg = (clampedCents / 50) * 72;
 
   // =========================================================================
   // 2. INTERACTIVE 2-OCTAVE PIANO STATE (24 keys: C3 to B4)
@@ -460,9 +574,9 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
         </div>
       </div>
 
-      {/* PANTALLA PROPIA 1: AFINADOR CROMÁTICO */}
+      {/* PANTALLA PROPIA 1: AFINADOR CROMÁTICO DE ALTA PRECISIÓN (60 FPS NSDF) */}
       {selectedToolScreen === 'tuner' && (
-        <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 space-y-6">
+        <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${accent.bgClass}`}>
@@ -470,10 +584,10 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                  Afinador Cromático + Pitch Pipe
+                  Afinador Cromático en Tiempo Real
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                  Aguja de precisión (-25 a +25 cents) · Calibración A4 = {referenceA4} Hz
+                  Motor McLeod NSDF a 60 FPS (-50 a +50 cents) · A4 = {referenceA4} Hz
                 </p>
               </div>
             </div>
@@ -507,38 +621,117 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
             </div>
           )}
 
-          <div className="p-6 sm:p-8 rounded-3xl bg-slate-950 text-white border border-slate-800 flex flex-col items-center">
-            <div className="w-full max-w-md flex items-center justify-between text-xs font-mono text-slate-400 px-2 mb-2">
-              <span>-25c</span>
-              <span>-15c</span>
-              <span className="text-emerald-400 font-bold">0 CENTS</span>
-              <span>+15c</span>
-              <span>+25c</span>
+          {/* Panel Principal OLED del Afinador */}
+          <div className="p-5 sm:p-8 rounded-3xl bg-black text-white border border-neutral-800 flex flex-col items-center space-y-4 shadow-inner">
+            {/* Barra superior de Estado de Escucha + Nivel de Señal del Micrófono */}
+            <div className="w-full max-w-md flex items-center justify-between gap-3 text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    !isMicListening && !activePitchPipeFreq
+                      ? 'bg-neutral-600'
+                      : hasActiveSignal
+                      ? 'bg-emerald-400 animate-pulse'
+                      : 'bg-amber-400 animate-pulse'
+                  }`}
+                />
+                <span className="text-neutral-300 font-semibold">
+                  {!isMicListening && !activePitchPipeFreq
+                    ? 'Micrófono en pausa'
+                    : hasActiveSignal
+                    ? 'Detectando nota en vivo (60 FPS)'
+                    : 'Escuchando... toca una cuerda o canta'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-neutral-400">Señal</span>
+                <div className="w-20 h-2 rounded-full bg-neutral-800 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-75 ${
+                      inputLevelPct > 15 ? 'bg-emerald-400' : 'bg-amber-400'
+                    }`}
+                    style={{ width: `${isMicListening ? Math.max(4, inputLevelPct) : 0}%` }}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="relative w-72 sm:w-80 h-36 flex items-end justify-center overflow-hidden">
-              <svg viewBox="0 0 220 110" className="w-full h-full">
+            {/* Escala numérica de Cents (-50 a +50) */}
+            <div className="w-full max-w-md flex items-center justify-between text-[11px] sm:text-xs font-mono text-neutral-400 px-2 pt-1">
+              <span>-50c (♭)</span>
+              <span>-25c</span>
+              <span className="text-emerald-400 font-bold">0 CENTS</span>
+              <span>+25c</span>
+              <span>+50c (♯)</span>
+            </div>
+
+            {/* Medidor Semicircular con graduaciones cada 5 cents y Aguja a 60 FPS */}
+            <div className="relative w-72 sm:w-88 h-40 flex items-end justify-center overflow-hidden">
+              <svg viewBox="0 0 240 125" className="w-full h-full">
+                {/* Arco base */}
                 <path
-                  d="M 20 100 A 90 90 0 0 1 200 100"
+                  d="M 22 112 A 98 98 0 0 1 218 112"
                   fill="none"
-                  stroke="#334155"
+                  stroke="#1f2937"
                   strokeWidth="8"
                   strokeLinecap="round"
                 />
+                {/* Zona verde central (±5 cents) */}
                 <path
-                  d="M 94 12 A 90 90 0 0 1 126 12"
+                  d="M 107 15 A 98 98 0 0 1 133 15"
                   fill="none"
                   stroke="#10B981"
                   strokeWidth="10"
                   strokeLinecap="round"
                 />
-                <g transform={`translate(110, 100) rotate(${needleAngleDeg})`}>
+
+                {/* Marcas de graduación cada 5 cents (-50 a +50) */}
+                {Array.from({ length: 21 }, (_, idx) => {
+                  const centTick = -50 + idx * 5;
+                  const tickAngle = (centTick / 50) * 72;
+                  const isCenter = centTick === 0;
+                  const isMajor = centTick % 25 === 0;
+                  return (
+                    <g
+                      key={centTick}
+                      transform={`translate(120, 112) rotate(${tickAngle})`}
+                    >
+                      <line
+                        x1="0"
+                        y1={isCenter ? -104 : isMajor ? -102 : -99}
+                        x2="0"
+                        y2="-90"
+                        stroke={
+                          isCenter
+                            ? '#10B981'
+                            : isMajor
+                            ? '#9CA3AF'
+                            : '#4B5563'
+                        }
+                        strokeWidth={isCenter ? '3' : isMajor ? '2' : '1.2'}
+                        strokeLinecap="round"
+                      />
+                    </g>
+                  );
+                })}
+
+                {/* Aguja en Tiempo Real */}
+                <g transform={`translate(120, 112) rotate(${needleAngleDeg})`}>
                   <line
                     x1="0"
                     y1="0"
                     x2="0"
-                    y2="-82"
-                    stroke={pitchData.isInTune ? '#10B981' : '#F59E0B'}
+                    y2="-92"
+                    stroke={
+                      !hasActiveSignal
+                        ? '#6B7280'
+                        : pitchData.isInTune
+                        ? '#10B981'
+                        : Math.abs(smoothedNeedleCents) <= 15
+                        ? '#F59E0B'
+                        : '#F43F5E'
+                    }
                     strokeWidth="4"
                     strokeLinecap="round"
                   />
@@ -546,29 +739,67 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
                     cx="0"
                     cy="0"
                     r="8"
-                    fill={pitchData.isInTune ? '#10B981' : '#F59E0B'}
+                    fill={
+                      !hasActiveSignal
+                        ? '#6B7280'
+                        : pitchData.isInTune
+                        ? '#10B981'
+                        : Math.abs(smoothedNeedleCents) <= 15
+                        ? '#F59E0B'
+                        : '#F43F5E'
+                    }
                   />
                 </g>
               </svg>
             </div>
 
-            <div className="text-center mt-3 space-y-1">
-              <div className="flex items-baseline justify-center gap-2">
+            {/* Barra lineal fina horizontal de precisión (estilo pedal estroboscópico) */}
+            <div className="w-full max-w-md space-y-1.5">
+              <div className="relative h-3 rounded-full bg-neutral-900 border border-neutral-800 overflow-hidden">
+                {/* Zona central verde */}
+                <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-[10%] bg-emerald-500/25 border-x border-emerald-500/50" />
+                {/* Indicador móvil */}
+                <div
+                  className={`absolute top-0.5 bottom-0.5 w-3 rounded-full -translate-x-1/2 shadow transition-none ${
+                    !hasActiveSignal
+                      ? 'bg-neutral-600'
+                      : pitchData.isInTune
+                      ? 'bg-emerald-400 shadow-emerald-400/50'
+                      : Math.abs(smoothedNeedleCents) <= 15
+                      ? 'bg-amber-400'
+                      : 'bg-rose-500'
+                  }`}
+                  style={{
+                    left: `${50 + clampedCents}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Nota Detectada + Guía de Afinación */}
+            <div className="text-center pt-1 space-y-2">
+              <div className="flex items-baseline justify-center gap-2.5">
                 <span
                   className={`text-5xl sm:text-6xl font-bold font-mono tracking-tight ${
-                    pitchData.isInTune ? 'text-emerald-400' : 'text-amber-400'
+                    !hasActiveSignal
+                      ? 'text-neutral-400'
+                      : pitchData.isInTune
+                      ? 'text-emerald-400'
+                      : Math.abs(smoothedNeedleCents) <= 15
+                      ? 'text-amber-400'
+                      : 'text-rose-400'
                   }`}
                 >
                   {pitchData.noteName}
                   <sub className="text-2xl">{pitchData.octave}</sub>
                 </span>
-                <span className="text-xl font-semibold text-slate-400">
+                <span className="text-xl font-semibold text-neutral-400">
                   ({pitchData.solfegeName}
                   {pitchData.octave})
                 </span>
               </div>
 
-              <div className="flex items-center justify-center gap-3 text-sm font-mono tabular-nums text-slate-300">
+              <div className="flex items-center justify-center gap-3 text-sm font-mono tabular-nums text-neutral-300">
                 <span>{pitchData.frequency.toFixed(1)} Hz</span>
                 <span aria-hidden="true">·</span>
                 <span
@@ -579,6 +810,67 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
                   {pitchData.cents > 0 ? `+${pitchData.cents}` : pitchData.cents} cents
                 </span>
               </div>
+
+              {/* Etiqueta clara de acción para afinar */}
+              <div className="pt-1">
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1 rounded-xl text-xs font-bold ${
+                    !hasActiveSignal
+                      ? 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                      : pitchData.isInTune
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : pitchData.cents < 0
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                  }`}
+                >
+                  {!hasActiveSignal
+                    ? 'Toca una cuerda o nota para medir'
+                    : pitchData.isInTune
+                    ? '✓ ¡AFINADO PERFECTO! (Centro)'
+                    : pitchData.cents < 0
+                    ? '↑ NOTA BAJA (♭) · Sube / Tensa un poco la cuerda'
+                    : '↓ NOTA ALTA (♯) · Baja / Afloja un poco la cuerda'}
+                </span>
+              </div>
+            </div>
+
+            {/* Guía rápida de Cuerdas de Guitarra Estándar (E2 A2 D3 G3 B3 E4) */}
+            <div className="w-full max-w-md pt-3 border-t border-neutral-800/80 space-y-2">
+              <div className="flex items-center justify-between text-[11px] text-neutral-400">
+                <span className="font-semibold">
+                  Referencia Guitarra Estándar (toca para oír guía):
+                </span>
+                <span className="font-mono">EADGBE</span>
+              </div>
+              <div className="grid grid-cols-6 gap-1.5">
+                {GUITAR_STANDARD_STRINGS.map((str) => {
+                  const isDetectedString =
+                    hasActiveSignal &&
+                    pitchData.noteName === str.note &&
+                    pitchData.octave === str.octave;
+                  const isPlayingRef = activePitchPipeFreq === str.freq;
+                  return (
+                    <button
+                      key={str.stringNum}
+                      type="button"
+                      onClick={() => togglePitchPipeTone(str.freq)}
+                      className={`py-2 px-1 rounded-xl font-mono text-[11px] font-bold border transition-all flex flex-col items-center ${
+                        isDetectedString
+                          ? pitchData.isInTune
+                            ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300'
+                            : 'bg-amber-500/25 border-amber-400 text-amber-200'
+                          : isPlayingRef
+                          ? 'bg-indigo-600 border-indigo-400 text-white'
+                          : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                      }`}
+                    >
+                      <span>{str.label}</span>
+                      <span className="text-[9px] opacity-75">{Math.round(str.freq)}Hz</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -586,7 +878,7 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
             <div className="flex items-center justify-between text-xs sm:text-sm">
               <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
                 <Volume2 className="w-4 h-4 text-amber-500" />
-                Generador de Tono de Referencia (Pitch Pipe):
+                Generador de Tono Cromático (Pitch Pipe C4–B4):
               </span>
               <div className="flex items-center gap-2 font-mono text-xs">
                 <button
