@@ -561,7 +561,7 @@ export default function App() {
               targetTab: 'inicio',
             },
             ...g.activityFeed,
-          ],
+          ].slice(0, 5),
         };
         syncGroupToFirestore(updatedGroup);
         return updatedGroup;
@@ -699,7 +699,7 @@ export default function App() {
           timestamp: 'Justo ahora',
         },
         ...g.activityFeed,
-      ],
+      ].slice(0, 5),
     }));
   };
 
@@ -790,7 +790,7 @@ export default function App() {
             targetTab: 'inicio',
           },
           ...g.activityFeed,
-        ],
+        ].slice(0, 5),
       }));
 
       dispatchNotifications([

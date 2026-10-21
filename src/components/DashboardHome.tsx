@@ -73,10 +73,16 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   const isLeader = activeMember.role === 'leader';
   const nextEvent = events[0];
 
-  const myAssignments = events.flatMap((ev) =>
+  const recentActivityFeed = activityFeed.slice(0, 5);
+
+  const myPendingAssignments = events.flatMap((ev) =>
     ev.assignments
       .map((a, index) => ({ event: ev, assignment: a, index }))
-      .filter((item) => item.assignment.memberId === activeMember.id)
+      .filter(
+        (item) =>
+          item.assignment.memberId === activeMember.id &&
+          item.assignment.rsvpStatus === 'pending'
+      )
   );
 
   return (
@@ -369,7 +375,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               </h2>
             </div>
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              Resumen de actividad
+              Últimas {recentActivityFeed.length} de máx. 5
             </span>
           </div>
 
@@ -400,10 +406,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
           ))}
 
-          {/* Tarjetas del Feed de Actividad o Estado Vacío */}
-          {activityFeed.length > 0 ? (
+          {/* Tarjetas del Feed de Actividad (Máximo las últimas 5) o Estado Vacío */}
+          {recentActivityFeed.length > 0 ? (
             <div className="space-y-3">
-              {activityFeed.map((item) => (
+              {recentActivityFeed.map((item) => (
                 <div
                   key={item.id}
                   className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3"
@@ -520,77 +526,78 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               </button>
             </div>
 
-            {myAssignments.length > 0 ? (
+            {myPendingAssignments.length > 0 ? (
               <div className="space-y-3">
-                {myAssignments.map(({ event, assignment, index }) => (
-                  <div
-                    key={`${event.id}-${assignment.id || assignment.role}-${index}`}
-                    className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                        <span>{event.date}</span>
-                        <span>Citación {event.callTime}</span>
+                {myPendingAssignments.map(({ event, assignment, index }) => {
+                  const rolesText =
+                    assignment.roles && assignment.roles.length > 0
+                      ? assignment.roles.join(' + ')
+                      : assignment.role;
+                  return (
+                    <div
+                      key={`${event.id}-${assignment.id || assignment.role}-${index}`}
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                          <span>{event.date}</span>
+                          <span>Citación {event.callTime}</span>
+                        </div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                          {event.title}
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                          Tu rol asignado:{' '}
+                          <strong className={accent.textClass}>{rolesText}</strong>
+                        </p>
                       </div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                        {event.title}
-                      </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                        Tu rol asignado:{' '}
-                        <strong className={accent.textClass}>{assignment.role}</strong>
-                      </p>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onUpdateRSVP(
-                            event.id,
-                            assignment.role,
-                            'confirmed',
-                            index,
-                            assignment.id
-                          )
-                        }
-                        className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                          assignment.rsvpStatus === 'confirmed'
-                            ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Confirmar
-                      </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onUpdateRSVP(
+                              event.id,
+                              assignment.role,
+                              'confirmed',
+                              index,
+                              assignment.id
+                            )
+                          }
+                          className="min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          Confirmar
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onUpdateRSVP(
-                            event.id,
-                            assignment.role,
-                            'declined',
-                            index,
-                            assignment.id
-                          )
-                        }
-                        className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                          assignment.rsvpStatus === 'declined'
-                            ? 'bg-rose-600 text-white shadow-sm'
-                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        <XCircle className="w-4 h-4" />
-                        Declinar
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onUpdateRSVP(
+                              event.id,
+                              assignment.role,
+                              'declined',
+                              index,
+                              assignment.id
+                            )
+                          }
+                          className="min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all bg-white dark:bg-slate-900 border border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Declinar
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                No tienes asignaciones pendientes en los próximos eventos.
-              </p>
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center gap-2.5 text-xs text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span>
+                  ¡Estás al día! No tienes invitaciones pendientes por confirmar.
+                </span>
+              </div>
             )}
           </div>
 
