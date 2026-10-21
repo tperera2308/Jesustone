@@ -1,24 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="116" fill="#000000" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <rect width="24" height="24" rx="5.5" fill="#000000" />
   <defs>
     <linearGradient id="pickGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#fbbf24" />
       <stop offset="100%" stop-color="#d97706" />
     </linearGradient>
   </defs>
-  <!-- Guitar Pick (Púa / Plumilla de Guitarra) Silhouette -->
+  <!-- Guitar Pick (Púa de Guitarra) con proporciones clásicas redondeadas y margen equilibrado -->
   <path
-    d="M256 64 C132 64 84 128 84 218 C84 316 176 410 232 454 C246 465 266 465 280 454 C336 410 428 316 428 218 C428 128 380 64 256 64 Z"
+    d="M12 4.3C15.9 4.3 18.1 6.0 18.1 9.2C18.1 12.6 15.1 16.5 13.2 18.4C12.5 19.05 11.5 19.05 10.8 18.4C8.9 16.5 5.9 12.6 5.9 9.2C5.9 6.0 8.1 4.3 12 4.3Z"
     fill="none"
     stroke="url(#pickGrad)"
-    stroke-width="32"
+    stroke-width="1.65"
+    stroke-linecap="round"
     stroke-linejoin="round"
   />
-  <!-- Christian Cross Inside the Guitar Pick -->
+  <!-- Cruz cristiana proporcionada en el interior -->
   <path
-    d="M256 144 V352 M186 218 H326"
+    d="M12 7.5V15.2M9.2 10.2H14.8"
     stroke="#ffffff"
-    stroke-width="34"
+    stroke-width="1.7"
     stroke-linecap="round"
   />
 </svg>

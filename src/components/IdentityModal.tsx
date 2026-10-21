@@ -170,17 +170,17 @@ export const GuitarPickCrossIcon: React.FC<{ className?: string }> = ({
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="1.85"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
     aria-hidden="true"
   >
-    {/* Silueta de púa / plumilla de guitarra */}
-    <path d="M12 2.25C6.2 2.25 3.75 5.3 3.75 9.75C3.75 14.5 8.15 19.05 10.85 21.15C11.53 21.68 12.47 21.68 13.15 21.15C15.85 19.05 20.25 14.5 20.25 9.75C20.25 5.3 17.8 2.25 12 2.25Z" />
-    {/* Cruz cristiana en el interior */}
-    <path d="M12 6.75V16.25" />
-    <path d="M8.75 9.85H15.25" />
+    {/* Silueta de púa / plumilla de guitarra con proporciones clásicas suaves */}
+    <path d="M12 3.8C16.2 3.8 18.5 5.6 18.5 9.1C18.5 12.8 15.3 16.9 13.3 18.9C12.55 19.6 11.45 19.6 10.7 18.9C8.7 16.9 5.5 12.8 5.5 9.1C5.5 5.6 7.8 3.8 12 3.8Z" />
+    {/* Cruz cristiana proporcionada en el interior */}
+    <path d="M12 7.3V15.4" />
+    <path d="M9.1 10.1H14.9" />
   </svg>
 );
 
