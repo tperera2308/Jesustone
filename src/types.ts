@@ -20,7 +20,14 @@ export type InstrumentRole =
   | 'Teclado'
   | 'Batería'
   | 'Bajo'
-  | 'Sonido/Multimedia';
+  | 'Violín'
+  | 'Metales'
+  | 'Percusión'
+  | 'Secuencias'
+  | 'Sonido/Multimedia'
+  | 'Proyección'
+  | 'Danza'
+  | (string & {});
 
 export const ALL_INSTRUMENT_ROLES: InstrumentRole[] = [
   'Vocalista líder',
@@ -30,7 +37,13 @@ export const ALL_INSTRUMENT_ROLES: InstrumentRole[] = [
   'Teclado',
   'Batería',
   'Bajo',
+  'Violín',
+  'Metales',
+  'Percusión',
+  'Secuencias',
   'Sonido/Multimedia',
+  'Proyección',
+  'Danza',
 ];
 
 export const MAX_GROUPS_PER_USER = 6;
@@ -90,6 +103,7 @@ export type RSVPStatus = 'confirmed' | 'pending' | 'declined';
 export interface ServiceAssignment {
   id?: string;
   role: InstrumentRole;
+  roles?: InstrumentRole[];
   memberId: string;
   memberName: string;
   rsvpStatus: RSVPStatus;
@@ -99,6 +113,7 @@ export interface EventSongItem {
   songId: string;
   customKey?: string;
   vocalLeader?: string;
+  backingVocals?: string[];
 }
 
 export interface WorshipEvent {

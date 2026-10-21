@@ -38,6 +38,7 @@ import {
   Minus,
   Music2,
   Pause,
+  Pencil,
   Play,
   Plus,
   Radio,
@@ -57,12 +58,14 @@ import {
 interface SongbookModuleProps {
   songs: Song[];
   events: WorshipEvent[];
+  members?: BandMember[];
   activeMember: BandMember;
   accentColor: AccentColorId;
   initialSongId?: string | null;
   initialTargetKey?: string | null;
   onAddSong: (song: Omit<Song, 'id'>) => void;
   onUpdateSong: (song: Song) => void;
+  onDeleteSong?: (songId: string) => void;
   onUpdateEventPlaylist: (eventId: string, updatedSongs: EventSongItem[]) => void;
   onOpenMetronomeWithSong: (bpm: number, timeSignature: TimeSignature) => void;
 }
@@ -161,6 +164,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   initialTargetKey,
   onAddSong,
   onUpdateSong,
+  onDeleteSong,
   onUpdateEventPlaylist,
   onOpenMetronomeWithSong,
 }) => {
@@ -180,7 +184,18 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const [isEditingLyrics, setIsEditingLyrics] = useState<boolean>(false);
   const [editedLyrics, setEditedLyrics] = useState<string>('');
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [showEditSongModal, setShowEditSongModal] = useState<boolean>(false);
+  const [confirmDeleteSongId, setConfirmDeleteSongId] = useState<string | null>(null);
   const [showManagePlaylistModal, setShowManagePlaylistModal] = useState<boolean>(false);
+
+  // Edit Song Metadata State
+  const [editSongTitle, setEditSongTitle] = useState('');
+  const [editSongArtist, setEditSongArtist] = useState('');
+  const [editSongKey, setEditSongKey] = useState('G');
+  const [editSongBpm, setEditSongBpm] = useState(76);
+  const [editSongTimeSig, setEditSongTimeSig] = useState<TimeSignature>('4/4');
+  const [editSongStyle, setEditSongStyle] = useState<Song['style']>('Adoración');
+  const [editSongSpotifyUrl, setEditSongSpotifyUrl] = useState('');
 
   // Song Structure Editor State
   const [isEditingStructure, setIsEditingStructure] = useState<boolean>(false);
@@ -794,6 +809,48 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     if (activeSong && activeSong.id === songId) {
       setSemitones(computeSemitoneDiff(activeSong.originalKey, newCustomKey));
     }
+  };
+
+  const handleMovePlaylistSong = (index: number, direction: -1 | 1) => {
+    if (!activeEventList || !isLeader) return;
+    const targetIdx = index + direction;
+    if (targetIdx < 0 || targetIdx >= activeEventList.songs.length) return;
+    const copy = [...activeEventList.songs];
+    const temp = copy[index];
+    copy[index] = copy[targetIdx];
+    copy[targetIdx] = temp;
+    onUpdateEventPlaylist(activeEventList.id, copy);
+  };
+
+  const handleOpenEditSongModal = () => {
+    if (!activeSong) return;
+    setEditSongTitle(activeSong.title);
+    setEditSongArtist(activeSong.artist);
+    setEditSongKey(activeSong.originalKey);
+    setEditSongBpm(activeSong.bpm);
+    setEditSongTimeSig(activeSong.timeSignature);
+    setEditSongStyle(activeSong.style);
+    setEditSongSpotifyUrl(activeSong.spotifyUrl || 'https://open.spotify.com');
+    setShowEditSongModal(true);
+  };
+
+  const handleSaveEditedSongMetadata = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeSong || !editSongTitle.trim()) return;
+    onUpdateSong({
+      ...activeSong,
+      title: editSongTitle.trim(),
+      artist: editSongArtist.trim() || 'jesustone Worship',
+      originalKey: editSongKey,
+      bpm: Number(editSongBpm) || 75,
+      timeSignature: editSongTimeSig,
+      style: editSongStyle,
+      spotifyUrl: editSongSpotifyUrl.trim() || 'https://open.spotify.com',
+    });
+    setSongMetronomeBpm(Number(editSongBpm) || 75);
+    setShowEditSongModal(false);
+    setNotesSavedFeedback('Datos de la canción actualizados correctamente');
+    window.setTimeout(() => setNotesSavedFeedback(''), 3000);
   };
 
   const beatsPerBar = activeSong
@@ -1572,6 +1629,57 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   <Sliders className="w-4 h-4 text-amber-500" />
                   <span className="hidden sm:inline">Herramienta Metrónomo</span>
                 </button>
+
+                {(isLeader || activeSong.addedByUserId === activeMember.id) && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleOpenEditSongModal}
+                      className="min-h-[46px] flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 hover:border-amber-500/50 transition-colors"
+                      title="Editar datos base de la canción"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Editar Datos</span>
+                    </button>
+
+                    {onDeleteSong && (
+                      confirmDeleteSongId === activeSong.id ? (
+                        <div className="flex items-center gap-1.5 bg-rose-500/15 border border-rose-500/40 px-3 py-1.5 rounded-2xl">
+                          <span className="text-[11px] font-bold text-rose-500">
+                            ¿Eliminar?
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onDeleteSong(activeSong.id);
+                              setConfirmDeleteSongId(null);
+                            }}
+                            className="px-2.5 py-1 rounded-xl bg-rose-600 text-white text-xs font-bold"
+                          >
+                            Sí
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteSongId(null)}
+                            className="px-2 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteSongId(activeSong.id)}
+                          className="min-h-[46px] flex items-center gap-1.5 px-3 py-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors"
+                          title="Eliminar canción del repertorio"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Eliminar</span>
+                        </button>
+                      )
+                    )}
+                  </>
+                )}
               </div>
             </div>
 
@@ -2625,6 +2733,48 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             </div>
 
             <div className="space-y-2.5 max-h-[55vh] overflow-y-auto">
+              {activeEventList.songs.length > 1 && (
+                <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2 mb-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Orden Actual de la Playlist (Usa ↑ / ↓ para reordenar):
+                  </span>
+                  <div className="space-y-1.5">
+                    {activeEventList.songs.map((item, sIdx) => {
+                      const sObj = songs.find((x) => x.id === item.songId);
+                      if (!sObj) return null;
+                      return (
+                        <div
+                          key={`${item.songId}-${sIdx}`}
+                          className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
+                        >
+                          <span className="font-bold text-slate-900 dark:text-white truncate">
+                            {sIdx + 1}. {sObj.title} ({item.customKey || sObj.originalKey})
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              disabled={sIdx === 0}
+                              onClick={() => handleMovePlaylistSong(sIdx, -1)}
+                              className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold disabled:opacity-30"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              disabled={sIdx === activeEventList.songs.length - 1}
+                              onClick={() => handleMovePlaylistSong(sIdx, 1)}
+                              className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold disabled:opacity-30"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {songs.map((song) => {
                 const eventItem = activeEventList.songs.find(
                   (item) => item.songId === song.id
@@ -2703,6 +2853,149 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             >
               Listo · Guardar Playlist y Tonos Semanales
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR DATOS BASE DE UNA CANCIÓN YA CREADA */}
+      {showEditSongModal && activeSong && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Editar Datos de la Canción
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Modifica título, artista, tono base, BPM, compás, estilo o enlace de Spotify
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditSongModal(false)}
+                className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedSongMetadata} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Título de la Canción *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editSongTitle}
+                    onChange={(e) => setEditSongTitle(e.target.value)}
+                    className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Artista / Ministerio
+                  </label>
+                  <input
+                    type="text"
+                    value={editSongArtist}
+                    onChange={(e) => setEditSongArtist(e.target.value)}
+                    className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Tono Base
+                  </label>
+                  <select
+                    value={editSongKey}
+                    onChange={(e) => setEditSongKey(e.target.value)}
+                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                  >
+                    {ALL_KEYS.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    BPM
+                  </label>
+                  <input
+                    type="number"
+                    min={30}
+                    max={250}
+                    value={editSongBpm}
+                    onChange={(e) => setEditSongBpm(Number(e.target.value))}
+                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Compás
+                  </label>
+                  <select
+                    value={editSongTimeSig}
+                    onChange={(e) => setEditSongTimeSig(e.target.value as TimeSignature)}
+                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                  >
+                    <option value="4/4">4/4</option>
+                    <option value="3/4">3/4</option>
+                    <option value="6/8">6/8</option>
+                    <option value="2/4">2/4</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Estilo
+                  </label>
+                  <select
+                    value={editSongStyle}
+                    onChange={(e) => setEditSongStyle(e.target.value as Song['style'])}
+                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  >
+                    <option value="Adoración">Adoración</option>
+                    <option value="Alabanza / Júbilo">Alabanza / Júbilo</option>
+                    <option value="Intimidad">Intimidad</option>
+                    <option value="Congregacional">Congregacional</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Enlace de Referencia Spotify (Opcional)
+                </label>
+                <input
+                  type="url"
+                  value={editSongSpotifyUrl}
+                  onChange={(e) => setEditSongSpotifyUrl(e.target.value)}
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowEditSongModal(false)}
+                  className="min-h-[46px] px-4 py-2 rounded-xl text-xs font-bold text-slate-500"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className={`min-h-[46px] px-5 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

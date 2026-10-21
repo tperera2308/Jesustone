@@ -15,6 +15,9 @@ import {
 import { getAccentClasses } from './IdentityModal';
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
   Bell,
   Calendar,
   CalendarCheck,
@@ -25,11 +28,13 @@ import {
   ChevronRight,
   Clock,
   Copy,
+  Edit3,
   FileText,
   HelpCircle,
   ListMusic,
   Lock,
   MapPin,
+  Mic,
   Plus,
   Repeat,
   ShieldCheck,
@@ -38,6 +43,7 @@ import {
   User,
   UserCheck,
   UserX,
+  Users,
   X,
   XCircle,
 } from 'lucide-react';
@@ -74,6 +80,7 @@ interface EventsModuleProps {
     updatedPersonalNotes?: Record<string, string>
   ) => void;
   onCreateEvent: (newEvent: Omit<WorshipEvent, 'id'>) => void;
+  onUpdateEvent: (updatedEvent: WorshipEvent) => void;
   onDeleteEvent: (eventId: string) => void;
   onAddAlert: (alert: Omit<NoticeAlert, 'id' | 'createdAt'>) => void;
   onDismissAlert: (alertId: string) => void;
@@ -620,6 +627,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   onUpdateEventPlaylist,
   onUpdateEventNotes,
   onCreateEvent,
+  onUpdateEvent,
   onDeleteEvent,
   onAddAlert,
   onDismissAlert,
@@ -632,10 +640,23 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
   const [filterType, setFilterType] = useState<'all' | 'sunday' | 'rehearsal' | 'special'>('all');
   const [selectedEventId, setSelectedEventId] = useState<string>(events[0]?.id || '');
+  // Vista inicial en tarjetas resumidas; al tocar una tarjeta se abre toda la información del evento
+  const [openedEventId, setOpenedEventId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [showPlaylistEditor, setShowPlaylistEditor] = useState(false);
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+
+  // Edit Existing Event Form State
+  const [editTitle, setEditTitle] = useState('');
+  const [editType, setEditType] = useState<'sunday' | 'rehearsal' | 'special'>('sunday');
+  const [editDate, setEditDate] = useState(() => getTodayDateStr());
+  const [editCallTime, setEditCallTime] = useState('08:45');
+  const [editTime, setEditTime] = useState('10:30');
+  const [editLocation, setEditLocation] = useState('');
+  const [editTheme, setEditTheme] = useState('');
+  const [editNotes, setEditNotes] = useState('');
 
   // Event Group Notes & Personal Notes State
   const [eventGroupNotesDraft, setEventGroupNotesDraft] = useState<string>('');
@@ -663,6 +684,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       songId: s.id,
       customKey: s.originalKey,
       vocalLeader: activeMember.name,
+      backingVocals: [],
     }))
   );
 
@@ -684,25 +706,40 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     );
     const pool = availableMembers.length > 0 ? availableMembers : members;
 
-    return pool.map((m, idx) => ({
-      id: `asg-${Date.now()}-${idx}-${m.id}`,
-      memberId: m.id,
-      memberName: m.name,
-      role: m.instruments[0] || 'Coros',
-      rsvpStatus: 'pending' as RSVPStatus,
-    }));
+    return pool.map((m, idx) => {
+      const memberRoles =
+        m.instruments && m.instruments.length > 0 ? m.instruments : ['Coros'];
+      return {
+        id: `asg-${Date.now()}-${idx}-${m.id}`,
+        memberId: m.id,
+        memberName: m.name,
+        role: memberRoles[0],
+        roles: memberRoles,
+        rsvpStatus: 'pending' as RSVPStatus,
+      };
+    });
   };
 
   const [draftAssignments, setDraftAssignments] = useState<ServiceAssignment[]>(
     () => buildSmartAssignmentsForDate(getTodayDateStr())
   );
 
-  // State for adding a new member+instrument row inside an already created event
+  // State for adding a new member + multiple instruments/voices inside an already created event
   const [addActiveMemberId, setAddActiveMemberId] = useState<string>(
     members[0]?.id || ''
   );
-  const [addActiveRole, setAddActiveRole] =
-    useState<InstrumentRole>('Coros');
+  const [addActiveRoles, setAddActiveRoles] = useState<InstrumentRole[]>(() =>
+    members[0]?.instruments?.length ? [...members[0].instruments] : ['Coros']
+  );
+  const [customInstrumentInput, setCustomInstrumentInput] = useState<string>('');
+
+  // All available roles combining default roles + any custom instruments members have
+  const allAvailableRoles: InstrumentRole[] = Array.from(
+    new Set([
+      ...ALL_INSTRUMENT_ROLES,
+      ...members.flatMap((m) => m.instruments || []),
+    ])
+  );
 
   // When Create Event modal opens, initialize draftAssignments if empty
   useEffect(() => {
@@ -711,17 +748,25 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     }
   }, [showCreateModal, members.length]);
 
-  const handleAddDraftAssignment = (memberObj?: BandMember, customRole?: InstrumentRole) => {
+  const handleAddDraftAssignment = (
+    memberObj?: BandMember,
+    customRole?: InstrumentRole
+  ) => {
     const targetMember = memberObj || members[0];
     if (!targetMember) return;
-    const roleToUse = customRole || targetMember.instruments[0] || 'Coros';
+    const defaultRoles = customRole
+      ? [customRole]
+      : targetMember.instruments && targetMember.instruments.length > 0
+      ? [...targetMember.instruments]
+      : ['Coros'];
     setDraftAssignments((prev) => [
       ...prev,
       {
         id: `asg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         memberId: targetMember.id,
         memberName: targetMember.name,
-        role: roleToUse,
+        role: defaultRoles[0],
+        roles: defaultRoles,
         rsvpStatus: 'pending',
       },
     ]);
@@ -730,6 +775,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const handleUpdateDraftAssignmentMember = (index: number, newMemberId: string) => {
     const mObj = members.find((m) => m.id === newMemberId);
     if (!mObj) return;
+    const memberRoles =
+      mObj.instruments && mObj.instruments.length > 0
+        ? [...mObj.instruments]
+        : ['Coros'];
     setDraftAssignments((prev) =>
       prev.map((item, idx) =>
         idx === index
@@ -737,16 +786,35 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               ...item,
               memberId: mObj.id,
               memberName: mObj.name,
-              role: mObj.instruments[0] || item.role,
+              role: memberRoles[0],
+              roles: memberRoles,
             }
           : item
       )
     );
   };
 
-  const handleUpdateDraftAssignmentRole = (index: number, newRole: InstrumentRole) => {
+  const handleToggleDraftAssignmentRole = (
+    index: number,
+    targetRole: InstrumentRole
+  ) => {
     setDraftAssignments((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, role: newRole } : item))
+      prev.map((item, idx) => {
+        if (idx !== index) return item;
+        const currentRoles =
+          item.roles && item.roles.length > 0 ? item.roles : [item.role];
+        const exists = currentRoles.includes(targetRole);
+        const nextRoles = exists
+          ? currentRoles.length > 1
+            ? currentRoles.filter((r) => r !== targetRole)
+            : currentRoles
+          : [...currentRoles, targetRole];
+        return {
+          ...item,
+          role: nextRoles[0],
+          roles: nextRoles,
+        };
+      })
     );
   };
 
@@ -764,7 +832,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   );
 
   const activeEvent =
-    events.find((e) => e.id === selectedEventId) || filteredEvents[0] || events[0];
+    events.find((e) => e.id === (openedEventId || selectedEventId)) ||
+    filteredEvents[0] ||
+    events[0];
 
   useEffect(() => {
     if (activeEvent) {
@@ -774,6 +844,37 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       );
     }
   }, [activeEvent?.id, activeMember.id]);
+
+  const handleOpenEditEventModal = (ev: WorshipEvent) => {
+    setEditTitle(ev.title);
+    setEditType(ev.type);
+    setEditDate(ev.date);
+    setEditCallTime(ev.callTime);
+    setEditTime(ev.time);
+    setEditLocation(ev.location);
+    setEditTheme(ev.preacherOrTheme);
+    setEditNotes(ev.notes);
+    setShowEditEventModal(true);
+  };
+
+  const handleEditEventSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeEvent || !editTitle.trim()) return;
+    onUpdateEvent({
+      ...activeEvent,
+      title: editTitle.trim(),
+      type: editType,
+      date: editDate,
+      callTime: editCallTime,
+      time: editTime,
+      location: editLocation.trim() || 'Auditorio Principal',
+      preacherOrTheme: editTheme.trim() || 'Servicio General de Alabanza',
+      notes: editNotes.trim(),
+    });
+    setShowEditEventModal(false);
+    setEventNotesSavedNotice('Datos del evento actualizados correctamente');
+    window.setTimeout(() => setEventNotesSavedNotice(''), 3000);
+  };
 
   const handleSaveActiveEventGroupNotes = () => {
     if (!activeEvent) return;
@@ -818,12 +919,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       setNewTheme('Montaje de repertorio, voces y secuencias de la semana');
       setNewNotes('Traer in-ears e instrumentos afinados. Escuchar lista previa.');
     } else if (template === 'special') {
-      setNewTitle('Noche Especial de Adoración');
+      setNewTitle('Evento Especial de Adoración');
       setNewType('special');
       setNewCallTime('17:30');
       setNewTime('19:30');
       setNewLocation('Auditorio Central');
-      setNewTheme('Velada de Adoración e Intercesión');
+      setNewTheme('Evento Especial de Adoración e Intercesión');
       setNewNotes('Setlist extendido con transiciones espontáneas.');
     } else if (template === 'copy_last' && events[0]) {
       const last = events[0];
@@ -855,6 +956,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     const assignments: ServiceAssignment[] = ev.assignments.map((prevAssign, idx) => ({
       id: `asg-${Date.now()}-${idx}`,
       role: prevAssign.role,
+      roles: prevAssign.roles ? [...prevAssign.roles] : [prevAssign.role],
       memberId: prevAssign.memberId,
       memberName: prevAssign.memberName,
       rsvpStatus: 'pending' as RSVPStatus,
@@ -885,9 +987,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
       const assignments: ServiceAssignment[] = draftAssignments.map((item, idx) => {
         const memberObj = members.find((m) => m.id === item.memberId) || members[0];
+        const resolvedRoles =
+          item.roles && item.roles.length > 0 ? item.roles : [item.role];
         return {
           id: `asg-${Date.now()}-${weekIdx}-${idx}`,
-          role: item.role,
+          role: resolvedRoles[0],
+          roles: resolvedRoles,
           memberId: memberObj?.id || item.memberId,
           memberName: memberObj?.name || item.memberName,
           rsvpStatus: 'pending' as RSVPStatus,
@@ -955,20 +1060,32 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
             songId: song.id,
             customKey: song.originalKey,
             vocalLeader: activeMember.name,
+            backingVocals: [],
           },
         ];
     onUpdateEventPlaylist(activeEvent.id, updated);
   };
 
-  const updateSongWeeklyKeyInActiveEvent = (
+  const updateSongItemInActiveEvent = (
     songId: string,
-    customKey: string
+    patch: Partial<EventSongItem>
   ) => {
     if (!activeEvent || !isLeader) return;
     const updated = activeEvent.songs.map((item) =>
-      item.songId === songId ? { ...item, customKey } : item
+      item.songId === songId ? { ...item, ...patch } : item
     );
     onUpdateEventPlaylist(activeEvent.id, updated);
+  };
+
+  const moveSongInActiveEvent = (index: number, direction: -1 | 1) => {
+    if (!activeEvent || !isLeader) return;
+    const targetIdx = index + direction;
+    if (targetIdx < 0 || targetIdx >= activeEvent.songs.length) return;
+    const copy = [...activeEvent.songs];
+    const temp = copy[index];
+    copy[index] = copy[targetIdx];
+    copy[targetIdx] = temp;
+    onUpdateEventPlaylist(activeEvent.id, copy);
   };
 
   const getEventTypeLabel = (type: WorshipEvent['type']) => {
@@ -978,7 +1095,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       case 'rehearsal':
         return 'Ensayo General';
       case 'special':
-        return 'Noche Especial';
+        return 'Evento Especial';
     }
   };
 
@@ -1094,7 +1211,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         </div>
       </div>
 
-      {/* Layout Principal */}
+      {/* Layout Principal: 1) Vista de Tarjetas Resumidas vs 2) Detalle Completo al tocar una Tarjeta */}
       {filteredEvents.length === 0 ? (
         <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 sm:p-12 text-center space-y-4">
           <div
@@ -1133,231 +1250,511 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
             )}
           </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Lista de Eventos */}
-          <div className="lg:col-span-4 space-y-3">
+      ) : !openedEventId || !activeEvent ? (
+        /* =====================================================================
+           PANTALLA PRINCIPAL DE EVENTOS: TARJETAS RESUMIDAS (TOCA PARA ABRIR)
+           ===================================================================== */
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              Selecciona la tarjeta de un evento para abrir toda su información, playlist y tu invitación personal:
+            </p>
+            <span className="text-xs font-mono font-bold text-slate-500">
+              {filteredEvents.length}{' '}
+              {filteredEvents.length === 1 ? 'evento' : 'eventos'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredEvents.map((ev) => {
-              const isSelected = activeEvent?.id === ev.id;
               const confirmedCount = ev.assignments.filter(
                 (a) => a.rsvpStatus === 'confirmed'
               ).length;
+              const myAssigns = ev.assignments.filter(
+                (a) => a.memberId === activeMember.id
+              );
+              const myStatus = myAssigns[0]?.rsvpStatus;
+              const myRolesList = Array.from(
+                new Set(
+                  myAssigns.flatMap((a) =>
+                    a.roles && a.roles.length > 0 ? a.roles : [a.role]
+                  )
+                )
+              );
+
               return (
                 <button
                   key={ev.id}
                   type="button"
-                  onClick={() => setSelectedEventId(ev.id)}
-                  className={`w-full text-left p-5 rounded-3xl border transition-all ${
-                    isSelected
-                      ? `bg-white dark:bg-slate-900 ${accent.borderClass} ring-2 ring-amber-500/20 shadow-sm`
-                      : 'bg-white/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800'
-                  }`}
+                  onClick={() => {
+                    setSelectedEventId(ev.id);
+                    setOpenedEventId(ev.id);
+                  }}
+                  className="w-full text-left p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-lg transition-all flex flex-col justify-between gap-4 group"
                 >
-                  <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-                    <span className={`font-bold ${accent.textClass}`}>
-                      {getEventTypeLabel(ev.type)}
-                    </span>
-                    <span className="font-mono tabular-nums">{ev.date}</span>
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span
+                        className={`px-2.5 py-1 rounded-xl font-bold ${accent.softBgClass}`}
+                      >
+                        {getEventTypeLabel(ev.type)}
+                      </span>
+                      <span className="font-mono font-bold text-slate-600 dark:text-slate-300">
+                        {formatReadableDateEs(ev.date)}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors">
+                        {ev.title}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                        {ev.preacherOrTheme}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 pt-1">
+                      <span className="flex items-center gap-1 font-mono">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        Cit: {ev.callTime} · Ini: {ev.time}
+                      </span>
+                      <span className="flex items-center gap-1 truncate">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        {ev.location}
+                      </span>
+                    </div>
+
+                    {/* Estado resumido de mi propia invitación en la tarjeta */}
+                    {myAssigns.length > 0 ? (
+                      <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                            Tu Invitación ({myRolesList.join(', ')})
+                          </span>
+                          <span
+                            className={`text-xs font-bold ${
+                              myStatus === 'confirmed'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : myStatus === 'declined'
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                            }`}
+                          >
+                            {myStatus === 'confirmed'
+                              ? '✓ Aceptada / Confirmada'
+                              : myStatus === 'declined'
+                              ? '✕ Declinada'
+                              : '⏳ Pendiente de responder'}
+                          </span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-[11px] text-slate-500 flex items-center justify-between">
+                        <span>No estás asignado en este evento</span>
+                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      </div>
+                    )}
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">
-                    {ev.title}
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mb-3">
-                    {ev.preacherOrTheme}
-                  </p>
-                  <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-100 dark:border-slate-800 font-mono tabular-nums text-slate-500">
-                    <span>{ev.songs.length} canciones en playlist</span>
+
+                  <div className="flex items-center justify-between text-xs pt-3 border-t border-slate-100 dark:border-slate-800 font-mono tabular-nums text-slate-500">
+                    <span>{ev.songs.length} canciones</span>
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                      {confirmedCount}/{ev.assignments.length} RSVP
+                      {confirmedCount}/{ev.assignments.length} confirmados
                     </span>
                   </div>
                 </button>
               );
             })}
           </div>
+        </div>
+      ) : (
+        /* =====================================================================
+           VISTA DETALLE COMPLETO DEL EVENTO SELECCIONADO
+           ===================================================================== */
+        <div className="space-y-4">
+          {/* Barra superior para volver a las tarjetas de eventos */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setOpenedEventId(null)}
+              className="min-h-[44px] px-4 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center gap-2 shadow-xs"
+            >
+              <ArrowLeft className="w-4 h-4 text-amber-500" />
+              <span>Volver a las Tarjetas de Eventos</span>
+            </button>
 
-          {/* Detalle del Evento: Playlist con Tonos por Semana + Matriz de Roles y Disponibilidad */}
-          {activeEvent && (
-            <div className="lg:col-span-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                    <span className={`font-bold ${accent.textClass}`}>
-                      {getEventTypeLabel(activeEvent.type)}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span className="flex items-center gap-1 font-mono tabular-nums">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {activeEvent.date}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span className="flex items-center gap-1 font-mono tabular-nums">
-                      <Clock className="w-3.5 h-3.5" />
-                      Citación: {activeEvent.callTime} / Inicio: {activeEvent.time}
-                    </span>
+            {filteredEvents.length > 1 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+                {filteredEvents.map((ev) => (
+                  <button
+                    key={ev.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedEventId(ev.id);
+                      setOpenedEventId(ev.id);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      activeEvent.id === ev.id
+                        ? `${accent.bgClass} shadow-xs`
+                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    {ev.title} ({ev.date.slice(5)})
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-6">
+            {/* Cabecera del Evento + Botones de Editar / Duplicar / Eliminar para Líder */}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className={`font-bold ${accent.textClass}`}>
+                    {getEventTypeLabel(activeEvent.type)}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="flex items-center gap-1 font-mono tabular-nums">
+                    <Calendar className="w-3.5 h-3.5" />
+                    {formatReadableDateEs(activeEvent.date)} ({activeEvent.date})
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="flex items-center gap-1 font-mono tabular-nums">
+                    <Clock className="w-3.5 h-3.5" />
+                    Citación: {activeEvent.callTime} / Inicio: {activeEvent.time}
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                  {activeEvent.title}
+                </h2>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  {activeEvent.preacherOrTheme}
+                </p>
+                <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {activeEvent.location}
+                </p>
+              </div>
+
+              {isLeader && (
+                <div className="flex flex-wrap items-center gap-2 self-start shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditEventModal(activeEvent)}
+                    className="min-h-[42px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Editar Evento</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDuplicateEventNextWeek(activeEvent)}
+                    className="min-h-[42px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500"
+                    title="Duplicar este evento para la próxima semana (+7 días)"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Duplicar (+7 días)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDeleteEvent(activeEvent.id);
+                      setOpenedEventId(null);
+                    }}
+                    className="min-h-[42px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ===============================================================
+                1. TARJETA EXCLUSIVA: TU PROPIA INVITACIÓN A ESTE EVENTO
+                   (Solo tú puedes aceptar o declinar tu propia invitación)
+               =============================================================== */}
+            {(() => {
+              const myAssignments = activeEvent.assignments
+                .map((a, idx) => ({ assign: a, idx }))
+                .filter((item) => item.assign.memberId === activeMember.id);
+
+              if (myAssignments.length === 0) {
+                return (
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <User className="w-5 h-5 text-slate-400 shrink-0" />
+                      <div>
+                        <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
+                          Tu Invitación Personal ({activeMember.name})
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          No estás convocado en la lista de este evento actualmente.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-                    {activeEvent.title}
-                  </h2>
-                  <p className="text-sm text-slate-600 dark:text-slate-300">
-                    {activeEvent.preacherOrTheme}
-                  </p>
-                  <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    <MapPin className="w-3.5 h-3.5" />
-                    {activeEvent.location}
+                );
+              }
+
+              const currentStatus = myAssignments[0].assign.rsvpStatus;
+              const myRolesCombined = Array.from(
+                new Set(
+                  myAssignments.flatMap(({ assign }) =>
+                    assign.roles && assign.roles.length > 0
+                      ? assign.roles
+                      : [assign.role]
+                  )
+                )
+              );
+
+              const handleUpdateMyOwnRSVP = (newStatus: RSVPStatus) => {
+                myAssignments.forEach(({ assign, idx }) => {
+                  onUpdateRSVP(
+                    activeEvent.id,
+                    assign.role,
+                    newStatus,
+                    idx,
+                    assign.id
+                  );
+                });
+              };
+
+              return (
+                <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-500 text-slate-950 text-[10px] font-extrabold uppercase tracking-wider">
+                        Tu Invitación Personal
+                      </span>
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        {activeMember.name}
+                      </span>
+                    </div>
+                    <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                      Roles / Instrumentos asignados a ti:{' '}
+                      <span className="text-amber-600 dark:text-amber-400">
+                        {myRolesCombined.join(' + ')}
+                      </span>
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      Confirma o declina tu participación en este evento para que el grupo vea tu respuesta:
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateMyOwnRSVP('confirmed')}
+                      className={`min-h-[46px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all shadow-xs ${
+                        currentStatus === 'confirmed'
+                          ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-emerald-500'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>
+                        {currentStatus === 'confirmed'
+                          ? 'Asistencia Confirmada'
+                          : 'Aceptar / Confirmar'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateMyOwnRSVP('declined')}
+                      className={`min-h-[46px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all ${
+                        currentStatus === 'declined'
+                          ? 'bg-rose-600 text-white ring-2 ring-rose-400/50'
+                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-rose-500'
+                      }`}
+                    >
+                      <XCircle className="w-4 h-4" />
+                      <span>
+                        {currentStatus === 'declined'
+                          ? 'Invitación Declinada'
+                          : 'Declinar'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ===============================================================
+                2. PLAYLIST DEL EVENTO CON REORDENAMIENTO, TONOS Y VOCES POR CANCIÓN
+               =============================================================== */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <ListMusic className={`w-5 h-5 ${accent.textClass}`} />
+                    Playlist, Orden y Voces de cada Canción ({activeEvent.songs.length})
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Toca una canción para abrirla en el Cancionero. El Líder puede reordenar la lista y asignar quién lleva la voz principal y coros en cada tema.
                   </p>
                 </div>
 
-                {isLeader && (
-                  <div className="flex items-center gap-2 self-start shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleDuplicateEventNextWeek(activeEvent)}
-                      className="min-h-[42px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500"
-                      title="Duplicar este evento para la próxima semana (+7 días)"
-                    >
-                      <Copy className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Duplicar (+7 días)</span>
-                    </button>
-
-                    {events.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => onDeleteEvent(activeEvent.id)}
-                        className="min-h-[42px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Eliminar
-                      </button>
-                    )}
-                  </div>
+                {isLeader ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowPlaylistEditor(true)}
+                    className={`min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    Editar Playlist, Orden y Voces
+                  </button>
+                ) : (
+                  <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5" />
+                    Playlist gestionada por el Líder
+                  </span>
                 )}
               </div>
 
-              {/* PLAYLIST DEL EVENTO CON TONALIDAD POR SEMANA */}
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <ListMusic className={`w-5 h-5 ${accent.textClass}`} />
-                      Playlist y Tonos de esta Semana ({activeEvent.songs.length})
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Toca cualquier canción para abrirla en el Cancionero con el <strong>tono asignado para esta fecha</strong>.
-                    </p>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {activeEvent.songs.map((item, index) => {
+                  const songObj = songs.find((s) => s.id === item.songId);
+                  if (!songObj) return null;
+                  const weeklyKey = item.customKey || songObj.originalKey;
+                  const isModifiedKey = weeklyKey !== songObj.originalKey;
+                  const backingList = item.backingVocals || [];
 
-                  {isLeader ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowPlaylistEditor(true)}
-                      className={`min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                  return (
+                    <div
+                      key={`${item.songId}-${index}`}
+                      className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:border-amber-500/50 transition-all flex flex-col justify-between gap-3"
                     >
-                      <ShieldCheck className="w-4 h-4" />
-                      Armar Playlist y Tonos Semanales
-                    </button>
-                  ) : (
-                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5" />
-                      Playlist gestionada por el Líder
-                    </span>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {activeEvent.songs.map((item, index) => {
-                    const songObj = songs.find((s) => s.id === item.songId);
-                    if (!songObj) return null;
-                    const weeklyKey = item.customKey || songObj.originalKey;
-                    const isModifiedKey = weeklyKey !== songObj.originalKey;
-                    return (
-                      <button
-                        key={`${item.songId}-${index}`}
-                        type="button"
-                        onClick={() =>
-                          onOpenSongInSongbook(songObj.id, weeklyKey)
-                        }
-                        className="min-h-[72px] flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:border-amber-500/50 transition-all text-left"
-                      >
-                        <div className="min-w-0 pr-3">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                      <div className="flex items-start justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenSongInSongbook(songObj.id, weeklyKey)
+                          }
+                          className="text-left min-w-0 flex-1"
+                        >
+                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate hover:text-amber-500">
                             0{index + 1}. {songObj.title}
                           </p>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                            Tono Normal Base: {songObj.originalKey} · {songObj.bpm} BPM
+                            Tono Base: {songObj.originalKey} · {songObj.bpm} BPM
                           </p>
-                        </div>
-                        <div className="text-right shrink-0 font-mono tabular-nums">
-                          <div
-                            className={`text-xs font-bold px-2.5 py-1 rounded-xl ${
+                        </button>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isLeader && activeEvent.songs.length > 1 && (
+                            <div className="flex items-center gap-0.5 mr-1">
+                              <button
+                                type="button"
+                                disabled={index === 0}
+                                onClick={() => moveSongInActiveEvent(index, -1)}
+                                className="p-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950"
+                                title="Subir canción en la playlist"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={index === activeEvent.songs.length - 1}
+                                onClick={() => moveSongInActiveEvent(index, 1)}
+                                className="p-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950"
+                                title="Bajar canción en la playlist"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          <span
+                            className={`font-mono text-xs font-bold px-2.5 py-1 rounded-xl ${
                               isModifiedKey
                                 ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                                : accent.textClass
+                                : accent.softBgClass
                             }`}
                           >
-                            Semana: {weeklyKey}
-                          </div>
+                            Tono: {weeklyKey}
+                          </span>
                         </div>
-                      </button>
-                    );
-                  })}
+                      </div>
+
+                      {/* Voces asignadas en esta canción (Voz Principal y Coros) */}
+                      <div className="pt-2 border-t border-slate-200/70 dark:border-slate-700/60 flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1">
+                          <Mic className="w-3 h-3" />
+                          Voz Principal: {item.vocalLeader || 'Por definir'}
+                        </span>
+                        {backingList.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-lg bg-sky-500/15 text-sky-700 dark:text-sky-300 font-semibold">
+                            Coros: {backingList.join(', ')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ===============================================================
+                3. LISTA GENERAL DE MIEMBROS EN EL EVENTO (VISTA NORMAL DE EQUIPO)
+                   + CONTROLES DEL LÍDER PARA AGREGAR/ELIMINAR Y ASIGNAR MÚLTIPLES INSTRUMENTOS
+               =============================================================== */}
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Users className="w-5 h-5 text-emerald-500" />
+                    Miembros en este Evento ({activeEvent.assignments.length})
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Lista del equipo convocado y el estado de su invitación.{' '}
+                    {isLeader &&
+                      'Como Líder/Admin puedes agregar o quitar miembros y asignarles más de un instrumento o voz.'}
+                  </p>
                 </div>
               </div>
 
-              {/* Matriz de Roles + Estado de Disponibilidad para la Fecha del Evento */}
-              <div className="space-y-3 pt-2">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <UserCheck className="w-5 h-5 text-emerald-500" />
-                      Integrantes e Instrumentos Asignados ({activeEvent.assignments.length}) — {activeEvent.date}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Sin límite por instrumento: puedes asignar varias voces principales, múltiples coros o instrumentos repetidos.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Barra para que el Líder agregue más miembros/voces/instrumentos al evento activo */}
-                {isLeader && (
-                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
-                      + Agregar al evento:
-                    </span>
-                    <select
-                      value={addActiveMemberId || members[0]?.id || ''}
-                      onChange={(e) => {
-                        const mId = e.target.value;
-                        setAddActiveMemberId(mId);
-                        const mObj = members.find((m) => m.id === mId);
-                        if (mObj?.instruments[0]) {
-                          setAddActiveRole(mObj.instruments[0]);
-                        }
-                      }}
-                      className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white flex-1"
-                    >
-                      {members.map((m) => {
-                        const av = getMemberAvailabilityForDate(m.id, activeEvent.date);
-                        return (
-                          <option key={m.id} value={m.id}>
-                            {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
-                            {m.name} ({m.instruments.join(', ') || 'Miembro'})
-                          </option>
-                        );
-                      })}
-                    </select>
-
-                    <select
-                      value={addActiveRole}
-                      onChange={(e) => setAddActiveRole(e.target.value as InstrumentRole)}
-                      className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white"
-                    >
-                      {ALL_INSTRUMENT_ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
+              {/* Panel exclusivo del Líder/Admin para agregar un miembro con uno o varios instrumentos/voces */}
+              {isLeader && (
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                        Integrante:
+                      </span>
+                      <select
+                        value={addActiveMemberId || members[0]?.id || ''}
+                        onChange={(e) => {
+                          const mId = e.target.value;
+                          setAddActiveMemberId(mId);
+                          const mObj = members.find((m) => m.id === mId);
+                          if (mObj?.instruments?.length) {
+                            setAddActiveRoles([...mObj.instruments]);
+                          } else {
+                            setAddActiveRoles(['Coros']);
+                          }
+                        }}
+                        className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white flex-1"
+                      >
+                        {members.map((m) => {
+                          const av = getMemberAvailabilityForDate(
+                            m.id,
+                            activeEvent.date
+                          );
+                          return (
+                            <option key={m.id} value={m.id}>
+                              {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
+                              {m.name} ({m.instruments.join(', ') || 'Miembro'})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
 
                     <button
                       type="button"
@@ -1366,11 +1763,14 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           members.find((m) => m.id === addActiveMemberId) ||
                           members[0];
                         if (!targetM) return;
+                        const finalRoles =
+                          addActiveRoles.length > 0 ? addActiveRoles : ['Coros'];
                         const newRow: ServiceAssignment = {
                           id: `asg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
                           memberId: targetM.id,
                           memberName: targetM.name,
-                          role: addActiveRole,
+                          role: finalRoles[0],
+                          roles: finalRoles,
                           rsvpStatus: 'pending',
                         };
                         onUpdateEventAssignments(activeEvent.id, [
@@ -1378,283 +1778,445 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           newRow,
                         ]);
                       }}
-                      className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
+                      className={`min-h-[42px] px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
                     >
                       <Plus className="w-4 h-4" />
-                      <span>Agregar Miembro</span>
+                      <span>Agregar Miembro al Evento</span>
                     </button>
                   </div>
-                )}
 
-                <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-                  {activeEvent.assignments.map((assign, assignIdx) => {
-                    const isCurrentUser = assign.memberId === activeMember.id;
-                    const memberAvail = getMemberAvailabilityForDate(
-                      assign.memberId,
-                      activeEvent.date
-                    );
-                    const isBlockedDate = memberAvail?.status === 'unavailable';
+                  {/* Selección múltiple de instrumentos/voces para este miembro + rol personalizado */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-bold text-slate-500 block">
+                      Selecciona uno o más instrumentos / voces para asignarle en este evento:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {allAvailableRoles.map((r) => {
+                        const active = addActiveRoles.includes(r);
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() =>
+                              setAddActiveRoles((prev) =>
+                                prev.includes(r)
+                                  ? prev.length > 1
+                                    ? prev.filter((item) => item !== r)
+                                    : prev
+                                  : [...prev, r]
+                              )
+                            }
+                            className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all ${
+                              active
+                                ? `${accent.bgClass} border-transparent`
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                            }`}
+                          >
+                            {active ? '✓ ' : '+ '}
+                            {r}
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                    return (
-                      <div
-                        key={assign.id || `${assign.memberId}-${assign.role}-${assignIdx}`}
-                        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3.5 ${
-                          isBlockedDate
-                            ? 'bg-rose-500/5'
-                            : isCurrentUser
-                            ? 'bg-amber-500/5'
-                            : 'bg-white dark:bg-slate-900'
-                        }`}
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        value={customInstrumentInput}
+                        onChange={(e) => setCustomInstrumentInput(e.target.value)}
+                        placeholder="Otro instrumento o rol personalizado (ej. Saxofón, Chelo, Audio)..."
+                        className="flex-1 min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const clean = customInstrumentInput.trim();
+                          if (!clean) return;
+                          if (!addActiveRoles.includes(clean)) {
+                            setAddActiveRoles((prev) => [...prev, clean]);
+                          }
+                          setCustomInstrumentInput('');
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 shrink-0"
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                          {isLeader ? (
+                        + Añadir Rol
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Lista Normal de Miembros en el Evento (con insignias de Estado y sin botones RSVP ajenos) */}
+              <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                {activeEvent.assignments.map((assign, assignIdx) => {
+                  const isCurrentUser = assign.memberId === activeMember.id;
+                  const memberAvail = getMemberAvailabilityForDate(
+                    assign.memberId,
+                    activeEvent.date
+                  );
+                  const isBlockedDate = memberAvail?.status === 'unavailable';
+                  const assignedRolesList =
+                    assign.roles && assign.roles.length > 0
+                      ? assign.roles
+                      : [assign.role];
+
+                  return (
+                    <div
+                      key={
+                        assign.id ||
+                        `${assign.memberId}-${assign.role}-${assignIdx}`
+                      }
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3.5 ${
+                        isBlockedDate
+                          ? 'bg-rose-500/5'
+                          : isCurrentUser
+                          ? 'bg-amber-500/5'
+                          : 'bg-white dark:bg-slate-900'
+                      }`}
+                    >
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">
+                            {assign.memberName}
+                          </span>
+                          {isCurrentUser && (
+                            <span
+                              className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${accent.softBgClass}`}
+                            >
+                              Tú
+                            </span>
+                          )}
+                          {isBlockedDate && (
+                            <span className="px-2 py-0.5 rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[11px] font-bold flex items-center gap-1">
+                              <CalendarOff className="w-3 h-3" />
+                              No disponible ({memberAvail?.reason || 'Fecha bloqueada'})
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Instrumentos / Voces asignados a este miembro en este evento */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {assignedRolesList.map((rItem) => (
+                            <span
+                              key={rItem}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 text-xs font-bold"
+                            >
+                              <span>{rItem}</span>
+                              {isLeader && assignedRolesList.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextRoles = assignedRolesList.filter(
+                                      (x) => x !== rItem
+                                    );
+                                    const updated = activeEvent.assignments.map(
+                                      (a, i) =>
+                                        i === assignIdx
+                                          ? {
+                                              ...a,
+                                              role: nextRoles[0],
+                                              roles: nextRoles,
+                                            }
+                                          : a
+                                    );
+                                    onUpdateEventAssignments(
+                                      activeEvent.id,
+                                      updated
+                                    );
+                                  }}
+                                  className="text-rose-500 hover:text-rose-400 ml-0.5 font-bold"
+                                  title="Quitar este instrumento/rol"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </span>
+                          ))}
+
+                          {/* Selector rápido para que el Líder sume otro instrumento o voz a este miembro */}
+                          {isLeader && (
                             <select
-                              value={assign.role}
+                              value=""
                               onChange={(e) => {
-                                const newRole = e.target.value as InstrumentRole;
+                                const val = e.target.value as InstrumentRole;
+                                if (!val) return;
+                                if (assignedRolesList.includes(val)) return;
+                                const nextRoles = [...assignedRolesList, val];
                                 const updated = activeEvent.assignments.map(
                                   (a, i) =>
-                                    i === assignIdx ? { ...a, role: newRole } : a
+                                    i === assignIdx
+                                      ? {
+                                          ...a,
+                                          role: nextRoles[0],
+                                          roles: nextRoles,
+                                        }
+                                      : a
                                 );
                                 onUpdateEventAssignments(activeEvent.id, updated);
                               }}
-                              className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-xs font-bold text-amber-600 dark:text-amber-400 sm:w-44 shrink-0"
+                              className="px-2 py-0.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-transparent text-[11px] font-bold text-slate-500 hover:border-amber-500"
                             >
-                              {ALL_INSTRUMENT_ROLES.map((r) => (
-                                <option key={r} value={r}>
-                                  {r}
+                              <option value="">+ Sumar instrumento/voz</option>
+                              {allAvailableRoles.map((rOpt) => (
+                                <option
+                                  key={rOpt}
+                                  value={rOpt}
+                                  className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                                >
+                                  {rOpt}
                                 </option>
                               ))}
                             </select>
-                          ) : (
-                            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 sm:w-40 shrink-0">
-                              {assign.role}
-                            </span>
                           )}
-
-                          <div className="flex flex-wrap items-center gap-2 min-w-0">
-                            {isLeader ? (
-                              <select
-                                value={assign.memberId}
-                                onChange={(e) =>
-                                  onReassignRole(
-                                    activeEvent.id,
-                                    assign.role,
-                                    e.target.value,
-                                    assignIdx
-                                  )
-                                }
-                                className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
-                              >
-                                {members.map((m) => {
-                                  const mAv = getMemberAvailabilityForDate(
-                                    m.id,
-                                    activeEvent.date
-                                  );
-                                  const tag =
-                                    mAv?.status === 'unavailable'
-                                      ? `⚠️ NO DISPONIBLE (${mAv.reason || 'Bloqueó fecha'})`
-                                      : '✓ Disponible';
-                                  return (
-                                    <option key={m.id} value={m.id}>
-                                      {m.name} — {tag}
-                                    </option>
-                                  );
-                                })}
-                              </select>
-                            ) : (
-                              <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                                {assign.memberName}
-                                {isCurrentUser && (
-                                  <span
-                                    className={`ml-1.5 text-xs ${accent.textClass}`}
-                                  >
-                                    · (Tu rol)
-                                  </span>
-                                )}
-                              </span>
-                            )}
-
-                            {isBlockedDate && (
-                              <span className="px-2 py-0.5 rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[11px] font-bold flex items-center gap-1">
-                                <CalendarOff className="w-3 h-3" />
-                                No disponible ({memberAvail?.reason || 'Fecha bloqueada'})
-                              </span>
-                            )}
-                          </div>
                         </div>
+                      </div>
 
-                        <div className="flex items-center gap-1.5 self-end sm:self-center">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onUpdateRSVP(
-                                activeEvent.id,
-                                assign.role,
-                                'confirmed',
-                                assignIdx,
-                                assign.id
-                              )
-                            }
-                            className={`min-h-[42px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                              assign.rsvpStatus === 'confirmed'
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                            }`}
-                          >
+                      {/* Estado de Invitación (Solo lectura en la lista general) + Botón de Eliminar para el Líder */}
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        {assign.rsvpStatus === 'confirmed' && (
+                          <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            Confirmar
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onUpdateRSVP(
-                                activeEvent.id,
-                                assign.role,
-                                'pending',
-                                assignIdx,
-                                assign.id
-                              )
-                            }
-                            className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
-                              assign.rsvpStatus === 'pending'
-                                ? 'bg-amber-500 text-white'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                            }`}
-                          >
+                            Confirmado
+                          </span>
+                        )}
+                        {assign.rsvpStatus === 'pending' && (
+                          <span className="px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5">
                             <HelpCircle className="w-3.5 h-3.5" />
                             Pendiente
-                          </button>
+                          </span>
+                        )}
+                        {assign.rsvpStatus === 'declined' && (
+                          <span className="px-3 py-1.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1.5">
+                            <XCircle className="w-3.5 h-3.5" />
+                            Declinado
+                          </span>
+                        )}
 
+                        {isLeader && (
                           <button
                             type="button"
-                            onClick={() =>
-                              onUpdateRSVP(
-                                activeEvent.id,
-                                assign.role,
-                                'declined',
-                                assignIdx,
-                                assign.id
-                              )
-                            }
-                            className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
-                              assign.rsvpStatus === 'declined'
-                                ? 'bg-rose-600 text-white'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                            }`}
+                            onClick={() => {
+                              const updated = activeEvent.assignments.filter(
+                                (_, i) => i !== assignIdx
+                              );
+                              onUpdateEventAssignments(activeEvent.id, updated);
+                            }}
+                            title="Eliminar miembro de este evento"
+                            className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors"
                           >
-                            <XCircle className="w-3.5 h-3.5" />
-                            Declinar
+                            <Trash2 className="w-4 h-4" />
                           </button>
-
-                          {isLeader && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = activeEvent.assignments.filter(
-                                  (_, i) => i !== assignIdx
-                                );
-                                onUpdateEventAssignments(activeEvent.id, updated);
-                              }}
-                              title="Quitar de este evento"
-                              className="min-h-[42px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
+            </div>
 
-              {/* =============================================================
-                  NOTAS GRUPALES Y NOTAS PERSONALES DE ESTE EVENTO
-                 ============================================================= */}
-              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
-                {eventNotesSavedNotice && (
-                  <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-                    <Check className="w-4 h-4 shrink-0" />
-                    <span>{eventNotesSavedNotice}</span>
+            {/* =============================================================
+                4. NOTAS GRUPALES Y NOTAS PERSONALES DE ESTE EVENTO
+               ============================================================= */}
+            <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+              {eventNotesSavedNotice && (
+                <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{eventNotesSavedNotice}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Tarjeta 1: Notas Grupales del Evento */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <FileText className={`w-4 h-4 ${accent.textClass}`} />
+                        <span>Notas Grupales del Evento</span>
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
+                        Para todo el grupo
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Indicaciones generales de horarios, código de vestimenta, prueba de sonido o transiciones del servicio.
+                    </p>
+                    <textarea
+                      rows={3}
+                      value={eventGroupNotesDraft}
+                      onChange={(e) => setEventGroupNotesDraft(e.target.value)}
+                      placeholder="Ej. Prueba de sonido puntual a las 08:30 hrs; vestimenta tonos neutros; transición continua entre canción 1 y 2..."
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
+                    />
                   </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Tarjeta 1: Notas Grupales del Evento */}
-                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          <FileText className={`w-4 h-4 ${accent.textClass}`} />
-                          <span>Notas Grupales del Evento</span>
-                        </h3>
-                        <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
-                          Para todo el grupo
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Indicaciones generales de horarios, código de vestimenta, prueba de sonido o transiciones del servicio.
-                      </p>
-                      <textarea
-                        rows={3}
-                        value={eventGroupNotesDraft}
-                        onChange={(e) => setEventGroupNotesDraft(e.target.value)}
-                        placeholder="Ej. Prueba de sonido puntual a las 08:30 hrs; vestimenta tonos neutros; transición continua entre canción 1 y 2..."
-                        className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleSaveActiveEventGroupNotes}
-                        className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Guardar Nota Grupal del Evento</span>
-                      </button>
-                    </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveActiveEventGroupNotes}
+                      className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Guardar Nota Grupal del Evento</span>
+                    </button>
                   </div>
+                </div>
 
-                  {/* Tarjeta 2: Mis Notas Personales en este Evento */}
-                  <div className="p-4 sm:p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-3 flex flex-col justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          <User className="w-4 h-4 text-emerald-500" />
-                          <span>Mis Notas Personales ({activeMember.name})</span>
-                        </h3>
-                        <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
-                          Solo para ti
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Tus recordatorios privados para este evento (cables, pedales, partes que te tocan o pendientes).
-                      </p>
-                      <textarea
-                        rows={3}
-                        value={eventPersonalNotesDraft}
-                        onChange={(e) => setEventPersonalNotesDraft(e.target.value)}
-                        placeholder="Escribe aquí tus apuntes personales para este evento..."
-                        className="w-full p-3 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
-                      />
+                {/* Tarjeta 2: Mis Notas Personales en este Evento */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <User className="w-4 h-4 text-emerald-500" />
+                        <span>Mis Notas Personales ({activeMember.name})</span>
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
+                        Solo para ti
+                      </span>
                     </div>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleSaveActiveEventPersonalNotes}
-                        className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Guardar Mi Nota del Evento</span>
-                      </button>
-                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Tus recordatorios privados para este evento (cables, pedales, partes que te tocan o pendientes).
+                    </p>
+                    <textarea
+                      rows={3}
+                      value={eventPersonalNotesDraft}
+                      onChange={(e) => setEventPersonalNotesDraft(e.target.value)}
+                      placeholder="Escribe aquí tus apuntes personales para este evento..."
+                      className="w-full p-3 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveActiveEventPersonalNotes}
+                      className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Guardar Mi Nota del Evento</span>
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL: EDITAR DATOS DE UN EVENTO YA CREADO (LÍDER / CO-LÍDER)
+         ===================================================================== */}
+      {showEditEventModal && activeEvent && isLeader && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 my-8 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Editar Datos del Evento
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Modifica el título, fecha, horarios o lugar de «{activeEvent.title}»
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditEventModal(false)}
+                className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditEventSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Título del Evento
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Tipo de Evento
+                  </label>
+                  <select
+                    value={editType}
+                    onChange={(e) =>
+                      setEditType(e.target.value as WorshipEvent['type'])
+                    }
+                    className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  >
+                    <option value="sunday">Domingo de Servicio</option>
+                    <option value="rehearsal">Ensayo General</option>
+                    <option value="special">Evento Especial</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <InteractiveDatePicker
+                  label="Fecha"
+                  value={editDate}
+                  onChange={(d) => setEditDate(d)}
+                />
+                <InteractiveTimePicker
+                  label="Hora Citación"
+                  value={editCallTime}
+                  onChange={(t) => setEditCallTime(t)}
+                />
+                <InteractiveTimePicker
+                  label="Hora Inicio"
+                  value={editTime}
+                  onChange={(t) => setEditTime(t)}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Ubicación / Lugar
+                  </label>
+                  <input
+                    type="text"
+                    value={editLocation}
+                    onChange={(e) => setEditLocation(e.target.value)}
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Tema o Descripción Breve
+                  </label>
+                  <input
+                    type="text"
+                    value={editTheme}
+                    onChange={(e) => setEditTheme(e.target.value)}
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowEditEventModal(false)}
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold text-slate-500"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className={`min-h-[44px] px-6 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                >
+                  Guardar Cambios del Evento
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -1828,17 +2390,19 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         </div>
       )}
 
-      {/* Modal: Armar Playlist del Evento y Tonos por Semana (Solo Líder) */}
+      {/* =====================================================================
+          MODAL: ARMAR PLAYLIST, ORDENAR CANCIONES Y ASIGNAR VOCES (LÍDER)
+         ===================================================================== */}
       {showPlaylistEditor && activeEvent && isLeader && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 my-8 space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Playlist y Tonos para «{activeEvent.title}»
+                  Playlist, Orden y Voces para «{activeEvent.title}»
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Elige las canciones y ajusta su tonalidad para esta semana aparte de su tono normal
+                  Reordena las canciones, elige el tono de la semana y asigna Voz Principal y Coros en cada canción.
                 </p>
               </div>
               <button
@@ -1850,76 +2414,198 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               </button>
             </div>
 
-            <div className="space-y-2.5 max-h-[55vh] overflow-y-auto">
-              {songs.map((song) => {
-                const evItem = activeEvent.songs.find(
-                  (s) => s.songId === song.id
-                );
-                const included = Boolean(evItem);
-                return (
-                  <div
-                    key={song.id}
-                    className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
-                      included
-                        ? `${accent.borderClass} ${accent.softBgClass}`
-                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40'
-                    }`}
-                  >
+            {/* 1. Orden actual de la Playlist y Asignación de Voces por Canción */}
+            {activeEvent.songs.length > 0 && (
+              <div className="space-y-2.5">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-500">
+                  1. Orden de Canciones Seleccionadas ({activeEvent.songs.length})
+                </p>
+                <div className="space-y-2.5">
+                  {activeEvent.songs.map((evItem, idx) => {
+                    const song = songs.find((s) => s.id === evItem.songId);
+                    if (!song) return null;
+                    const backing = evItem.backingVocals || [];
+
+                    return (
+                      <div
+                        key={`${evItem.songId}-${idx}`}
+                        className="p-3.5 rounded-2xl border border-amber-500/40 bg-amber-500/5 space-y-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-lg bg-amber-500 text-slate-950 font-mono text-xs font-extrabold flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                {song.title}
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                Tono Base: {song.originalKey} · {song.bpm} BPM
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => moveSongInActiveEvent(idx, -1)}
+                              className="px-2 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-xs font-bold disabled:opacity-30"
+                              title="Subir"
+                            >
+                              ↑ Subir
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === activeEvent.songs.length - 1}
+                              onClick={() => moveSongInActiveEvent(idx, 1)}
+                              className="px-2 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-xs font-bold disabled:opacity-30"
+                              title="Bajar"
+                            >
+                              ↓ Bajar
+                            </button>
+                            <select
+                              value={evItem.customKey || song.originalKey}
+                              onChange={(e) =>
+                                updateSongItemInActiveEvent(song.id, {
+                                  customKey: e.target.value,
+                                })
+                              }
+                              className="min-h-[34px] px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs font-bold text-slate-900 dark:text-white"
+                            >
+                              {ALL_KEYS.map((k) => (
+                                <option key={k} value={k}>
+                                  Tono: {k} {k === song.originalKey ? '(Base)' : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => toggleSongInActiveEvent(song)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10"
+                              title="Quitar de la playlist"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Selector de Voz Principal y Coros para esta canción */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/70 dark:border-slate-800">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                              Voz Principal en esta canción:
+                            </label>
+                            <select
+                              value={evItem.vocalLeader || ''}
+                              onChange={(e) =>
+                                updateSongItemInActiveEvent(song.id, {
+                                  vocalLeader: e.target.value,
+                                })
+                              }
+                              className="w-full min-h-[36px] px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white"
+                            >
+                              <option value="">Sin asignar / Instrumental</option>
+                              {members.map((m) => (
+                                <option key={m.id} value={m.name}>
+                                  {m.name} ({m.instruments.join(', ')})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                              Coros en esta canción (toca para elegir):
+                            </label>
+                            <div className="flex flex-wrap gap-1">
+                              {members.map((m) => {
+                                const isBacking = backing.includes(m.name);
+                                return (
+                                  <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const nextBacking = isBacking
+                                        ? backing.filter((n) => n !== m.name)
+                                        : [...backing, m.name];
+                                      updateSongItemInActiveEvent(song.id, {
+                                        backingVocals: nextBacking,
+                                      });
+                                    }}
+                                    className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                                      isBacking
+                                        ? 'bg-sky-600 text-white border-transparent'
+                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                                    }`}
+                                  >
+                                    {isBacking ? '✓ ' : '+ '}
+                                    {m.name.split(' ')[0]}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 2. Catálogo del Repertorio Base para agregar más canciones */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                2. Agregar más canciones del Repertorio Base
+              </p>
+              <div className="space-y-2 max-h-56 overflow-y-auto">
+                {songs.map((song) => {
+                  const included = activeEvent.songs.some(
+                    (s) => s.songId === song.id
+                  );
+                  return (
                     <button
+                      key={song.id}
                       type="button"
                       onClick={() => toggleSongInActiveEvent(song)}
-                      className="flex items-center gap-3 text-left flex-1 min-w-0"
+                      className={`w-full p-3 rounded-2xl border flex items-center justify-between gap-3 text-left transition-all ${
+                        included
+                          ? 'border-emerald-500/40 bg-emerald-500/10'
+                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40'
+                      }`}
                     >
-                      <div
-                        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                          included
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                        }`}
-                      >
-                        {included ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <Plus className="w-4 h-4" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                          {song.title}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Tono Normal: <strong>{song.originalKey}</strong> ·{' '}
-                          {song.bpm} BPM
-                        </p>
-                      </div>
-                    </button>
-
-                    {included && evItem && (
-                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                          Tono esta semana:
-                        </span>
-                        <select
-                          value={evItem.customKey || song.originalKey}
-                          onChange={(e) =>
-                            updateSongWeeklyKeyInActiveEvent(
-                              song.id,
-                              e.target.value
-                            )
-                          }
-                          className="min-h-[38px] px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs font-bold text-slate-900 dark:text-white"
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
+                            included
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                          }`}
                         >
-                          {ALL_KEYS.map((k) => (
-                            <option key={k} value={k}>
-                              {k} {k === song.originalKey ? '(Base)' : ''}
-                            </option>
-                          ))}
-                        </select>
+                          {included ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {song.title}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            Tono Base: {song.originalKey} · {song.bpm} BPM
+                          </p>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                      <span className="text-xs font-bold text-slate-500">
+                        {included ? 'En la playlist' : '+ Agregar'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <button
@@ -1927,7 +2613,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               onClick={() => setShowPlaylistEditor(false)}
               className={`w-full min-h-[48px] rounded-2xl text-sm font-bold ${accent.bgClass}`}
             >
-              Guardar Playlist y Tonos del Evento
+              Listo · Guardar Playlist, Orden y Voces
             </button>
           </div>
         </div>
@@ -1996,7 +2682,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:border-amber-500 text-left"
                 >
                   <p className="text-xs font-bold text-slate-900 dark:text-white">
-                    Noche Especial
+                    Evento Especial
                   </p>
                   <p className="text-[10px] text-slate-500 font-mono">
                     Cit: 17:30 · Ini: 19:30
@@ -2046,7 +2732,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   >
                     <option value="sunday">Domingo de Servicio</option>
                     <option value="rehearsal">Ensayo General</option>
-                    <option value="special">Noche Especial</option>
+                    <option value="special">Evento Especial</option>
                   </select>
                 </div>
               </div>
@@ -2090,6 +2776,47 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
               </div>
 
+              {/* Lugar, Tema/Predicador y Notas Grupales Iniciales */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Ubicación / Lugar
+                  </label>
+                  <input
+                    type="text"
+                    value={newLocation}
+                    onChange={(e) => setNewLocation(e.target.value)}
+                    placeholder="Ej. Auditorio Central / Salón de Ensayo"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Tema o Descripción Breve (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newTheme}
+                    onChange={(e) => setNewTheme(e.target.value)}
+                    placeholder="Ej. Servicio Dominical / Ensayo General"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Notas Grupales para este Evento (Vestimenta, indicaciones, orden...)
+                </label>
+                <textarea
+                  rows={2}
+                  value={newNotes}
+                  onChange={(e) => setNewNotes(e.target.value)}
+                  placeholder="Ej. Prueba de sonido puntual, vestimenta tonos neutros, llegar 15 min antes..."
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
+                />
+              </div>
+
               {/* ===============================================================
                   PANEL EN VIVO DE DISPONIBILIDAD DE MIEMBROS PARA LA FECHA ELEGIDA
                  =============================================================== */}
@@ -2119,7 +2846,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           key={m.id}
                           className="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-emerald-500/30 text-[11px] font-bold text-slate-800 dark:text-slate-200"
                         >
-                          ✓ {m.name} ({m.instruments[0] || 'Banda'})
+                          ✓ {m.name} ({m.instruments.join(', ') || 'Banda'})
                         </span>
                       ))}
                     </div>
@@ -2164,7 +2891,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         Asignación de Instrumentos y Voces para este Evento ({draftAssignments.length} asignados):
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Agrega miembros individualmente sin límite y asígnales su instrumento o voz aunque se repitan (ej. 2 Vocalistas líderes, 6 Coros, 2 Guitarras).
+                        Agrega miembros individualmente y asígnales uno o más instrumentos/voces (ej. Guitarra + Voz Principal).
                       </p>
                     </div>
 
@@ -2192,7 +2919,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   {/* Botones rápidos de 1 toque por cada miembro para agregarlo al instante */}
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Toca un miembro para sumarlo al evento (puedes agregarlo varias veces si hace voz + instrumento):
+                      Toca un miembro para sumarlo al evento:
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {members.map((m) => {
@@ -2228,7 +2955,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     </div>
                   </div>
 
-                  {/* Lista dinámica de miembros asignados y su instrumento */}
+                  {/* Lista dinámica de miembros asignados y sus múltiples instrumentos */}
                   {draftAssignments.length === 0 ? (
                     <div className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-xs text-slate-500">
                       No hay miembros asignados todavía. Toca «+ Agregar Fila» o toca el nombre de cada miembro arriba.
@@ -2241,78 +2968,90 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           newDate
                         );
                         const isBlocked = selAvail?.status === 'unavailable';
+                        const currentRoles =
+                          item.roles && item.roles.length > 0
+                            ? item.roles
+                            : [item.role];
 
                         return (
                           <div
                             key={item.id || `draft-${idx}`}
-                            className={`p-2.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                            className={`p-3 rounded-xl border space-y-2 ${
                               isBlocked
                                 ? 'border-rose-500/50 bg-rose-500/10'
                                 : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
                             }`}
                           >
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-[11px] font-bold text-slate-500 flex items-center justify-center shrink-0">
-                                {idx + 1}
-                              </span>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-[11px] font-bold text-slate-500 flex items-center justify-center shrink-0">
+                                  {idx + 1}
+                                </span>
 
-                              {/* Selector de Miembro */}
-                              <select
-                                value={item.memberId}
-                                onChange={(e) =>
-                                  handleUpdateDraftAssignmentMember(idx, e.target.value)
-                                }
-                                className="min-h-[38px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white flex-1 min-w-0"
-                              >
-                                {members.map((m) => {
-                                  const av = getMemberAvailabilityForDate(
-                                    m.id,
-                                    newDate
-                                  );
-                                  return (
-                                    <option key={m.id} value={m.id}>
-                                      {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
-                                      {m.name}
-                                      {av?.status === 'unavailable'
-                                        ? ' (No disp.)'
-                                        : ''}
-                                    </option>
-                                  );
-                                })}
-                              </select>
-                            </div>
-
-                            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                              {/* Selector de Instrumento / Voz (se pueden repetir sin límite) */}
-                              <select
-                                value={item.role}
-                                onChange={(e) =>
-                                  handleUpdateDraftAssignmentRole(
-                                    idx,
-                                    e.target.value as InstrumentRole
-                                  )
-                                }
-                                className="min-h-[38px] px-2.5 py-1 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs font-bold text-amber-700 dark:text-amber-300"
-                              >
-                                {ALL_INSTRUMENT_ROLES.map((roleOpt) => (
-                                  <option
-                                    key={roleOpt}
-                                    value={roleOpt}
-                                    className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                                  >
-                                    {roleOpt}
-                                  </option>
-                                ))}
-                              </select>
+                                <select
+                                  value={item.memberId}
+                                  onChange={(e) =>
+                                    handleUpdateDraftAssignmentMember(
+                                      idx,
+                                      e.target.value
+                                    )
+                                  }
+                                  className="min-h-[38px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white flex-1 min-w-0"
+                                >
+                                  {members.map((m) => {
+                                    const av = getMemberAvailabilityForDate(
+                                      m.id,
+                                      newDate
+                                    );
+                                    return (
+                                      <option key={m.id} value={m.id}>
+                                        {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
+                                        {m.name}
+                                        {av?.status === 'unavailable'
+                                          ? ' (No disp.)'
+                                          : ''}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </div>
 
                               <button
                                 type="button"
                                 onClick={() => handleRemoveDraftAssignment(idx)}
                                 title="Quitar miembro del evento"
-                                className="min-h-[38px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors"
+                                className="min-h-[36px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
+                            </div>
+
+                            {/* Chips de instrumentos/voces asignados a este miembro en el borrador */}
+                            <div className="flex flex-wrap items-center gap-1.5 pl-8">
+                              {allAvailableRoles.map((roleOpt) => {
+                                const isSelectedRole =
+                                  currentRoles.includes(roleOpt);
+                                return (
+                                  <button
+                                    key={roleOpt}
+                                    type="button"
+                                    onClick={() =>
+                                      handleToggleDraftAssignmentRole(
+                                        idx,
+                                        roleOpt
+                                      )
+                                    }
+                                    className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-all ${
+                                      isSelectedRole
+                                        ? 'bg-amber-500 text-slate-950 border-transparent'
+                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+                                    }`}
+                                  >
+                                    {isSelectedRole ? '✓ ' : '+ '}
+                                    {roleOpt}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -2355,6 +3094,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                         songId: song.id,
                                         customKey: song.originalKey,
                                         vocalLeader: activeMember.name,
+                                        backingVocals: [],
                                       },
                                     ]
                               )

@@ -23,6 +23,7 @@ import {
   Send,
   ShieldCheck,
   Square,
+  Trash2,
   Users,
   Volume2,
   X,
@@ -42,6 +43,7 @@ interface ChatModuleProps {
     voiceClipUrl?: string,
     voiceClipDurationSec?: number
   ) => void;
+  onDeleteMessage?: (messageId: string) => void;
   onTogglePrayerReaction: (messageId: string) => void;
   onOpenSongFromChat: (songId: string) => void;
   onExitFullScreenChat: () => void;
@@ -105,6 +107,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
   activeMember,
   accentColor,
   onSendMessage,
+  onDeleteMessage,
   onTogglePrayerReaction,
   onOpenSongFromChat,
   onExitFullScreenChat,
@@ -496,6 +499,19 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                             Fijado
                           </span>
                         )}
+                        {onDeleteMessage &&
+                          (msg.senderId === activeMember.id ||
+                            activeMember.role === 'leader') && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteMessage(msg.id)}
+                              className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                              title="Eliminar mensaje"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Eliminar</span>
+                            </button>
+                          )}
                       </div>
 
                       <p className="text-sm text-slate-200 mt-1 leading-relaxed">

@@ -354,6 +354,32 @@ export default function App() {
     );
   };
 
+  const handleUpdateUserInstruments = (instruments: InstrumentRole[]) => {
+    if (!currentUser || instruments.length === 0) return;
+    const updatedUser: AppUser = {
+      ...currentUser,
+      instruments,
+    };
+    setUsers((prev) =>
+      prev.map((u) => (u.id === currentUser.id ? updatedUser : u))
+    );
+    syncUserToFirestore(updatedUser);
+
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (!g.members.some((m) => m.id === currentUser.id)) return g;
+        const updatedGroup: WorshipGroup = {
+          ...g,
+          members: g.members.map((m) =>
+            m.id === currentUser.id ? { ...m, instruments } : m
+          ),
+        };
+        syncGroupToFirestore(updatedGroup);
+        return updatedGroup;
+      })
+    );
+  };
+
   const handleLoginUser = (userId: string) => {
     setCurrentUserId(userId);
     const userGroups = groups.filter((g) =>
@@ -565,6 +591,7 @@ export default function App() {
           onLoginUser={handleLoginUser}
           onRegisterStandardUser={handleRegisterStandardUser}
           onUpdateUserAvatar={handleUpdateUserAvatar}
+          onUpdateUserInstruments={handleUpdateUserInstruments}
           onLogout={handleLogout}
           onCreateGroup={handleCreateGroup}
           onJoinGroupByCodeOrInvite={handleJoinGroupByCodeOrInvite}
@@ -819,7 +846,7 @@ export default function App() {
             if (assignmentIndex !== undefined) {
               return idx === assignmentIndex ? { ...a, rsvpStatus: status } : a;
             }
-            if (a.role === role && a.memberId === activeMember.id) {
+            if (a.memberId === activeMember.id) {
               return { ...a, rsvpStatus: status };
             }
             return a;
@@ -965,7 +992,7 @@ export default function App() {
   const handleCreateEvent = (newEv: Omit<WorshipEvent, 'id'>) => {
     const created: WorshipEvent = {
       ...newEv,
-      id: `ev-${Date.now()}`,
+      id: `ev-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     };
     updateActiveGroup((g) => ({
       ...g,
@@ -1013,6 +1040,13 @@ export default function App() {
       },
       ...roleNotifications,
     ]);
+  };
+
+  const handleUpdateEvent = (updatedEvent: WorshipEvent) => {
+    updateActiveGroup((g) => ({
+      ...g,
+      events: g.events.map((e) => (e.id === updatedEvent.id ? updatedEvent : e)),
+    }));
   };
 
   const handleDeleteEvent = (eventId: string) => {
@@ -1138,6 +1172,17 @@ export default function App() {
     updateActiveGroup((g) => ({
       ...g,
       songs: g.songs.map((s) => (s.id === updated.id ? updated : s)),
+    }));
+  };
+
+  const handleDeleteSong = (songId: string) => {
+    updateActiveGroup((g) => ({
+      ...g,
+      songs: g.songs.filter((s) => s.id !== songId),
+      events: g.events.map((ev) => ({
+        ...ev,
+        songs: ev.songs.filter((item) => item.songId !== songId),
+      })),
     }));
   };
 
@@ -1412,6 +1457,29 @@ export default function App() {
     }));
   };
 
+  const handleDeleteChatMessage = (messageId: string) => {
+    updateActiveGroup((g) => ({
+      ...g,
+      chatMessages: g.chatMessages.filter((m) => m.id !== messageId),
+    }));
+  };
+
+  const handleToggleMemberRole = (memberId: string) => {
+    if (memberId === activeGroup.leaderUserId) return; // Creator always remains main leader
+    updateActiveGroup((g) => ({
+      ...g,
+      members: g.members.map((m) => {
+        if (m.id !== memberId) return m;
+        const nextRole = m.role === 'leader' ? 'member' : 'leader';
+        return {
+          ...m,
+          role: nextRole,
+          isLeader: nextRole === 'leader',
+        };
+      }),
+    }));
+  };
+
   const handleRemoveMember = (id: string) => {
     updateActiveGroup((g) => ({
       ...g,
@@ -1672,6 +1740,7 @@ export default function App() {
               onUpdateEventPlaylist={handleUpdateEventPlaylist}
               onUpdateEventNotes={handleUpdateEventNotes}
               onCreateEvent={handleCreateEvent}
+              onUpdateEvent={handleUpdateEvent}
               onDeleteEvent={handleDeleteEvent}
               onAddAlert={handleAddAlert}
               onDismissAlert={handleDismissAlert}
@@ -1685,12 +1754,14 @@ export default function App() {
             <SongbookModule
               songs={activeGroup.songs}
               events={activeGroup.events}
+              members={activeGroup.members}
               activeMember={{ ...activeMember, role: userRole }}
               accentColor={identity.accentColor}
               initialSongId={selectedSongNav.songId}
               initialTargetKey={selectedSongNav.customKey}
               onAddSong={handleAddSong}
               onUpdateSong={handleUpdateSong}
+              onDeleteSong={handleDeleteSong}
               onUpdateEventPlaylist={handleUpdateEventPlaylist}
               onOpenMetronomeWithSong={handleOpenMetronomeWithSong}
             />
@@ -1720,6 +1791,7 @@ export default function App() {
               activeMember={{ ...activeMember, role: userRole }}
               accentColor={identity.accentColor}
               onSendMessage={handleSendChatMessage}
+              onDeleteMessage={handleDeleteChatMessage}
               onTogglePrayerReaction={handleTogglePrayerReaction}
               onOpenSongFromChat={(songId) => handleOpenSongInSongbook(songId)}
               onExitFullScreenChat={() => setActiveTab('inicio')}
@@ -1796,6 +1868,7 @@ export default function App() {
           onLoginUser={handleLoginUser}
           onRegisterStandardUser={handleRegisterStandardUser}
           onUpdateUserAvatar={handleUpdateUserAvatar}
+          onUpdateUserInstruments={handleUpdateUserInstruments}
           onLogout={handleLogout}
           onCreateGroup={handleCreateGroup}
           onJoinGroupByCodeOrInvite={handleJoinGroupByCodeOrInvite}
@@ -1812,6 +1885,7 @@ export default function App() {
           identity={identity}
           onSaveIdentity={handleSaveIdentity}
           userRole={userRole}
+          leaderUserId={activeGroup.leaderUserId}
           members={activeGroup.members}
           invitations={activeGroup.invitations}
           activeMember={{ ...activeMember, role: userRole }}
@@ -1819,6 +1893,8 @@ export default function App() {
           onSendInvitationByUsernameOrEmail={
             handleSendInvitationByUsernameOrEmail
           }
+          onToggleMemberRole={handleToggleMemberRole}
+          onUpdateUserInstruments={handleUpdateUserInstruments}
           onRemoveMember={handleRemoveMember}
           onResetDemoData={handleResetDemoData}
         />
