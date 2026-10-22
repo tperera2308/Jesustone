@@ -182,6 +182,45 @@ function getBeatsCountFromTimeSignature(ts: TimeSignature): number {
   return 4;
 }
 
+function compressImageFileToDataUrl(
+  file: File,
+  maxWidth = 1000,
+  quality = 0.72
+): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (!result || file.type === 'image/svg+xml') {
+        resolve(result);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(result);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } catch {
+          resolve(result);
+        }
+      };
+      img.onerror = () => resolve(result);
+      img.src = result;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
 export const SongbookModule: React.FC<SongbookModuleProps> = ({
   songs,
   events,
@@ -376,7 +415,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         setSemitones(0);
       }
     }
-  }, [initialSongId, initialTargetKey, songs]);
+  }, [initialSongId, initialTargetKey]);
 
   useEffect(() => {
     setIsEditingStructure(false);
@@ -649,24 +688,21 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     });
   };
 
-  const handleUploadImageForActiveSong = (
+  const handleUploadImageForActiveSong = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     if (!activeSong) return;
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onUpdateSong({
-          ...activeSong,
-          chordSheetImageUrl: reader.result,
-          attachedFileName: file.name,
-        });
-        setViewFormat('image');
-      }
-    };
-    reader.readAsDataURL(file);
+    const compressedDataUrl = await compressImageFileToDataUrl(file);
+    if (compressedDataUrl) {
+      onUpdateSong({
+        ...activeSong,
+        chordSheetImageUrl: compressedDataUrl,
+        attachedFileName: file.name,
+      });
+      setViewFormat('image');
+    }
   };
 
   const handleSaveEditedLyrics = () => {
@@ -752,16 +788,6 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       .map((c) => c.trim())
       .filter(Boolean);
     const defaultChords = [newKey, 'D', 'Em7', 'C'];
-    const imageSheet =
-      newImageDataUrl ||
-      generateLeadSheetSVGDataUrl(
-        newTitle.trim(),
-        newArtist.trim() || 'jesustone Worship',
-        newKey,
-        Number(newBpm) || 75,
-        newTimeSig,
-        defaultChords
-      );
 
     const finalStructure =
       newStructure.length > 0
@@ -782,7 +808,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       referenceDuration: '04:30',
       chordProgPreview: defaultChords,
       lyricsAndChords: newLyrics,
-      chordSheetImageUrl: imageSheet,
+      chordSheetImageUrl: newImageDataUrl || undefined,
       attachedFileName:
         newFileName || `${newTitle.trim().replace(/\s+/g, '_')}_Acordes.svg`,
       notes:
@@ -805,6 +831,10 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     setNewGroupNotes('');
     setNewImageDataUrl('');
     setNewFileName('');
+    setSelectedStyleFilter('all');
+    setSearchQuery('');
+    setActiveSubView('repertorio');
+    setOpenedSongId(null);
     setShowAddModal(false);
   };
 
@@ -3061,17 +3091,14 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const f = e.target.files?.[0];
                     if (f) {
                       setNewFileName(f.name);
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        if (typeof reader.result === 'string') {
-                          setNewImageDataUrl(reader.result);
-                        }
-                      };
-                      reader.readAsDataURL(f);
+                      const compressed = await compressImageFileToDataUrl(f);
+                      if (compressed) {
+                        setNewImageDataUrl(compressed);
+                      }
                     }
                   }}
                   className="text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-200 dark:file:bg-slate-800 file:text-slate-800 dark:file:text-slate-200"
