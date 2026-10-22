@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AccentColorId,
   AppIdentity,
@@ -137,6 +137,11 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
   const channelMeta =
     allChannels.find((c) => c.id === activeChannel) || allChannels[0];
   const channelMessages = messages.filter((m) => m.channel === activeChannel);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeChannel, channelMessages.length]);
 
   const leaders = members.filter((m) => m.role === 'leader');
   const regularMembers = members.filter((m) => m.role !== 'leader');
@@ -606,6 +611,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                   </div>
                 );
               })}
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Barra Inferior de Envío Estilo Discord */}

@@ -1825,7 +1825,7 @@ export default function App() {
     { id: 'cancionero', label: 'Cancionero', shortLabel: 'Canciones', icon: Music },
     { id: 'devocionales', label: 'Estudio', shortLabel: 'Estudio', icon: BookOpen },
     { id: 'chat', label: 'Chat', shortLabel: 'Chat', icon: MessageSquare },
-    { id: 'herramientas', label: 'Herramientas', shortLabel: 'Músico', icon: Sliders },
+    { id: 'herramientas', label: 'Herramientas', shortLabel: 'Herramientas', icon: Sliders },
   ];
 
   return (
@@ -1887,19 +1887,19 @@ export default function App() {
         )}
 
         {/* TOP BAR CONTRACT: 3 Zonas Limpias */}
-        <header className="sticky top-0 z-30 h-16 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between gap-6">
+        <header className="sticky top-0 z-30 h-14 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3.5 sm:px-6 flex items-center justify-between gap-4">
           {/* Zona 1: Wordmark jesustone con el icono de Púa de Guitarra + Cruz */}
           <button
             type="button"
             onClick={() => setActiveTab('inicio')}
-            className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0 flex items-center gap-2.5"
+            className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0 flex items-center gap-2"
           >
-            <GuitarPickCrossIcon className={`w-6 h-6 ${accent.textClass}`} />
+            <GuitarPickCrossIcon className={`w-5 h-5 ${accent.textClass}`} />
             <span>jesustone</span>
           </button>
 
           {/* Zona 2: Navegación Principal en Escritorio */}
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-400">
+          <nav className="hidden md:flex items-center gap-5 text-sm font-medium text-slate-600 dark:text-slate-400">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -1919,16 +1919,16 @@ export default function App() {
             })}
           </nav>
 
-          {/* Zona 3: Acción Principal (Notificaciones + Cuenta de Usuario Activa con Foto) */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Zona 3: Acción Principal Compacta (Notificaciones, Temas, Instalar y Cuenta) */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setIsNotificationsModalOpen(true)}
-              className="relative min-h-[42px] px-3 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs font-bold transition-colors"
+              className="relative min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs font-bold transition-colors"
               title="Centro de Notificaciones"
             >
               <Bell className="w-4 h-4 text-amber-500" />
-              <span className="hidden sm:inline">Notificaciones</span>
+              <span className="hidden lg:inline">Avisos</span>
               {unreadNotificationsCount > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono text-[10px] font-bold">
                   {unreadNotificationsCount}
@@ -1938,86 +1938,52 @@ export default function App() {
 
             <button
               type="button"
+              onClick={() =>
+                setIdentityModalState({ open: true, section: 'temas' })
+              }
+              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-1 text-xs font-bold transition-colors"
+              title="Temas y colores"
+            >
+              <Palette className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden sm:inline">Temas</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowInstallModal(true)}
+              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-1 text-xs font-bold transition-colors"
+              title="Compartir o Instalar App"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-500" />
+              <span className="hidden sm:inline">App</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsAuthModalOpen(true)}
-              className={`min-h-[42px] px-3 py-1.5 rounded-2xl text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
+              className={`min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
+              title="Cuenta y Mis Grupos"
             >
               {currentUser.avatarUrl ? (
                 <img
                   src={currentUser.avatarUrl}
                   alt={currentUser.name}
-                  className="w-6 h-6 rounded-lg object-cover border border-white/30"
+                  className="w-5 h-5 rounded-md object-cover border border-white/30"
                 />
               ) : userRole === 'leader' ? (
-                <ShieldCheck className="w-4 h-4" />
+                <ShieldCheck className="w-3.5 h-3.5" />
               ) : (
-                <User className="w-4 h-4" />
+                <User className="w-3.5 h-3.5" />
               )}
-              <span>
-                @{currentUser.username} ·{' '}
-                {userRole === 'leader' ? 'Líder' : 'Miembro'} ({myGroups.length}/
-                {MAX_GROUPS_PER_USER})
+              <span className="max-w-[110px] sm:max-w-none truncate">
+                @{currentUser.username}
+              </span>
+              <span className="hidden sm:inline opacity-80">
+                · {userRole === 'leader' ? 'Líder' : 'Miembro'}
               </span>
             </button>
           </div>
         </header>
-
-        {/* SUB-BARRA DE ACCIONES MÓVILES: Grupo Activo, Crear/Cambiar Grupo, Temas e Instalación */}
-        <div className="bg-white/70 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-6 py-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setIdentityModalState({ open: true, section: 'grupo' })
-                }
-                className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-200/70 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 whitespace-nowrap shrink-0"
-              >
-                <Settings className="w-3.5 h-3.5 text-amber-500" />
-                <span>Grupo: {identity.ministryName}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsAuthModalOpen(true)}
-                className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-200/70 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 whitespace-nowrap shrink-0"
-              >
-                <FolderPlus className="w-3.5 h-3.5 text-sky-500" />
-                <span>
-                  Mis Grupos ({myGroups.length}/{MAX_GROUPS_PER_USER}) · Crear Grupo
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setIdentityModalState({ open: true, section: 'temas' })
-                }
-                className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-200/70 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 whitespace-nowrap shrink-0"
-              >
-                <Palette className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Temas</span>
-              </button>
-
-              <span className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 whitespace-nowrap shrink-0">
-                <Cloud className="w-3.5 h-3.5" />
-                <span>
-                  {cloudStatus === 'connected'
-                    ? `Firebase: ${firebaseConfig.projectId}`
-                    : `Local + Firebase (${firebaseConfig.projectId})`}
-                </span>
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowInstallModal(true)}
-              className="min-h-[38px] px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 whitespace-nowrap shrink-0"
-            >
-              <Download className="w-3.5 h-3.5 text-amber-500" />
-              <span>Compartir / Instalar App</span>
-            </button>
-          </div>
-        </div>
 
         {/* CONTENIDO PRINCIPAL DEL GRUPO ACTIVO */}
         <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-5 min-w-0 overflow-x-hidden">

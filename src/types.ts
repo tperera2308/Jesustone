@@ -153,7 +153,12 @@ export interface Song {
   originalKey: string;
   bpm: number;
   timeSignature: TimeSignature;
-  style: 'Adoración' | 'Alabanza / Júbilo' | 'Intimidad' | 'Congregacional';
+  style:
+    | 'Adoración'
+    | 'Congregacional'
+    | 'Júbilo'
+    | 'Alabanza / Júbilo'
+    | 'Intimidad';
   characteristics: string[];
   structure?: string[]; // Ordered song sections, e.g. ['Intro', 'Verso 1', 'Coro', 'Puente x2', 'Final']
   spotifyUrl?: string;

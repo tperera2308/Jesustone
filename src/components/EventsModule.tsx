@@ -38,6 +38,7 @@ import {
   Mic,
   Plus,
   Repeat,
+  Search,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -641,7 +642,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const accent = getAccentClasses(accentColor);
   const isLeader = activeMember.role === 'leader';
 
-  const [filterType, setFilterType] = useState<'all' | 'sunday' | 'rehearsal' | 'special'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'sunday' | 'rehearsal' | 'special' | 'past'>('all');
   const [selectedEventId, setSelectedEventId] = useState<string>(events[0]?.id || '');
   // Vista inicial en tarjetas resumidas; al tocar una tarjeta se abre toda la información del evento
   const [openedEventId, setOpenedEventId] = useState<string | null>(null);
@@ -650,6 +651,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [showPlaylistEditor, setShowPlaylistEditor] = useState(false);
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [songSearchCreate, setSongSearchCreate] = useState('');
+  const [songSearchEditor, setSongSearchEditor] = useState('');
 
   // Edit Existing Event Form State
   const [editTitle, setEditTitle] = useState('');
@@ -832,9 +835,20 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [alertMessage, setAlertMessage] = useState('');
   const [alertPriority, setAlertPriority] = useState<'high' | 'normal'>('high');
 
-  const filteredEvents = events.filter((ev) =>
-    filterType === 'all' ? true : ev.type === filterType
-  );
+  const todayStr = getTodayDateStr();
+  const pastEventsCount = events.filter((ev) => ev.date < todayStr).length;
+
+  const filteredEvents = events
+    .filter((ev) => {
+      const isPast = ev.date < todayStr;
+      if (filterType === 'past') return isPast;
+      if (isPast) return false;
+      return filterType === 'all' ? true : ev.type === filterType;
+    })
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || '')
+    );
 
   const activeEvent =
     events.find((e) => e.id === (openedEventId || selectedEventId)) ||
@@ -1158,23 +1172,27 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         </div>
       )}
 
-      {/* Botones Grandes de Filtro + Bloqueo de Fechas / Disponibilidad + Acciones de Líder */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="grid grid-cols-4 gap-2 p-1.5 rounded-2xl bg-slate-200/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+      {/* Barra compacta de Filtros + Acciones en fila ordenada */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full">
           {[
-            { id: 'all', label: 'Todos' },
+            { id: 'all', label: 'Próximos' },
             { id: 'sunday', label: 'Domingos' },
             { id: 'rehearsal', label: 'Ensayos' },
             { id: 'special', label: 'Especiales' },
+            {
+              id: 'past',
+              label: pastEventsCount > 0 ? `Pasados (${pastEventsCount})` : 'Pasados',
+            },
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setFilterType(tab.id as typeof filterType)}
-              className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+              className={`min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
                 filterType === tab.id
-                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400'
+                  ? `${accent.bgClass} shadow-xs`
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
               {tab.label}
@@ -1182,17 +1200,17 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Botón para todos (Miembros y Líder): Bloquear fechas o registrar disponibilidad */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
           <button
             type="button"
             onClick={() => setShowAvailabilityModal(true)}
-            className="min-h-[48px] flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-200 hover:border-amber-500/50 transition-colors whitespace-nowrap shrink-0"
+            className="min-h-[34px] flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500/50 transition-colors whitespace-nowrap shrink-0"
+            title="Mi Disponibilidad / Bloquear Fechas"
           >
-            <CalendarOff className="w-4 h-4 text-rose-500" />
-            <span>Mi Disponibilidad / Bloquear Fechas</span>
+            <CalendarOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            <span>Disponibilidad</span>
             {availabilityRecords.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 font-mono text-[10px]">
+              <span className="px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 font-mono text-[10px]">
                 {availabilityRecords.length}
               </span>
             )}
@@ -1203,18 +1221,22 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAlertModal(true)}
-                className="min-h-[48px] flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap shrink-0"
+                className="min-h-[34px] flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap shrink-0"
+                title="Publicar Aviso"
               >
-                <Bell className="w-4 h-4 text-amber-500" />
-                Publicar Aviso
+                <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Aviso</span>
               </button>
               <button
                 type="button"
-                onClick={() => setShowCreateModal(true)}
-                className={`min-h-[48px] flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold shadow-md whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                onClick={() => {
+                  setSongSearchCreate('');
+                  setShowCreateModal(true);
+                }}
+                className={`min-h-[34px] flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] sm:text-xs font-bold shadow-xs whitespace-nowrap shrink-0 ${accent.bgClass}`}
               >
-                <Plus className="w-4 h-4" />
-                Programar Evento / Serie (Líder)
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span>Nuevo Evento</span>
               </button>
             </>
           )}
@@ -1419,89 +1441,88 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
           <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-6">
             {/* Cabecera del Evento + Botones de Editar / Duplicar / Eliminar para Líder */}
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
-              <div className="space-y-1.5">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                   <span className={`font-bold ${accent.textClass}`}>
                     {getEventTypeLabel(activeEvent.type)}
                   </span>
                   <span aria-hidden="true">·</span>
                   <span className="flex items-center gap-1 font-mono tabular-nums">
                     <Calendar className="w-3.5 h-3.5" />
-                    {formatReadableDateEs(activeEvent.date)} ({activeEvent.date})
+                    {formatReadableDateEs(activeEvent.date)}
                   </span>
                   <span aria-hidden="true">·</span>
                   <span className="flex items-center gap-1 font-mono tabular-nums">
                     <Clock className="w-3.5 h-3.5" />
-                    Citación: {activeEvent.callTime} / Inicio: {activeEvent.time}
+                    Cit: {activeEvent.callTime} / Ini: {activeEvent.time}
                   </span>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
                   {activeEvent.title}
                 </h2>
-                <p className="text-sm text-slate-600 dark:text-slate-300">
-                  {activeEvent.preacherOrTheme}
-                </p>
-                <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                  <MapPin className="w-3.5 h-3.5" />
-                  {activeEvent.location}
-                </p>
-
-                {activeEvent.spotifyPlaylistUrl && (
-                  <div className="pt-1.5">
-                    <a
-                      href={activeEvent.spotifyPlaylistUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 min-h-[40px] px-3.5 py-2 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs shadow-sm transition-colors"
-                      title="Escuchar playlist del evento en Spotify"
-                    >
-                      <Headphones className="w-4 h-4 text-black" />
-                      <span>Escuchar Playlist en Spotify</span>
-                    </a>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                  <span>{activeEvent.preacherOrTheme}</span>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5" />
+                    {activeEvent.location}
+                  </span>
+                </div>
               </div>
 
-              {isLeader && (
-                <div className="flex flex-wrap items-center gap-2 self-start shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditEventModal(activeEvent)}
-                    className="min-h-[42px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+              <div className="flex flex-wrap items-center gap-1.5 self-start shrink-0">
+                {activeEvent.spotifyPlaylistUrl && (
+                  <a
+                    href={activeEvent.spotifyPlaylistUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 min-h-[34px] px-2.5 py-1.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs shadow-xs transition-colors"
+                    title="Escuchar playlist del evento en Spotify"
                   >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Editar Evento</span>
-                  </button>
+                    <Headphones className="w-3.5 h-3.5 text-black" />
+                    <span>Spotify</span>
+                  </a>
+                )}
 
-                  <button
-                    type="button"
-                    onClick={() => handleDuplicateEventNextWeek(activeEvent)}
-                    className="min-h-[42px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500"
-                    title="Duplicar este evento para la próxima semana (+7 días)"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Duplicar (+7 días)</span>
-                  </button>
+                {isLeader && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditEventModal(activeEvent)}
+                      className="min-h-[34px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Editar</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onDeleteEvent(activeEvent.id);
-                      setOpenedEventId(null);
-                    }}
-                    className="min-h-[42px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Eliminar
-                  </button>
-                </div>
-              )}
+                    <button
+                      type="button"
+                      onClick={() => handleDuplicateEventNextWeek(activeEvent)}
+                      className="min-h-[34px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500"
+                      title="Duplicar este evento para la próxima semana (+7 días)"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-amber-500" />
+                      <span>+7 días</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDeleteEvent(activeEvent.id);
+                        setOpenedEventId(null);
+                      }}
+                      className="min-h-[34px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400"
+                      title="Eliminar evento"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* ===============================================================
-                1. TARJETA EXCLUSIVA: TU PROPIA INVITACIÓN A ESTE EVENTO
-                   (Solo tú puedes aceptar o declinar tu propia invitación)
+                1. INVITACIÓN PERSONAL: RESUMIDA SI YA FUE ACEPTADA
                =============================================================== */}
             {(() => {
               const myAssignments = activeEvent.assignments
@@ -1510,17 +1531,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
               if (myAssignments.length === 0) {
                 return (
-                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <User className="w-5 h-5 text-slate-400 shrink-0" />
-                      <div>
-                        <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
-                          Tu Invitación Personal ({activeMember.name})
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          No estás convocado en la lista de este evento actualmente.
-                        </p>
-                      </div>
+                  <div className="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <User className="w-4 h-4 text-slate-400 shrink-0" />
+                      <span>
+                        No estás convocado en la lista de este evento actualmente.
+                      </span>
                     </div>
                   </div>
                 );
@@ -1549,61 +1565,68 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 });
               };
 
+              if (currentStatus === 'confirmed') {
+                return (
+                  <div className="px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 truncate">
+                        Asistencia confirmada ·{' '}
+                        <span className="font-semibold">
+                          {myRolesCombined.join(' + ')}
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateMyOwnRSVP('declined')}
+                      className="px-2.5 py-1 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 hover:border-rose-500 text-[11px] font-bold text-rose-600 dark:text-rose-400 transition-colors shrink-0"
+                    >
+                      Declinar
+                    </button>
+                  </div>
+                );
+              }
+
               return (
-                <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1.5">
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-500 text-slate-950 text-[10px] font-extrabold uppercase tracking-wider">
-                        Tu Invitación Personal
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-extrabold uppercase tracking-wider">
+                        Tu Invitación
                       </span>
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        {activeMember.name}
-                      </span>
-                    </div>
-                    <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                      Roles / Instrumentos asignados a ti:{' '}
-                      <span className="text-amber-600 dark:text-amber-400">
                         {myRolesCombined.join(' + ')}
                       </span>
-                    </p>
+                    </div>
                     <p className="text-xs text-slate-600 dark:text-slate-300">
-                      Confirma o declina tu participación en este evento para que el grupo vea tu respuesta:
+                      {currentStatus === 'declined'
+                        ? 'Has declinado esta invitación. Puedes confirmar si cambió tu disponibilidad:'
+                        : 'Confirma o declina tu participación en este evento:'}
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleUpdateMyOwnRSVP('confirmed')}
-                      className={`min-h-[46px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all shadow-xs ${
-                        currentStatus === 'confirmed'
-                          ? 'bg-emerald-600 text-white ring-2 ring-emerald-400/50'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-emerald-500'
-                      }`}
+                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
                     >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>
-                        {currentStatus === 'confirmed'
-                          ? 'Asistencia Confirmada'
-                          : 'Aceptar / Confirmar'}
-                      </span>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Aceptar</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleUpdateMyOwnRSVP('declined')}
-                      className={`min-h-[46px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all ${
+                      className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
                         currentStatus === 'declined'
-                          ? 'bg-rose-600 text-white ring-2 ring-rose-400/50'
+                          ? 'bg-rose-600 text-white'
                           : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-rose-500'
                       }`}
                     >
-                      <XCircle className="w-4 h-4" />
-                      <span>
-                        {currentStatus === 'declined'
-                          ? 'Invitación Declinada'
-                          : 'Declinar'}
-                      </span>
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>{currentStatus === 'declined' ? 'Declinada' : 'Declinar'}</span>
                     </button>
                   </div>
                 </div>
@@ -2638,56 +2661,84 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               </div>
             )}
 
-            {/* 2. Catálogo del Repertorio Base para agregar más canciones */}
+            {/* 2. Buscador para agregar más canciones del Repertorio Base */}
             <div className="space-y-2">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                2. Agregar más canciones del Repertorio Base
+                2. Buscar y agregar canciones del Repertorio Base
               </p>
-              <div className="space-y-2 max-h-56 overflow-y-auto">
-                {songs.map((song) => {
-                  const included = activeEvent.songs.some(
-                    (s) => s.songId === song.id
-                  );
-                  return (
-                    <button
-                      key={song.id}
-                      type="button"
-                      onClick={() => toggleSongInActiveEvent(song)}
-                      className={`w-full p-3 rounded-2xl border flex items-center justify-between gap-3 text-left transition-all ${
-                        included
-                          ? 'border-emerald-500/40 bg-emerald-500/10'
-                          : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
-                            included
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                          }`}
-                        >
-                          {included ? (
-                            <Check className="w-4 h-4" />
-                          ) : (
-                            <Plus className="w-4 h-4" />
-                          )}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={songSearchEditor}
+                  onChange={(e) => setSongSearchEditor(e.target.value)}
+                  placeholder="Escribe el nombre o autor de la canción para buscar..."
+                  className="w-full min-h-[40px] pl-9 pr-8 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                />
+                {songSearchEditor && (
+                  <button
+                    type="button"
+                    onClick={() => setSongSearchEditor('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {songs
+                  .filter((song) => {
+                    const q = songSearchEditor.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      song.title.toLowerCase().includes(q) ||
+                      song.artist.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((song) => {
+                    const included = activeEvent.songs.some(
+                      (s) => s.songId === song.id
+                    );
+                    return (
+                      <button
+                        key={song.id}
+                        type="button"
+                        onClick={() => toggleSongInActiveEvent(song)}
+                        className={`w-full px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-left transition-all ${
+                          included
+                            ? 'border-emerald-500/40 bg-emerald-500/10'
+                            : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                              included
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                            }`}
+                          >
+                            {included ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <Plus className="w-3.5 h-3.5" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                              {song.title}
+                            </p>
+                            <p className="text-[10px] text-slate-500 truncate">
+                              {song.artist} · Tono Base: {song.originalKey}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                            {song.title}
-                          </p>
-                          <p className="text-[11px] text-slate-500">
-                            Tono Base: {song.originalKey} · {song.bpm} BPM
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-xs font-bold text-slate-500">
-                        {included ? 'En la playlist' : '+ Agregar'}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <span className="text-[11px] font-bold text-slate-500 shrink-0">
+                          {included ? 'Agregada' : '+ Agregar'}
+                        </span>
+                      </button>
+                    );
+                  })}
               </div>
             </div>
 
@@ -3158,30 +3209,70 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
               </div>
 
-              {/* Seleccionar Playlist + Tono por Semana para el nuevo evento */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Seleccionar Playlist y Tono de cada Canción para este Evento
-                </label>
-                <div className="space-y-2 max-h-44 overflow-y-auto p-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
-                  {songs.length === 0 ? (
-                    <p className="text-xs text-slate-500 p-2">
-                      Aún no hay canciones en el Repertorio Base. Puedes agregarlas después.
-                    </p>
-                  ) : (
-                    songs.map((song) => {
-                      const itemObj = selectedSongItems.find(
-                        (i) => i.songId === song.id
-                      );
-                      const checked = Boolean(itemObj);
-                      return (
-                        <div
-                          key={song.id}
-                          className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
-                        >
+              {/* Buscador interactivo de Canciones + Tono por Semana para el nuevo evento */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Canciones del Evento ({selectedSongItems.length} seleccionadas)
+                  </label>
+                  {selectedSongItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSongItems([])}
+                      className="text-[11px] font-bold text-slate-400 hover:text-rose-500"
+                    >
+                      Limpiar lista
+                    </button>
+                  )}
+                </div>
+
+                {/* Buscador para filtrar canciones conforme se escribe */}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={songSearchCreate}
+                    onChange={(e) => setSongSearchCreate(e.target.value)}
+                    placeholder="Buscar canción por nombre o artista para agregar..."
+                    className="w-full min-h-[40px] pl-9 pr-8 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                  {songSearchCreate && (
+                    <button
+                      type="button"
+                      onClick={() => setSongSearchCreate('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Resultados de búsqueda (o sugerencias rápidas) */}
+                {songs.length === 0 ? (
+                  <p className="text-xs text-slate-500 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+                    Aún no hay canciones en el Repertorio Base. Puedes agregarlas después.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40">
+                    {songs
+                      .filter((song) => {
+                        const q = songSearchCreate.trim().toLowerCase();
+                        if (!q) return !selectedSongItems.some((i) => i.songId === song.id);
+                        return (
+                          song.title.toLowerCase().includes(q) ||
+                          song.artist.toLowerCase().includes(q)
+                        );
+                      })
+                      .slice(0, songSearchCreate.trim() ? 30 : 8)
+                      .map((song) => {
+                        const checked = selectedSongItems.some(
+                          (i) => i.songId === song.id
+                        );
+                        return (
                           <button
+                            key={song.id}
                             type="button"
-                            onClick={() =>
+                            onClick={() => {
                               setSelectedSongItems((prev) =>
                                 checked
                                   ? prev.filter((i) => i.songId !== song.id)
@@ -3194,68 +3285,100 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                         backingVocals: [],
                                       },
                                     ]
-                              )
-                            }
-                            className="flex items-center gap-2 text-left flex-1 min-w-0"
+                              );
+                              if (!checked && songSearchCreate.trim()) {
+                                setSongSearchCreate('');
+                              }
+                            }}
+                            className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-left transition-colors ${
+                              checked
+                                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-amber-500/50'
+                            }`}
                           >
-                            <div
-                              className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs ${
-                                checked
-                                  ? 'bg-emerald-600 text-white'
-                                  : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                              }`}
-                            >
-                              {checked ? <Check className="w-3.5 h-3.5" /> : '+'}
-                            </div>
                             <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
                               {song.title}{' '}
                               <span className="text-slate-400 font-normal">
-                                (Base: {song.originalKey})
+                                · {song.artist} ({song.originalKey})
                               </span>
                             </span>
+                            <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                              {checked ? '✓ Agregada' : '+ Agregar'}
+                            </span>
                           </button>
+                        );
+                      })}
+                  </div>
+                )}
 
-                          {checked && itemObj && (
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-[10px] font-bold text-slate-500">
-                                Tono Semana:
-                              </span>
-                              <select
-                                value={itemObj.customKey || song.originalKey}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setSelectedSongItems((prev) =>
-                                    prev.map((i) =>
-                                      i.songId === song.id
-                                        ? { ...i, customKey: val }
-                                        : i
-                                    )
-                                  );
-                                }}
-                                className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
-                              >
-                                <optgroup label="Tonalidades Mayores">
-                                  {MAJOR_KEYS.map((k) => (
-                                    <option key={k} value={k}>
-                                      {k} Mayor
-                                    </option>
-                                  ))}
-                                </optgroup>
-                                <optgroup label="Tonalidades Menores">
-                                  {MINOR_KEYS.map((k) => (
-                                    <option key={k} value={k}>
-                                      {k} ({k.replace(/m$/, '')}m)
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              </select>
-                            </div>
-                          )}
+                {/* Lista de canciones ya seleccionadas para este evento con su selector de Tono */}
+                {selectedSongItems.length > 0 && (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto p-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+                    {selectedSongItems.map((itemObj, idx) => {
+                      const song = songs.find((s) => s.id === itemObj.songId);
+                      if (!song) return null;
+                      return (
+                        <div
+                          key={song.id}
+                          className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="text-[10px] font-mono font-bold text-slate-400">
+                              0{idx + 1}
+                            </span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                              {song.title}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <select
+                              value={itemObj.customKey || song.originalKey}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setSelectedSongItems((prev) =>
+                                  prev.map((i) =>
+                                    i.songId === song.id
+                                      ? { ...i, customKey: val }
+                                      : i
+                                  )
+                                );
+                              }}
+                              className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-[11px] font-bold text-slate-900 dark:text-white"
+                            >
+                              <optgroup label="Tonalidades Mayores">
+                                {MAJOR_KEYS.map((k) => (
+                                  <option key={k} value={k}>
+                                    {k} Mayor
+                                  </option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Tonalidades Menores">
+                                {MINOR_KEYS.map((k) => (
+                                  <option key={k} value={k}>
+                                    {k} ({k.replace(/m$/, '')}m)
+                                  </option>
+                                ))}
+                              </optgroup>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedSongItems((prev) =>
+                                  prev.filter((i) => i.songId !== song.id)
+                                )
+                              }
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-500"
+                              title="Quitar canción"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       );
-                    })
-                  )}
-                </div>
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
