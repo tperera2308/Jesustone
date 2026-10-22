@@ -4,39 +4,35 @@ import {
   BandMember,
   EventSongItem,
   Song,
+  SongStyle,
   SongVoiceNote,
   TimeSignature,
+  UserRole,
   WorshipEvent,
 } from '../types';
-import {
-  extractUniqueChordsFromSheet,
-  generateLeadSheetSVGDataUrl,
-  isChordLine,
-  transposeChordSheet,
-  transposeNote,
-  transposeSingleChord,
-} from '../utils/musicTheory';
-import {
-  generateDemoVoiceClipDataUrl,
-  playMetronomeClick,
-} from '../utils/audioEngine';
-import {
-  uploadMediaBlobToStorage,
-  uploadMediaDataUrlToStorage,
-} from '../firebase';
 import { getAccentClasses } from './IdentityModal';
 import {
+  ALL_KEYS,
+  MAJOR_KEYS,
+  MINOR_KEYS,
+  transposeKey,
+  transposeLineText,
+} from '../utils/chordTransposer';
+import { generateSimpleChordSvgDataUrl } from '../data/initialData';
+import {
+  ArrowDown,
   ArrowLeft,
-  BookOpen,
-  BookmarkCheck,
+  ArrowUp,
   Calendar,
-  CalendarCheck,
   Check,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
+  Clock,
+  Edit3,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
   FileText,
-  FolderKanban,
   Headphones,
   Image as ImageIcon,
   ListMusic,
@@ -45,19 +41,16 @@ import {
   Mic,
   Minimize2,
   Minus,
-  Music2,
+  Music,
   Pause,
-  Pencil,
   Play,
   Plus,
-  Radio,
   RotateCcw,
   Search,
   ShieldCheck,
-  Sliders,
+  Sparkles,
   Square,
   Trash2,
-  Type,
   Upload,
   User,
   Volume2,
@@ -72,167 +65,77 @@ interface SongbookModuleProps {
   accentColor: AccentColorId;
   initialSongId?: string | null;
   initialTargetKey?: string | null;
-  onAddSong: (song: Omit<Song, 'id'>) => void;
-  onUpdateSong: (song: Song) => void;
-  onDeleteSong?: (songId: string) => void;
-  onUpdateEventPlaylist: (eventId: string, updatedSongs: EventSongItem[]) => void;
-  onUpdateEvent?: (event: WorshipEvent) => void;
+  initialEventId?: string | null;
+  initialAutoStageMode?: boolean;
+  onBackToGroup?: () => void;
+  onAddSong: (newSong: Omit<Song, 'id'>) => void;
+  onUpdateSong: (updatedSong: Song) => void;
+  onDeleteSong: (songId: string) => void;
+  onUpdateEventPlaylist: (
+    eventId: string,
+    updatedSongs: EventSongItem[]
+  ) => void;
+  onUpdateEvent?: (updatedEvent: WorshipEvent) => void;
   onOpenMetronomeWithSong: (bpm: number, timeSignature: TimeSignature) => void;
 }
 
-const KEY_SEMITONE_INDEX: Record<string, number> = {
-  C: 0,
-  Cm: 0,
-  'C#': 1,
-  'C#m': 1,
-  Db: 1,
-  Dbm: 1,
-  D: 2,
-  Dm: 2,
-  'D#': 3,
-  'D#m': 3,
-  Eb: 3,
-  Ebm: 3,
-  E: 4,
-  Em: 4,
-  F: 5,
-  Fm: 5,
-  'F#': 6,
-  'F#m': 6,
-  Gb: 6,
-  Gbm: 6,
-  G: 7,
-  Gm: 7,
-  'G#': 8,
-  'G#m': 8,
-  Ab: 8,
-  Abm: 8,
-  A: 9,
-  Am: 9,
-  'A#': 10,
-  'A#m': 10,
-  Bb: 10,
-  Bbm: 10,
-  B: 11,
-  Bm: 11,
-};
+const STYLES: SongStyle[] = [
+  'Adoración',
+  'Alabanza',
+  'Contemporáneo',
+  'Himno',
+  'Especial',
+];
 
-const MAJOR_KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-const MINOR_KEYS = ['Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'];
-const ALL_KEYS = [...MAJOR_KEYS, ...MINOR_KEYS];
-
-const SECTION_PRESETS = [
+const QUICK_STRUCTURE_CHIPS = [
   'Intro',
   'Verso 1',
   'Verso 2',
   'Pre-Coro',
   'Coro',
-  'Coro x2',
-  'Instrumental',
+  'Interludio',
   'Puente',
-  'Puente x2',
+  'Solo',
   'Espontáneo',
-  'Coro Final',
   'Final',
 ];
 
-function extractStructureFromLyrics(lyricsAndChords: string): string[] {
-  const lines = lyricsAndChords.split('\n');
-  const extracted: string[] = [];
-  for (const line of lines) {
-    const match = line.trim().match(/^\[(.*)\]$/);
-    if (match && match[1].trim()) {
-      extracted.push(match[1].trim());
+function stripChordsFromLine(line: string): string {
+  return line
+    .replace(/\[([^\]]+)\]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function getSemitoneStepsBetweenKeys(fromKey: string, toKey: string): number {
+  if (!fromKey || !toKey || fromKey === toKey) return 0;
+  for (let step = -6; step <= 6; step++) {
+    if (transposeKey(fromKey, step) === toKey) {
+      return step;
     }
   }
-  return extracted.length > 0
-    ? extracted
-    : ['Intro', 'Verso 1', 'Coro', 'Verso 2', 'Coro x2', 'Puente x2', 'Final'];
+  return 0;
 }
 
-function getSectionBadgeColors(sectionName: string): string {
-  const lower = sectionName.toLowerCase();
-  if (lower.includes('intro') || lower.includes('instr') || lower.includes('final') || lower.includes('outro')) {
-    return 'bg-sky-500/15 text-sky-400 border-sky-500/30';
-  }
-  if (lower.includes('coro')) {
-    return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
-  }
-  if (lower.includes('puente') || lower.includes('espont')) {
-    return 'bg-rose-500/15 text-rose-300 border-rose-500/30';
-  }
-  if (lower.includes('pre')) {
-    return 'bg-violet-500/15 text-violet-300 border-violet-500/30';
-  }
-  return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-}
-
-function computeSemitoneDiff(origKey: string, targetKey: string): number {
-  const cleanOrig = origKey.replace(/m$/, '');
-  const cleanTarget = targetKey.replace(/m$/, '');
-  const origIdx = KEY_SEMITONE_INDEX[origKey] ?? KEY_SEMITONE_INDEX[cleanOrig];
-  const targetIdx = KEY_SEMITONE_INDEX[targetKey] ?? KEY_SEMITONE_INDEX[cleanTarget];
-  if (origIdx === undefined || targetIdx === undefined) return 0;
-  let diff = targetIdx - origIdx;
-  if (diff > 6) diff -= 12;
-  if (diff < -6) diff += 12;
-  return diff;
-}
-
-function getBeatsCountFromTimeSignature(ts: TimeSignature): number {
-  if (ts === '2/4') return 2;
-  if (ts === '3/4') return 3;
-  if (ts === '6/8') return 6;
-  return 4;
-}
-
-function compressImageFileToDataUrl(
-  file: File,
-  maxWidth = 1000,
-  quality = 0.72
-): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      if (!result || file.type === 'image/svg+xml') {
-        resolve(result);
-        return;
-      }
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const scale = img.width > maxWidth ? maxWidth / img.width : 1;
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.round(img.width * scale);
-          canvas.height = Math.round(img.height * scale);
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(result);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        } catch {
-          resolve(result);
-        }
-      };
-      img.onerror = () => resolve(result);
-      img.src = result;
-    };
-    reader.onerror = () => resolve('');
-    reader.readAsDataURL(file);
-  });
+function getTodayStr(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export const SongbookModule: React.FC<SongbookModuleProps> = ({
   songs,
   events,
-  members,
+  members = [],
   activeMember,
   accentColor,
   initialSongId,
   initialTargetKey,
+  initialEventId,
+  initialAutoStageMode,
+  onBackToGroup,
   onAddSong,
   onUpdateSong,
   onDeleteSong,
@@ -240,579 +143,347 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   onUpdateEvent,
   onOpenMetronomeWithSong,
 }) => {
-  const accent = getAccentClasses(accentColor);
-  const isLeader = activeMember.role === 'leader';
-
-  // Dedicated Screen Sub-view inside Songbook:
-  // 'repertorio': Pantalla única de Repertorio Base
-  // 'setlists': Pantalla única de Setlists de Eventos
-  const [activeSubView, setActiveSubView] = useState<'repertorio' | 'setlists'>('repertorio');
-  const [selectedEventId, setSelectedEventId] = useState<string>(events[0]?.id || '');
-  const [selectedStyleFilter, setSelectedStyleFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSongId, setSelectedSongId] = useState<string>(
-    initialSongId || songs[0]?.id || ''
+  // Sub-pestaña interna del Cancionero: 1) Repertorio Base vs 2) Setlists por Evento
+  const [activeSubView, setActiveSubView] = useState<'repertoire' | 'setlists'>(
+    initialEventId ? 'setlists' : 'repertoire'
   );
-  const [openedSongId, setOpenedSongId] = useState<string | null>(
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStyle, setSelectedStyle] = useState<string>('all');
+  const [selectedKeyFilter, setSelectedKeyFilter] = useState<string>('all');
+  const [selectedBpmFilter, setSelectedBpmFilter] = useState<
+    'all' | 'slow' | 'medium' | 'fast'
+  >('all');
+
+  const [selectedSongId, setSelectedSongId] = useState<string | null>(
     initialSongId || null
   );
-  const [semitones, setSemitones] = useState<number>(0);
-  const [useSolfege, setUseSolfege] = useState<boolean>(false);
-  const [lyricsOnly, setLyricsOnly] = useState<boolean>(false);
-  const [viewFormat, setViewFormat] = useState<'text' | 'image'>('text');
-  const [isEditingLyrics, setIsEditingLyrics] = useState<boolean>(false);
-  const [editedLyrics, setEditedLyrics] = useState<string>('');
-  const [showAddModal, setShowAddModal] = useState<boolean>(false);
-  const [showEditSongModal, setShowEditSongModal] = useState<boolean>(false);
-  const [confirmDeleteSongId, setConfirmDeleteSongId] = useState<string | null>(null);
-  const [showManagePlaylistModal, setShowManagePlaylistModal] = useState<boolean>(false);
+  // Por defecto la vista de una canción es compacta ("a primera vista").
+  // Si el usuario presiona "Abrir Hoja Completa de Acordes y Estructura", se expande.
+  const [isFullSheetExpanded, setIsFullSheetExpanded] = useState<boolean>(
+    Boolean(initialSongId)
+  );
+  const [selectedSetlistEventId, setSelectedSetlistEventId] =
+    useState<string>(initialEventId || events[0]?.id || '');
 
-  // Edit Song Metadata State
-  const [editSongTitle, setEditSongTitle] = useState('');
-  const [editSongArtist, setEditSongArtist] = useState('');
-  const [editSongKey, setEditSongKey] = useState('G');
-  const [editSongBpm, setEditSongBpm] = useState<string>('76');
-  const [editSongTimeSig, setEditSongTimeSig] = useState<TimeSignature>('4/4');
-  const [editSongStyle, setEditSongStyle] = useState<Song['style']>('Adoración');
-  const [editSongSpotifyUrl, setEditSongSpotifyUrl] = useState('');
+  const [semitoneOffset, setSemitoneOffset] = useState<number>(0);
+  const [fontSize, setFontSize] = useState<number>(15);
+  const [showLyricsOnly, setShowLyricsOnly] = useState<boolean>(false);
+  const [isStageMode, setIsStageMode] = useState<boolean>(
+    Boolean(initialAutoStageMode)
+  );
+  const [sheetViewMode, setSheetViewMode] = useState<'interactive' | 'image'>(
+    'interactive'
+  );
 
-  // Song Structure Editor State
-  const [isEditingStructure, setIsEditingStructure] = useState<boolean>(false);
-  const [structureDraft, setStructureDraft] = useState<string[]>([]);
-  const [customSectionInput, setCustomSectionInput] = useState<string>('');
-
-  // Song Group Notes & Personal Notes State
-  const [groupNotesDraft, setGroupNotesDraft] = useState<string>('');
-  const [personalNotesDraft, setPersonalNotesDraft] = useState<string>('');
-  const [notesSavedFeedback, setNotesSavedFeedback] = useState<string>('');
-
-  // Stage Mode / Modo Atril Fullscreen State
-  const [isStageMode, setIsStageMode] = useState<boolean>(false);
+  // Auto-scroll en Modo Escenario (Atril en Vivo)
   const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
-  const [autoScrollSpeed, setAutoScrollSpeed] = useState<number>(0.6); // 0.3x, 0.5x, 0.6x, 0.8x, 1x, 1.4x
-  const [stageFontSize, setStageFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('lg');
+  const [scrollSpeed, setScrollSpeed] = useState<'slow' | 'medium' | 'fast'>(
+    'medium'
+  );
   const stageScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // In-Song Integrated Metronome State
-  const [isSongMetronomePlaying, setIsSongMetronomePlaying] = useState<boolean>(false);
-  const [songMetronomeBpm, setSongMetronomeBpm] = useState<number>(76);
-  const [currentBeat, setCurrentBeat] = useState<number>(0);
-  const metronomeTimerRef = useRef<number | null>(null);
+  // Metrónomo rápido en vivo dentro del Modo Escenario
+  const [isStageClickPlaying, setIsStageClickPlaying] =
+    useState<boolean>(false);
+  const stageAudioCtxRef = useRef<AudioContext | null>(null);
+  const stageClickTimerRef = useRef<number | null>(null);
 
-  // Voice Note / Audio Clip Recording inside Song
-  const [isRecordingVoiceNote, setIsRecordingVoiceNote] = useState<boolean>(false);
-  const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
-  const [voiceNoteTitle, setVoiceNoteTitle] = useState<string>('');
+  // Modales de Canciones y Playlist
+  const [showAddSongModal, setShowAddSongModal] = useState(false);
+  const [showEditSongModal, setShowEditSongModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [showManagePlaylistModal, setShowManagePlaylistModal] = useState(false);
+  const [playlistSearchModal, setPlaylistSearchModal] = useState('');
+
+  // Estados para edición de estructura y notas de la canción activa
+  const [newSectionInput, setNewSectionInput] = useState('');
+  const [groupNotesDraft, setGroupNotesDraft] = useState('');
+  const [personalNotesDraft, setPersonalNotesDraft] = useState('');
+  const [savedFeedbackMessage, setSavedFeedbackMessage] = useState<
+    string | null
+  >(null);
+
+  // Grabadora de notas de voz de referencia en el Cancionero
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [voiceNoteLabel, setVoiceNoteLabel] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<number | null>(null);
-  const voiceFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Tap Tempo para modales de Crear/Editar canción
+  const tapTimestampsRef = useRef<number[]>([]);
 
-  // Saved Weekly Key Feedback
-  const [savedWeeklyKeyNotice, setSavedWeeklyKeyNotice] = useState<string>('');
-
-  // New Song Form State
+  // Campos para Agregar Nueva Canción al Repertorio
   const [newTitle, setNewTitle] = useState('');
   const [newArtist, setNewArtist] = useState('');
   const [newKey, setNewKey] = useState('G');
-  const [newBpm, setNewBpm] = useState<string>('76');
+  const [newBpm, setNewBpm] = useState(76);
   const [newTimeSig, setNewTimeSig] = useState<TimeSignature>('4/4');
-  const [newStyle, setNewStyle] = useState<Song['style']>('Adoración');
-  const [newCharacteristics, setNewCharacteristics] = useState(
-    'Entrada con Piano, Coro Congregacional'
+  const [newStyle, setNewStyle] = useState<SongStyle>('Adoración');
+  const [newTags, setNewTags] = useState('Domingo, Adoración');
+  const [newStructureText, setNewStructureText] = useState(
+    'Intro, Verso 1, Coro, Puente, Final'
   );
-  const [newStructure, setNewStructure] = useState<string[]>([
-    'Intro',
-    'Verso 1',
-    'Coro',
-    'Verso 2',
-    'Coro x2',
-    'Puente x2',
-    'Final',
-  ]);
-  const [newCustomSection, setNewCustomSection] = useState('');
-  const [newGroupNotes, setNewGroupNotes] = useState('');
+  const [newNotes, setNewNotes] = useState('');
   const [newSpotifyUrl, setNewSpotifyUrl] = useState('');
-  const [newLyrics, setNewLyrics] = useState(
-    `[Intro]\nG   D/F#   Em7   Cadd9\n\n[Verso 1]\nG                      D/F#\nEscribe aquí la letra con acordes arriba\nEm7                    Cadd9\nTodos en el grupo podrán ver esta canción y su archivo`
+  const [newChordSheetUrl, setNewChordSheetUrl] = useState<string>('');
+  const [newRawLyrics, setNewRawLyrics] = useState(
+    `Intro:\n[G]   [D/F#]   [Em7]   [C]\n\nVerso 1:\n[G]Escribe aquí la [D]letra con acordes entre [Em7]corchetes [C]`
   );
-  const [newImageDataUrl, setNewImageDataUrl] = useState<string>('');
-  const [newFileName, setNewFileName] = useState<string>('');
 
-  const activeEventList =
-    activeSubView === 'setlists'
-      ? events.find((ev) => ev.id === selectedEventId) || events[0]
-      : undefined;
+  // Campos para Editar Canción Existente
+  const [editTitle, setEditTitle] = useState('');
+  const [editArtist, setEditArtist] = useState('');
+  const [editKey, setEditKey] = useState('G');
+  const [editBpm, setEditBpm] = useState(76);
+  const [editTimeSig, setEditTimeSig] = useState<TimeSignature>('4/4');
+  const [editStyle, setEditStyle] = useState<SongStyle>('Adoración');
+  const [editTags, setEditTags] = useState('');
+  const [editStructureText, setEditStructureText] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editSpotifyUrl, setEditSpotifyUrl] = useState('');
+  const [editChordSheetUrl, setEditChordSheetUrl] = useState<string>('');
+  const [editRawLyrics, setEditRawLyrics] = useState('');
 
-  // Spotify Playlist Draft for Event Setlist
-  const [eventSpotifyDraft, setEventSpotifyDraft] = useState<string>(
-    activeEventList?.spotifyPlaylistUrl || ''
-  );
-  const [isEditingEventSpotify, setIsEditingEventSpotify] = useState<boolean>(false);
-  const [eventSpotifySavedNotice, setEventSpotifySavedNotice] = useState<string>('');
+  const accent = getAccentClasses(accentColor);
+  const isLeader = activeMember.role === 'leader';
 
   useEffect(() => {
-    if (activeEventList) {
-      setEventSpotifyDraft(activeEventList.spotifyPlaylistUrl || '');
-      setIsEditingEventSpotify(false);
+    if (initialEventId) {
+      setActiveSubView('setlists');
+      setSelectedSetlistEventId(initialEventId);
     }
-  }, [activeEventList?.id, activeEventList?.spotifyPlaylistUrl]);
-
-  // Songs displayed according to current screen: Base Repertoire vs Event Setlist
-  const songsInSelectedList = (() => {
-    if (activeSubView === 'repertorio' || !activeEventList) return songs;
-    return activeEventList.songs
-      .map((item) => songs.find((s) => s.id === item.songId))
-      .filter(Boolean) as Song[];
-  })();
-
-  const normalizeSongStyle = (
-    rawStyle?: string
-  ): 'Júbilo' | 'Congregacional' | 'Adoración' => {
-    if (!rawStyle) return 'Adoración';
-    const lower = rawStyle.toLowerCase();
-    if (lower.includes('júbilo') || lower.includes('jubilo') || lower.includes('alabanza')) {
-      return 'Júbilo';
+    if (initialSongId) {
+      const targetSong = songs.find((s) => s.id === initialSongId);
+      if (targetSong) {
+        setSelectedSongId(targetSong.id);
+        setIsFullSheetExpanded(true);
+        if (initialTargetKey) {
+          setSemitoneOffset(
+            getSemitoneStepsBetweenKeys(targetSong.originalKey, initialTargetKey)
+          );
+        } else {
+          setSemitoneOffset(0);
+        }
+      }
     }
-    if (lower.includes('congregacional')) {
-      return 'Congregacional';
+    if (initialAutoStageMode) {
+      setIsStageMode(true);
     }
-    return 'Adoración';
-  };
+  }, [initialSongId, initialTargetKey, initialEventId, initialAutoStageMode, songs]);
 
-  const hasValidSpotifyUrl = (url?: string): boolean => {
-    if (!url) return false;
-    const trimmed = url.trim();
-    return Boolean(
-      trimmed &&
-        trimmed !== 'https://open.spotify.com' &&
-        trimmed !== 'https://open.spotify.com/'
-    );
-  };
-
-  const filteredSongs = songsInSelectedList.filter((s) => {
+  const filteredSongs = songs.filter((song) => {
     const matchesSearch =
-      s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.addedByName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.originalKey.toLowerCase().includes(searchQuery.toLowerCase());
+      song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      song.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (song.rawLyricsAndChords || song.lyricsAndChords || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStyle =
-      selectedStyleFilter === 'all' ||
-      normalizeSongStyle(s.style) === selectedStyleFilter;
-    return matchesSearch && matchesStyle;
+      selectedStyle === 'all' || song.style === selectedStyle;
+    const matchesKey =
+      selectedKeyFilter === 'all' || song.originalKey === selectedKeyFilter;
+    const matchesBpm =
+      selectedBpmFilter === 'all' ||
+      (selectedBpmFilter === 'slow' && song.bpm < 75) ||
+      (selectedBpmFilter === 'medium' && song.bpm >= 75 && song.bpm <= 110) ||
+      (selectedBpmFilter === 'fast' && song.bpm > 110);
+    return matchesSearch && matchesStyle && matchesKey && matchesBpm;
   });
 
+  const activeSetlistEvent =
+    events.find((e) => e.id === selectedSetlistEventId) || events[0] || null;
+
   const activeSong =
-    songs.find((s) => s.id === selectedSongId) ||
-    filteredSongs[0] ||
-    songs[0];
+    songs.find((s) => s.id === selectedSongId) || null;
 
-  // Find weekly custom key if viewing an Event Playlist
-  const activeEventSongItem =
-    activeEventList && activeSong
-      ? activeEventList.songs.find((item) => item.songId === activeSong.id)
-      : undefined;
-
-  const currentSongIndexInList = activeSong
-    ? filteredSongs.findIndex((s) => s.id === activeSong.id)
-    : -1;
-
-  // Select song helper that respects weekly customKey when inside an Event Playlist
-  const selectSongWithContextKey = (song: Song, eventContext?: WorshipEvent) => {
-    setSelectedSongId(song.id);
-    const ev = eventContext ?? activeEventList;
-    if (ev) {
-      const item = ev.songs.find((i) => i.songId === song.id);
-      if (item?.customKey) {
-        setSemitones(computeSemitoneDiff(song.originalKey, item.customKey));
-        return;
-      }
-    }
-    setSemitones(0);
-  };
-
+  //Sincronizar borradores de notas al cambiar de canción activa
   useEffect(() => {
-    if (initialSongId) {
-      setSelectedSongId(initialSongId);
-      setOpenedSongId(initialSongId);
-      const targetSong = songs.find((s) => s.id === initialSongId);
-      if (targetSong && initialTargetKey) {
-        setSemitones(computeSemitoneDiff(targetSong.originalKey, initialTargetKey));
-      } else {
-        setSemitones(0);
-      }
-    }
-  }, [initialSongId, initialTargetKey]);
+    if (!activeSong) return;
+    setGroupNotesDraft(activeSong.notes || '');
+    setPersonalNotesDraft(
+      (activeSong.personalNotes && activeSong.personalNotes[activeMember.id]) ||
+        ''
+    );
+    setSavedFeedbackMessage(null);
+  }, [activeSong?.id, activeMember.id]);
 
+  // Auto-scroll effect in Stage Mode
   useEffect(() => {
-    setIsEditingStructure(false);
-    if (activeSong) {
-      setEditedLyrics(activeSong.lyricsAndChords);
-      setSongMetronomeBpm(activeSong.bpm);
-      const resolvedStructure =
-        activeSong.structure && activeSong.structure.length > 0
-          ? activeSong.structure
-          : extractStructureFromLyrics(activeSong.lyricsAndChords);
-      setStructureDraft(resolvedStructure);
-      setGroupNotesDraft(activeSong.groupNotes ?? activeSong.notes ?? '');
-      setPersonalNotesDraft(activeSong.personalNotes?.[activeMember.id] ?? '');
-    }
-  }, [selectedSongId, activeSong?.id, activeMember.id]);
-
-  // Integrated In-Song Metronome Engine
-  useEffect(() => {
-    if (!isSongMetronomePlaying || !activeSong) {
-      if (metronomeTimerRef.current) {
-        window.clearInterval(metronomeTimerRef.current);
-        metronomeTimerRef.current = null;
-      }
-      setCurrentBeat(0);
-      return;
-    }
-
-    const beatsPerBar = getBeatsCountFromTimeSignature(activeSong.timeSignature);
-    const intervalMs = Math.max(200, Math.round((60 / songMetronomeBpm) * 1000));
-    let beatStep = 0;
-
-    playMetronomeClick(true);
-    setCurrentBeat(1);
-
-    metronomeTimerRef.current = window.setInterval(() => {
-      beatStep = (beatStep + 1) % beatsPerBar;
-      playMetronomeClick(beatStep === 0);
-      setCurrentBeat(beatStep + 1);
-    }, intervalMs);
-
-    return () => {
-      if (metronomeTimerRef.current) {
-        window.clearInterval(metronomeTimerRef.current);
-        metronomeTimerRef.current = null;
-      }
-    };
-  }, [isSongMetronomePlaying, songMetronomeBpm, activeSong?.timeSignature]);
-
-  // Stage Mode Auto-Scroll Engine synced to BPM & speed multiplier (calibrated slow and smooth)
-  useEffect(() => {
-    if (!isStageMode || !isAutoScrolling || !stageScrollContainerRef.current) {
-      return;
-    }
+    if (!isStageMode || !isAutoScrolling) return;
     const container = stageScrollContainerRef.current;
-    const bpmFactor = (activeSong?.bpm || 75) / 75;
-    // Calibrated gentle scrolling pace: ~2.4px/sec at 0.6x (comfortable reading speed)
-    const pixelsPerTick = 0.18 * autoScrollSpeed * bpmFactor;
+    if (!container) return;
 
+    const intervalMs =
+      scrollSpeed === 'slow' ? 75 : scrollSpeed === 'medium' ? 45 : 25;
     const timer = window.setInterval(() => {
       if (container) {
-        container.scrollTop += pixelsPerTick;
+        container.scrollBy({ top: 1, behavior: 'auto' });
       }
-    }, 45);
+    }, intervalMs);
 
     return () => window.clearInterval(timer);
-  }, [isStageMode, isAutoScrolling, autoScrollSpeed, activeSong?.bpm]);
+  }, [isStageMode, isAutoScrolling, scrollSpeed]);
 
-  // Extract all unique chords present in this song's sheet without repetition
-  const songUniqueChords = activeSong
-    ? extractUniqueChordsFromSheet(activeSong.lyricsAndChords)
-    : [];
-
-  const effectivePreviewChords =
-    songUniqueChords.length > 0
-      ? songUniqueChords
-      : activeSong?.chordProgPreview && activeSong.chordProgPreview.length > 0
-      ? activeSong.chordProgPreview
-      : ['G', 'D', 'Em', 'C'];
-
-
-  const currentKey = activeSong
-    ? transposeSingleChord(activeSong.originalKey, semitones, false)
-    : 'G';
-  const currentKeyDisplay = activeSong
-    ? transposeSingleChord(activeSong.originalKey, semitones, useSolfege)
-    : 'G';
-  const transposedText = activeSong
-    ? transposeChordSheet(activeSong.lyricsAndChords, semitones, useSolfege)
-    : '';
-  const transposedPreviewChords = effectivePreviewChords.map((c) =>
-    transposeSingleChord(c, semitones, useSolfege)
-  );
-
-  // Save currentKey as the weekly customKey for the active Event Playlist (without modifying originalKey)
-  const handleSaveKeyForActiveEvent = (targetEventId?: string) => {
-    if (!activeSong) return;
-    const evId = targetEventId || activeEventList?.id;
-    const evObj = events.find((e) => e.id === evId);
-    if (!evObj) return;
-
-    const exists = evObj.songs.some((item) => item.songId === activeSong.id);
-    const updatedSongs: EventSongItem[] = exists
-      ? evObj.songs.map((item) =>
-          item.songId === activeSong.id
-            ? { ...item, customKey: currentKey }
-            : item
-        )
-      : [
-          ...evObj.songs,
-          {
-            songId: activeSong.id,
-            customKey: currentKey,
-            vocalLeader: activeMember.name,
-          },
-        ];
-
-    onUpdateEventPlaylist(evObj.id, updatedSongs);
-    setSavedWeeklyKeyNotice(
-      `Tono ${currentKey} guardado para «${evObj.title}» (Tono base se mantiene en ${activeSong.originalKey})`
-    );
-    window.setTimeout(() => setSavedWeeklyKeyNotice(''), 4000);
-  };
-
-  // Navigate to Previous / Next song in current list
-  const handleNavigatePlaylist = (direction: 'prev' | 'next') => {
-    if (filteredSongs.length <= 1 || currentSongIndexInList === -1) return;
-    const nextIdx =
-      direction === 'next'
-        ? (currentSongIndexInList + 1) % filteredSongs.length
-        : (currentSongIndexInList - 1 + filteredSongs.length) %
-          filteredSongs.length;
-    const nextSong = filteredSongs[nextIdx];
-    if (nextSong) {
-      selectSongWithContextKey(nextSong, activeEventList);
-      if (openedSongId) {
-        setOpenedSongId(nextSong.id);
+  // Metrónomo en vivo dentro de Modo Escenario
+  useEffect(() => {
+    if (!isStageMode || !isStageClickPlaying || !activeSong) {
+      if (stageClickTimerRef.current) {
+        window.clearInterval(stageClickTimerRef.current);
+        stageClickTimerRef.current = null;
       }
-      if (stageScrollContainerRef.current) {
-        stageScrollContainerRef.current.scrollTop = 0;
+      return;
+    }
+
+    const bpm = Math.max(40, Math.min(240, activeSong.bpm || 76));
+    const intervalMs = (60 / bpm) * 1000;
+    let beatCount = 0;
+    const beatsPerBar = parseInt(activeSong.timeSignature.split('/')[0], 10) || 4;
+
+    const playTick = () => {
+      try {
+        if (!stageAudioCtxRef.current) {
+          const AudioContextClass =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext })
+              .webkitAudioContext;
+          stageAudioCtxRef.current = new AudioContextClass();
+        }
+        const ctx = stageAudioCtxRef.current;
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const isAccent = beatCount % beatsPerBar === 0;
+        osc.frequency.value = isAccent ? 1100 : 750;
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.065);
+        beatCount++;
+      } catch {
+        // Ignore audio context restriction
       }
-    }
-  };
-
-  // Voice Note Recording Handlers
-  const handleStartRecordingVoiceNote = async () => {
-    setRecordingSeconds(0);
-    setIsRecordingVoiceNote(true);
-    audioChunksRef.current = [];
-
-    recordingTimerRef.current = window.setInterval(() => {
-      setRecordingSeconds((prev) => prev + 1);
-    }, 1000);
-
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const recorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = recorder;
-
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        recorder.start();
-      }
-    } catch {
-      // Fallback to synthesized audio clip on stop if microphone is unavailable in preview
-      mediaRecorderRef.current = null;
-    }
-  };
-
-  const handleStopAndSaveVoiceNote = () => {
-    if (!activeSong) return;
-    if (recordingTimerRef.current) {
-      window.clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-    const finalDuration = Math.max(2, recordingSeconds);
-    setIsRecordingVoiceNote(false);
-
-    const saveVoiceNoteWithUrl = (dataUrl: string) => {
-      const noteObj: SongVoiceNote = {
-        id: `vn-${Date.now()}`,
-        title:
-          voiceNoteTitle.trim() ||
-          `Idea / Arreglo en Tono ${currentKey} (${activeMember.name.split(' ')[0]})`,
-        authorId: activeMember.id,
-        authorName: activeMember.name,
-        authorRole: activeMember.role,
-        audioDataUrl: dataUrl,
-        durationSec: finalDuration,
-        createdAt: new Date().toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      };
-
-      onUpdateSong({
-        ...activeSong,
-        voiceNotes: [noteObj, ...(activeSong.voiceNotes || [])],
-      });
-      setVoiceNoteTitle('');
-      setRecordingSeconds(0);
     };
 
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== 'inactive'
-    ) {
-      const recorder = mediaRecorderRef.current;
-      recorder.onstop = () => {
-        recorder.stream.getTracks().forEach((t) => t.stop());
-        if (audioChunksRef.current.length > 0) {
-          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const fallbackUrl =
-              typeof reader.result === 'string'
-                ? reader.result
-                : generateDemoVoiceClipDataUrl(finalDuration);
-            const cloudUrl = await uploadMediaBlobToStorage(
-              'song_voice_notes',
-              `vn_${activeSong.id}_${Date.now()}.webm`,
-              blob,
-              fallbackUrl
-            );
-            saveVoiceNoteWithUrl(cloudUrl);
-          };
-          reader.readAsDataURL(blob);
-        } else {
-          saveVoiceNoteWithUrl(generateDemoVoiceClipDataUrl(finalDuration));
-        }
-      };
-      recorder.stop();
+    playTick();
+    stageClickTimerRef.current = window.setInterval(playTick, intervalMs);
+
+    return () => {
+      if (stageClickTimerRef.current) {
+        window.clearInterval(stageClickTimerRef.current);
+        stageClickTimerRef.current = null;
+      }
+    };
+  }, [isStageMode, isStageClickPlaying, activeSong?.id, activeSong?.bpm]);
+
+  const currentKey = activeSong
+    ? transposeKey(activeSong.originalKey, semitoneOffset)
+    : 'C';
+
+  // Lista ordenada de canciones para navegar Anterior / Siguiente en Modo Escenario
+  const setlistOrderIds: { songId: string; customKey?: string }[] =
+    activeSubView === 'setlists' && activeSetlistEvent
+      ? activeSetlistEvent.songs.map((item) => ({
+          songId: item.songId,
+          customKey: item.customKey,
+        }))
+      : filteredSongs.map((s) => ({ songId: s.id }));
+
+  const currentIndexInOrder = activeSong
+    ? setlistOrderIds.findIndex((item) => item.songId === activeSong.id)
+    : -1;
+
+  const handleNavigateAdjacentSong = (direction: -1 | 1) => {
+    if (setlistOrderIds.length <= 1 || currentIndexInOrder === -1) return;
+    const nextIdx =
+      (currentIndexInOrder + direction + setlistOrderIds.length) %
+      setlistOrderIds.length;
+    const target = setlistOrderIds[nextIdx];
+    const targetSong = songs.find((s) => s.id === target.songId);
+    if (!targetSong) return;
+
+    setSelectedSongId(targetSong.id);
+    if (target.customKey) {
+      setSemitoneOffset(
+        getSemitoneStepsBetweenKeys(targetSong.originalKey, target.customKey)
+      );
     } else {
-      saveVoiceNoteWithUrl(generateDemoVoiceClipDataUrl(finalDuration));
+      setSemitoneOffset(0);
+    }
+    if (stageScrollContainerRef.current) {
+      stageScrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  const handleUploadVoiceAudioFile = (
-    e: React.ChangeEvent<HTMLInputElement>
+  const handleTapTempo = (mode: 'create' | 'edit') => {
+    const now = performance.now();
+    const recent = tapTimestampsRef.current.filter((t) => now - t < 2800);
+    recent.push(now);
+    tapTimestampsRef.current = recent;
+
+    if (recent.length >= 2) {
+      const intervals: number[] = [];
+      for (let i = 1; i < recent.length; i++) {
+        intervals.push(recent[i] - recent[i - 1]);
+      }
+      const avgMs =
+        intervals.reduce((acc, v) => acc + v, 0) / intervals.length;
+      const calculatedBpm = Math.max(
+        40,
+        Math.min(240, Math.round(60000 / avgMs))
+      );
+      if (mode === 'create') {
+        setNewBpm(calculatedBpm);
+      } else {
+        setEditBpm(calculatedBpm);
+      }
+    }
+  };
+
+  const handleImageUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    mode: 'new' | 'edit' | 'direct'
   ) => {
-    if (!activeSong) return;
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async () => {
-      if (typeof reader.result === 'string') {
-        const cloudUrl = await uploadMediaBlobToStorage(
-          'song_voice_notes',
-          file.name,
-          file,
-          reader.result
-        );
-        const noteObj: SongVoiceNote = {
-          id: `vn-${Date.now()}`,
-          title: voiceNoteTitle.trim() || file.name.replace(/\.[^.]+$/, ''),
-          authorId: activeMember.id,
-          authorName: activeMember.name,
-          authorRole: activeMember.role,
-          audioDataUrl: cloudUrl,
-          durationSec: 12,
-          createdAt: 'Archivo subido',
-        };
+    reader.onload = () => {
+      const result = reader.result as string;
+      if (mode === 'new') {
+        setNewChordSheetUrl(result);
+      } else if (mode === 'edit') {
+        setEditChordSheetUrl(result);
+      } else if (mode === 'direct' && activeSong) {
         onUpdateSong({
           ...activeSong,
-          voiceNotes: [noteObj, ...(activeSong.voiceNotes || [])],
+          chordSheetImageUrl: result,
         });
-        setVoiceNoteTitle('');
+        setSheetViewMode('image');
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleDeleteVoiceNote = (noteId: string) => {
+  const showTempSavedNotice = (msg: string) => {
+    setSavedFeedbackMessage(msg);
+    window.setTimeout(() => {
+      setSavedFeedbackMessage(null);
+    }, 3000);
+  };
+
+  const handleSaveGroupNotes = () => {
     if (!activeSong) return;
     onUpdateSong({
       ...activeSong,
-      voiceNotes: (activeSong.voiceNotes || []).filter((n) => n.id !== noteId),
-    });
-  };
-
-  const handleUploadImageForActiveSong = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    if (!activeSong) return;
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const compressedDataUrl = await compressImageFileToDataUrl(file);
-    if (compressedDataUrl) {
-      const cloudUrl = await uploadMediaDataUrlToStorage(
-        'chord_sheets',
-        file.name,
-        compressedDataUrl
-      );
-      onUpdateSong({
-        ...activeSong,
-        chordSheetImageUrl: cloudUrl,
-        attachedFileName: file.name,
-      });
-      setViewFormat('image');
-    }
-  };
-
-  const handleSaveEditedLyrics = () => {
-    if (!activeSong) return;
-    onUpdateSong({
-      ...activeSong,
-      lyricsAndChords: editedLyrics,
-    });
-    setIsEditingLyrics(false);
-  };
-
-  const activeSongStructure = activeSong
-    ? activeSong.structure && activeSong.structure.length > 0
-      ? activeSong.structure
-      : extractStructureFromLyrics(activeSong.lyricsAndChords)
-    : [];
-
-  const handleSaveStructure = () => {
-    if (!activeSong) return;
-    const cleaned = structureDraft.map((s) => s.trim()).filter(Boolean);
-    onUpdateSong({
-      ...activeSong,
-      structure: cleaned,
-    });
-    setIsEditingStructure(false);
-    setNotesSavedFeedback('Estructura de la canción guardada para todo el grupo');
-    window.setTimeout(() => setNotesSavedFeedback(''), 3000);
-  };
-
-  const handleAddSectionToDraft = (sectionLabel: string) => {
-    const clean = sectionLabel.trim();
-    if (!clean) return;
-    setStructureDraft((prev) => [...prev, clean]);
-    setCustomSectionInput('');
-  };
-
-  const handleMoveSectionInDraft = (index: number, direction: -1 | 1) => {
-    setStructureDraft((prev) => {
-      const targetIdx = index + direction;
-      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
-      const copy = [...prev];
-      const temp = copy[index];
-      copy[index] = copy[targetIdx];
-      copy[targetIdx] = temp;
-      return copy;
-    });
-  };
-
-  const handleRemoveSectionFromDraft = (index: number) => {
-    setStructureDraft((prev) => prev.filter((_, idx) => idx !== index));
-  };
-
-  const handleSaveSongGroupNotes = () => {
-    if (!activeSong) return;
-    onUpdateSong({
-      ...activeSong,
-      groupNotes: groupNotesDraft.trim(),
       notes: groupNotesDraft.trim(),
     });
-    setNotesSavedFeedback('Notas grupales de la canción guardadas para toda la banda');
-    window.setTimeout(() => setNotesSavedFeedback(''), 3000);
+    showTempSavedNotice('Notas grupales guardadas para toda la banda');
   };
 
-  const handleSaveSongPersonalNotes = () => {
+  const handleSavePersonalNotes = () => {
     if (!activeSong) return;
     const nextPersonal = {
       ...(activeSong.personalNotes || {}),
@@ -822,650 +493,1076 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       ...activeSong,
       personalNotes: nextPersonal,
     });
-    setNotesSavedFeedback(`Tu nota personal fue guardada (${activeMember.name})`);
-    window.setTimeout(() => setNotesSavedFeedback(''), 3000);
+    showTempSavedNotice('Tus notas personales se guardaron');
   };
 
-  const handleCreateNewSong = (e: React.FormEvent) => {
+  const handleAddStructureSection = (labelToAdd?: string) => {
+    if (!activeSong) return;
+    const clean = (labelToAdd ?? newSectionInput).trim();
+    if (!clean) return;
+    onUpdateSong({
+      ...activeSong,
+      structure: [...(activeSong.structure || []), clean],
+    });
+    if (!labelToAdd) setNewSectionInput('');
+  };
+
+  const handleRemoveStructureSection = (indexToRemove: number) => {
+    if (!activeSong) return;
+    onUpdateSong({
+      ...activeSong,
+      structure: (activeSong.structure || []).filter((_, idx) => idx !== indexToRemove),
+    });
+  };
+
+  // Grabación de nota de voz de referencia en una canción
+  const startVoiceRecording = async () => {
+    if (!activeSong || isRecordingVoice) return;
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      showTempSavedNotice(
+        'Tu navegador no permite grabar audio directo en esta vista'
+      );
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (ev) => {
+        if (ev.data.size > 0) {
+          audioChunksRef.current.push(ev.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64Audio = reader.result as string;
+          const noteTitle =
+            voiceNoteLabel.trim() ||
+            `Idea / Referencia (${activeMember.instruments[0] || 'Voz'})`;
+          const newVoiceNote: SongVoiceNote = {
+            id: `vn-${Date.now()}`,
+            title: noteTitle,
+            label: noteTitle,
+            authorId: activeMember.id,
+            authorName: activeMember.name,
+            authorRole: (activeMember.role as UserRole) || 'member',
+            audioDataUrl: base64Audio,
+            durationSec: Math.max(1, recordingSeconds),
+            durationSeconds: Math.max(1, recordingSeconds),
+            createdAt: new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          };
+          onUpdateSong({
+            ...activeSong,
+            voiceNotes: [newVoiceNote, ...(activeSong.voiceNotes || [])],
+          });
+          setVoiceNoteLabel('');
+          setRecordingSeconds(0);
+          showTempSavedNotice('Nota de voz guardada en esta canción');
+        };
+        reader.readAsDataURL(blob);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecordingVoice(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch {
+      showTempSavedNotice(
+        'Permiso de micrófono denegado. Actívalo en tu navegador para grabar.'
+      );
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (recordingTimerRef.current) {
+      window.clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== 'inactive'
+    ) {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecordingVoice(false);
+  };
+
+  const handleDeleteVoiceNote = (voiceNoteId: string) => {
+    if (!activeSong) return;
+    onUpdateSong({
+      ...activeSong,
+      voiceNotes: (activeSong.voiceNotes || []).filter(
+        (v) => v.id !== voiceNoteId
+      ),
+    });
+  };
+
+  const handleCreateSongSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    const chars = newCharacteristics
+    const structureArr = newStructureText
       .split(',')
-      .map((c) => c.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
-    const defaultChords = [newKey, 'D', 'Em7', 'C'];
+    const tagsArr = newTags
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
 
-    const finalStructure =
-      newStructure.length > 0
-        ? newStructure
-        : extractStructureFromLyrics(newLyrics);
+    const finalImage =
+      newChordSheetUrl ||
+      generateSimpleChordSvgDataUrl(
+        newTitle.trim(),
+        newKey,
+        Number(newBpm) || 75,
+        structureArr.join(' → ')
+      );
 
     onAddSong({
       title: newTitle.trim(),
-      artist: newArtist.trim() || 'jesustone Worship',
+      artist: newArtist.trim() || 'Ministerio Local',
       originalKey: newKey,
       bpm: Number(newBpm) || 75,
       timeSignature: newTimeSig,
       style: newStyle,
-      characteristics: chars.length > 0 ? chars : ['Congregacional'],
-      structure: finalStructure,
-      spotifyUrl: newSpotifyUrl.trim() || undefined,
-      spotifyTrackId: `SP-${Date.now().toString().slice(-4)}`,
-      referenceDuration: '04:30',
-      chordProgPreview: defaultChords,
-      lyricsAndChords: newLyrics,
-      chordSheetImageUrl: newImageDataUrl || undefined,
-      attachedFileName:
-        newFileName || `${newTitle.trim().replace(/\s+/g, '_')}_Acordes.svg`,
+      characteristics: tagsArr.length > 0 ? tagsArr : [newStyle],
+      tags: tagsArr.length > 0 ? tagsArr : [newStyle],
+      structure:
+        structureArr.length > 0 ? structureArr : ['Intro', 'Verso', 'Coro'],
       notes:
-        newGroupNotes.trim() ||
-        `Agregada al repertorio general por ${activeMember.name}.`,
-      groupNotes:
-        newGroupNotes.trim() ||
-        `Agregada al repertorio general por ${activeMember.name}.`,
+        newNotes.trim() ||
+        'Canción subida al Repertorio Base. Ajusta el tono con el transpositor.',
       personalNotes: {},
+      lyricsAndChords: newRawLyrics,
+      rawLyricsAndChords: newRawLyrics,
+      chordSheetImageUrl: finalImage,
+      spotifyUrl: newSpotifyUrl.trim() || undefined,
+      referenceDuration: '3:45',
+      chordProgPreview: [],
+      voiceNotes: [],
       addedByUserId: activeMember.id,
       addedByName: activeMember.name,
-      addedByRole: activeMember.role,
-      addedAt: 'Justo ahora',
-      voiceNotes: [],
+      addedByRole: (activeMember.role as UserRole) || 'member',
+      addedAt: new Date().toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
     });
 
     setNewTitle('');
     setNewArtist('');
+    setNewNotes('');
     setNewSpotifyUrl('');
-    setNewGroupNotes('');
-    setNewImageDataUrl('');
-    setNewFileName('');
-    setSelectedStyleFilter('all');
-    setSearchQuery('');
-    setActiveSubView('repertorio');
-    setOpenedSongId(null);
-    setShowAddModal(false);
+    setNewChordSheetUrl('');
+    setShowAddSongModal(false);
   };
 
-  const handleSaveActiveEventSpotifyPlaylist = (urlToSave?: string) => {
-    if (!activeEventList || !onUpdateEvent) return;
-    const finalUrl = (urlToSave !== undefined ? urlToSave : eventSpotifyDraft).trim();
-    onUpdateEvent({
-      ...activeEventList,
-      spotifyPlaylistUrl: finalUrl || undefined,
+  const openEditModalForActiveSong = () => {
+    if (!activeSong) return;
+    setEditTitle(activeSong.title);
+    setEditArtist(activeSong.artist);
+    setEditKey(activeSong.originalKey);
+    setEditBpm(activeSong.bpm);
+    setEditTimeSig(activeSong.timeSignature);
+    setEditStyle(activeSong.style);
+    setEditTags((activeSong.tags || activeSong.characteristics || []).join(', '));
+    setEditStructureText((activeSong.structure || []).join(', '));
+    setEditNotes(activeSong.notes || '');
+    setEditSpotifyUrl(activeSong.spotifyUrl || '');
+    setEditChordSheetUrl(activeSong.chordSheetImageUrl || '');
+    setEditRawLyrics(activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || '');
+    setShowEditSongModal(true);
+  };
+
+  const handleEditSongSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeSong || !editTitle.trim()) return;
+
+    const structureArr = editStructureText
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const tagsArr = editTags
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    onUpdateSong({
+      ...activeSong,
+      title: editTitle.trim(),
+      artist: editArtist.trim() || 'Ministerio Local',
+      originalKey: editKey,
+      bpm: Number(editBpm) || 75,
+      timeSignature: editTimeSig,
+      style: editStyle,
+      characteristics: tagsArr.length > 0 ? tagsArr : [editStyle],
+      tags: tagsArr.length > 0 ? tagsArr : [editStyle],
+      structure:
+        structureArr.length > 0 ? structureArr : ['Intro', 'Verso', 'Coro'],
+      notes: editNotes.trim(),
+      spotifyUrl: editSpotifyUrl.trim() || undefined,
+      lyricsAndChords: editRawLyrics,
+      rawLyricsAndChords: editRawLyrics,
+      chordSheetImageUrl: editChordSheetUrl || undefined,
     });
-    setEventSpotifyDraft(finalUrl);
-    setIsEditingEventSpotify(false);
-    setEventSpotifySavedNotice('Playlist de Spotify vinculada a este culto');
-    window.setTimeout(() => setEventSpotifySavedNotice(''), 3000);
+
+    setSemitoneOffset(0);
+    setShowEditSongModal(false);
   };
 
-  const toggleSongInActiveEventPlaylist = (song: Song) => {
-    if (!activeEventList || !isLeader) return;
-    const exists = activeEventList.songs.some((item) => item.songId === song.id);
-    const updatedSongs: EventSongItem[] = exists
-      ? activeEventList.songs.filter((item) => item.songId !== song.id)
+  const handleConfirmDeleteActiveSong = () => {
+    if (!activeSong) return;
+    const idToRemove = activeSong.id;
+    const remaining = songs.filter((s) => s.id !== idToRemove);
+    setSelectedSongId(remaining[0]?.id || null);
+    setShowDeleteConfirmModal(false);
+    onDeleteSong(idToRemove);
+  };
+
+  const toggleSongInSetlist = (song: Song) => {
+    if (!activeSetlistEvent || !isLeader) return;
+    const exists = activeSetlistEvent.songs.some((s) => s.songId === song.id);
+    const updated: EventSongItem[] = exists
+      ? activeSetlistEvent.songs.filter((s) => s.songId !== song.id)
       : [
-          ...activeEventList.songs,
+          ...activeSetlistEvent.songs,
           {
             songId: song.id,
             customKey: song.originalKey,
             vocalLeader: activeMember.name,
+            backingVocals: [],
           },
         ];
-    onUpdateEventPlaylist(activeEventList.id, updatedSongs);
+    onUpdateEventPlaylist(activeSetlistEvent.id, updated);
   };
 
-  const updateSongWeeklyKeyInEventPlaylist = (
+  const moveSetlistSongOrder = (index: number, direction: -1 | 1) => {
+    if (!activeSetlistEvent || !isLeader) return;
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= activeSetlistEvent.songs.length) {
+      return;
+    }
+    const copy = [...activeSetlistEvent.songs];
+    const [moved] = copy.splice(index, 1);
+    copy.splice(targetIndex, 0, moved);
+    onUpdateEventPlaylist(activeSetlistEvent.id, copy);
+  };
+
+  const updateSetlistItemField = (
     songId: string,
-    newCustomKey: string
+    patch: Partial<EventSongItem>
   ) => {
-    if (!activeEventList) return;
-    const updatedSongs = activeEventList.songs.map((item) =>
-      item.songId === songId ? { ...item, customKey: newCustomKey } : item
+    if (!activeSetlistEvent || !isLeader) return;
+    const updated = activeSetlistEvent.songs.map((item) =>
+      item.songId === songId ? { ...item, ...patch } : item
     );
-    onUpdateEventPlaylist(activeEventList.id, updatedSongs);
-    if (activeSong && activeSong.id === songId) {
-      setSemitones(computeSemitoneDiff(activeSong.originalKey, newCustomKey));
-    }
+    onUpdateEventPlaylist(activeSetlistEvent.id, updated);
   };
 
-  const handleMovePlaylistSong = (index: number, direction: -1 | 1) => {
-    if (!activeEventList || !isLeader) return;
-    const targetIdx = index + direction;
-    if (targetIdx < 0 || targetIdx >= activeEventList.songs.length) return;
-    const copy = [...activeEventList.songs];
-    const temp = copy[index];
-    copy[index] = copy[targetIdx];
-    copy[targetIdx] = temp;
-    onUpdateEventPlaylist(activeEventList.id, copy);
-  };
+  const renderSongLines = (rawText: string) => {
+    const lines = rawText.split('\n');
+    return lines.map((line, index) => {
+      const trimmed = line.trim();
+      const isSectionHeader =
+        trimmed.endsWith(':') && !trimmed.includes('[') && trimmed.length < 36;
 
-  const handleOpenEditSongModal = (targetSong?: Song) => {
-    const s = targetSong || activeSong;
-    if (!s) return;
-    if (targetSong) {
-      setSelectedSongId(targetSong.id);
-    }
-    setEditSongTitle(s.title);
-    setEditSongArtist(s.artist);
-    setEditSongKey(s.originalKey);
-    setEditSongBpm(String(s.bpm || 76));
-    setEditSongTimeSig(s.timeSignature);
-    setEditSongStyle(normalizeSongStyle(s.style));
-    setEditSongSpotifyUrl(hasValidSpotifyUrl(s.spotifyUrl) ? s.spotifyUrl! : '');
-    setShowEditSongModal(true);
-  };
-
-  const handleSaveEditedSongMetadata = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeSong || !editSongTitle.trim()) return;
-    onUpdateSong({
-      ...activeSong,
-      title: editSongTitle.trim(),
-      artist: editSongArtist.trim() || 'jesustone Worship',
-      originalKey: editSongKey,
-      bpm: Number(editSongBpm) || 75,
-      timeSignature: editSongTimeSig,
-      style: editSongStyle,
-      spotifyUrl: hasValidSpotifyUrl(editSongSpotifyUrl)
-        ? editSongSpotifyUrl.trim()
-        : undefined,
-    });
-    setSongMetronomeBpm(Number(editSongBpm) || 75);
-    setShowEditSongModal(false);
-    setNotesSavedFeedback('Datos de la canción actualizados correctamente');
-    window.setTimeout(() => setNotesSavedFeedback(''), 3000);
-  };
-
-  const beatsPerBar = activeSong
-    ? getBeatsCountFromTimeSignature(activeSong.timeSignature)
-    : 4;
-
-  const stageFontClass =
-    stageFontSize === 'sm'
-      ? 'text-sm sm:text-base'
-      : stageFontSize === 'base'
-      ? 'text-base sm:text-lg'
-      : stageFontSize === 'lg'
-      ? 'text-lg sm:text-xl'
-      : 'text-xl sm:text-2xl';
-
-  // Helper to filter lines when lyricsOnly mode is enabled (for vocalists)
-  const renderSheetLines = (text: string, isStage: boolean) => {
-    const rawLines = text.split('\n');
-    const filteredLines: { line: string; isSectionHeader: boolean; chordLine: boolean }[] = [];
-
-    for (const rawLine of rawLines) {
-      const trimmed = rawLine.trim();
-      const isSectionHeader = /^\[.*\]$/.test(trimmed);
-      const chordLine = !isSectionHeader && isChordLine(rawLine);
-
-      if (lyricsOnly && chordLine) {
-        continue;
-      }
-
-      // Collapse consecutive empty lines in lyricsOnly mode
-      if (
-        lyricsOnly &&
-        trimmed === '' &&
-        filteredLines.length > 0 &&
-        filteredLines[filteredLines.length - 1].line.trim() === ''
-      ) {
-        continue;
-      }
-
-      filteredLines.push({
-        line: rawLine,
-        isSectionHeader,
-        chordLine,
-      });
-    }
-
-    return filteredLines.map((item, idx) => (
-      <div
-        key={idx}
-        className={`whitespace-pre ${
-          item.isSectionHeader
-            ? isStage
-              ? 'mt-8 mb-2 font-sans font-extrabold text-sm sm:text-base uppercase tracking-widest text-amber-400 bg-amber-500/10 inline-block px-3 py-1 rounded-lg'
-              : 'mt-4 mb-1 font-sans font-bold text-xs uppercase tracking-wider text-amber-500 dark:text-amber-400 bg-amber-500/10 inline-block px-2.5 py-0.5 rounded-md'
-            : item.chordLine
-            ? isStage
-              ? 'font-extrabold text-emerald-400 mt-3'
-              : `font-bold ${accent.textClass} mt-1`
-            : isStage
-            ? 'text-slate-100'
-            : 'text-slate-800 dark:text-slate-200'
-        }`}
-      >
-        {item.line || ' '}
-      </div>
-    ));
-  };
-
-  return (
-    <div className="space-y-6 w-full max-w-full min-w-0">
-      {/* =====================================================================
-          MODO ESCENARIO / ATRIL A PANTALLA COMPLETA (CON AUTO-SCROLL, CLIC EN VIVO, SOLO LETRA Y ESTRUCTURA)
-         ===================================================================== */}
-      {isStageMode && activeSong && (
-        <div className="fixed inset-0 z-50 bg-black text-white flex flex-col overflow-hidden">
-          {/* Barra Superior del Modo Escenario */}
-          <header className="px-4 sm:px-6 py-3 bg-neutral-950 border-b border-neutral-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
-            <div className="flex items-center gap-3 min-w-0">
-              <div
-                className={`px-3 py-1.5 rounded-xl font-mono text-sm font-bold ${accent.bgClass}`}
-              >
-                Tono: {currentKeyDisplay}
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                    Modo Escenario / Atril
-                  </span>
-                  {activeEventList && (
-                    <span className="text-[11px] text-slate-400 truncate">
-                      · Playlist: {activeEventList.title} (
-                      {currentSongIndexInList + 1}/{filteredSongs.length})
-                    </span>
-                  )}
-                </div>
-                <h2 className="text-base sm:text-xl font-bold text-white truncate">
-                  {activeSong.title} —{' '}
-                  <span className="text-slate-400 font-normal text-sm">
-                    {activeSong.artist}
-                  </span>
-                </h2>
-              </div>
-            </div>
-
-            {/* Controles Rápidos en Vivo: Solo Letra + Metrónomo + Auto-Scroll + Tono + Letra + Salir */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Toggle Modo Solo Letra (Voces) vs Acordes + Letra */}
-              <button
-                type="button"
-                onClick={() => setLyricsOnly(!lyricsOnly)}
-                className={`min-h-[38px] px-3.5 py-1.5 rounded-2xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
-                  lyricsOnly
-                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
-                    : 'bg-neutral-900 text-neutral-200 border-neutral-700 hover:bg-neutral-800'
-                }`}
-              >
-                <Mic className="w-3.5 h-3.5" />
-                <span>{lyricsOnly ? 'Vista: Solo Letra (Voces)' : 'Modo Solo Letra'}</span>
-              </button>
-
-              {/* Metrónomo integrado en Modo Escenario */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-neutral-900 border border-neutral-800">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setIsSongMetronomePlaying(!isSongMetronomePlaying)
-                  }
-                  className={`px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                    isSongMetronomePlaying
-                      ? 'bg-rose-600 text-white'
-                      : 'bg-emerald-500 text-slate-950'
-                  }`}
-                >
-                  <Radio className="w-3.5 h-3.5" />
-                  <span>
-                    {isSongMetronomePlaying
-                      ? 'Detener Clic'
-                      : `Clic ${songMetronomeBpm} BPM`}
-                  </span>
-                </button>
-                <div className="flex items-center gap-1 px-1">
-                  {Array.from({ length: beatsPerBar }).map((_, bIdx) => {
-                    const activeBeat =
-                      isSongMetronomePlaying && currentBeat === bIdx + 1;
-                    return (
-                      <span
-                        key={bIdx}
-                        className={`w-2.5 h-2.5 rounded-full transition-all ${
-                          activeBeat
-                            ? bIdx === 0
-                              ? 'bg-amber-400 scale-125 shadow-sm shadow-amber-400'
-                              : 'bg-emerald-400 scale-110'
-                            : 'bg-slate-600'
-                        }`}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Control de Auto-Scroll */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-neutral-900 border border-neutral-800">
-                <button
-                  type="button"
-                  onClick={() => setIsAutoScrolling(!isAutoScrolling)}
-                  className={`px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
-                    isAutoScrolling
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'bg-neutral-800 text-slate-200'
-                  }`}
-                >
-                  {isAutoScrolling ? (
-                    <Pause className="w-3.5 h-3.5" />
-                  ) : (
-                    <Play className="w-3.5 h-3.5" />
-                  )}
-                  <span>Auto-Scroll</span>
-                </button>
-                {[
-                  { spd: 0.3, label: '0.3x' },
-                  { spd: 0.5, label: '0.5x' },
-                  { spd: 0.6, label: '0.6x' },
-                  { spd: 0.8, label: '0.8x' },
-                  { spd: 1.0, label: '1x' },
-                  { spd: 1.4, label: '1.4x' },
-                ].map(({ spd, label }) => (
-                  <button
-                    key={spd}
-                    type="button"
-                    onClick={() => setAutoScrollSpeed(spd)}
-                    className={`px-2 py-1 rounded-lg font-mono text-[11px] font-bold ${
-                      autoScrollSpeed === spd
-                        ? 'bg-white text-slate-950'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Transposición rápida en escenario */}
-              {!lyricsOnly && (
-                <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-2xl bg-neutral-900 border border-neutral-800">
-                  <button
-                    type="button"
-                    onClick={() => setSemitones((s) => s - 1)}
-                    className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-mono font-bold"
-                  >
-                    -1
-                  </button>
-                  <span className="px-2 font-mono text-xs font-bold text-amber-400">
-                    {currentKeyDisplay}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSemitones((s) => s + 1)}
-                    className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-mono font-bold"
-                  >
-                    +1
-                  </button>
-                </div>
-              )}
-
-              {/* Tamaño de fuente */}
-              <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-2xl bg-neutral-900 border border-neutral-800">
-                <Type className="w-3.5 h-3.5 text-slate-400 mr-1" />
-                {(
-                  [
-                    { id: 'sm', label: 'A-' },
-                    { id: 'base', label: 'A' },
-                    { id: 'lg', label: 'A+' },
-                    { id: 'xl', label: 'A++' },
-                  ] as const
-                ).map((sz) => (
-                  <button
-                    key={sz.id}
-                    type="button"
-                    onClick={() => setStageFontSize(sz.id)}
-                    className={`px-2 py-1 rounded-lg text-xs font-bold ${
-                      stageFontSize === sz.id
-                        ? 'bg-amber-500 text-slate-950'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {sz.label}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAutoScrolling(false);
-                  setIsStageMode(false);
-                }}
-                className="min-h-[40px] px-4 py-1.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white flex items-center gap-1.5"
-              >
-                <Minimize2 className="w-4 h-4" />
-                <span>Salir de Atril</span>
-              </button>
-            </div>
-          </header>
-
-          {/* Cuerpo Principal del Atril (OLED Black Alto Contraste) */}
+      if (isSectionHeader) {
+        return (
           <div
-            ref={stageScrollContainerRef}
-            className="flex-1 overflow-y-auto px-6 sm:px-12 py-6 max-w-5xl w-full mx-auto space-y-5"
+            key={index}
+            className={`mt-5 mb-1.5 font-sans text-xs font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg inline-block ${accent.softBgClass}`}
           >
-            {/* Mapa de Estructura de la Canción en Escenario */}
-            {activeSongStructure.length > 0 && (
-              <div className="p-3.5 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 block">
-                  Estructura / Orden de Secciones:
+            {trimmed.replace(':', '')}
+          </div>
+        );
+      }
+
+      if (showLyricsOnly) {
+        const cleanLyric = stripChordsFromLine(line);
+        if (!cleanLyric) {
+          return <div key={index} className="h-2" />;
+        }
+        return (
+          <div
+            key={index}
+            className="leading-relaxed text-slate-800 dark:text-slate-100 my-1 font-sans"
+          >
+            {cleanLyric}
+          </div>
+        );
+      }
+
+      const transposed = transposeLineText(line, semitoneOffset);
+      const segments = transposed.split(/(\[[^\]]+\])/g);
+
+      return (
+        <div
+          key={index}
+          className="leading-8 text-slate-800 dark:text-slate-200 whitespace-pre-wrap my-0.5"
+        >
+          {segments.map((seg, idx) => {
+            if (seg.startsWith('[') && seg.endsWith(']')) {
+              const chordName = seg.slice(1, -1);
+              return (
+                <span
+                  key={idx}
+                  className={`inline-block font-mono font-extrabold px-1.5 py-0.5 mx-0.5 rounded-md text-xs sm:text-sm shadow-2xs ${accent.bgClass}`}
+                >
+                  {chordName}
                 </span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {activeSongStructure.map((sec, idx) => (
-                    <React.Fragment key={`${sec}-${idx}`}>
-                      <span
-                        className={`px-2.5 py-1 rounded-xl border text-xs font-bold ${getSectionBadgeColors(
-                          sec
-                        )}`}
-                      >
-                        <span className="font-mono opacity-70 mr-1">{idx + 1}.</span>
-                        {sec}
-                      </span>
-                      {idx < activeSongStructure.length - 1 && (
-                        <span className="text-neutral-600 font-bold text-xs">→</span>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </div>
+              );
+            }
+            return <span key={idx}>{seg}</span>;
+          })}
+        </div>
+      );
+    });
+  };
+
+  // ===========================================================================
+  // MODO ESCENARIO / ATRIL EN VIVO (PANTALLA COMPLETA CON AUTO-SCROLL Y CLIC)
+  // ===========================================================================
+  if (isStageMode && activeSong) {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950 text-slate-100 flex flex-col">
+        {/* Cabecera del Modo Escenario */}
+        <div className="px-4 sm:px-6 py-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {setlistOrderIds.length > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleNavigateAdjacentSong(-1)}
+                  className="min-h-[42px] px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold"
+                  title="Canción anterior"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Anterior</span>
+                </button>
+                <span className="px-2 py-1 rounded-lg bg-slate-800/80 font-mono text-xs text-amber-400 font-bold">
+                  {currentIndexInOrder + 1}/{setlistOrderIds.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleNavigateAdjacentSong(1)}
+                  className="min-h-[42px] px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold"
+                  title="Siguiente canción"
+                >
+                  <span className="hidden sm:inline">Siguiente</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             )}
 
-            {/* Notas Grupales y Nota Personal en Escenario (si existen) */}
-            {((activeSong.groupNotes || activeSong.notes) ||
-              activeSong.personalNotes?.[activeMember.id]) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {(activeSong.groupNotes || activeSong.notes) && (
-                  <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800 text-xs">
-                    <span className="font-bold text-amber-400 uppercase tracking-wider block mb-0.5">
-                      Nota Grupal de la Banda:
-                    </span>
-                    <p className="text-neutral-200">
-                      {activeSong.groupNotes || activeSong.notes}
-                    </p>
-                  </div>
-                )}
-                {activeSong.personalNotes?.[activeMember.id] && (
-                  <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 text-xs">
-                    <span className="font-bold text-emerald-400 uppercase tracking-wider block mb-0.5">
-                      Mi Nota Personal ({activeMember.name}):
-                    </span>
-                    <p className="text-emerald-100">
-                      {activeSong.personalNotes[activeMember.id]}
-                    </p>
-                  </div>
-                )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 text-[10px] font-extrabold uppercase tracking-wider">
+                  Modo Escenario / Atril
+                </span>
+                <span className="text-xs font-mono text-slate-400">
+                  {activeSong.bpm} BPM · {activeSong.timeSignature}
+                </span>
               </div>
-            )}
-
-            {/* Letra (con o sin Acordes según Modo Solo Letra) en tamaño de Atril */}
-            <div className={`font-mono leading-relaxed ${stageFontClass} pb-32`}>
-              {renderSheetLines(transposedText, true)}
+              <h2 className="text-lg sm:text-xl font-bold text-white truncate">
+                {activeSong.title}{' '}
+                <span className="text-amber-400 font-mono">
+                  (Tono: {currentKey})
+                </span>
+              </h2>
             </div>
           </div>
 
-          {/* Barra Inferior de Navegación Fluida del Setlist / Playlist en Escenario */}
-          <footer className="px-4 sm:px-6 py-3 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
-            <button
-              type="button"
-              disabled={filteredSongs.length <= 1}
-              onClick={() => handleNavigatePlaylist('prev')}
-              className="min-h-[46px] px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs sm:text-sm font-bold text-white flex items-center gap-2 shrink-0"
-            >
-              <ChevronLeft className="w-5 h-5" />
-              <span>Anterior Canción</span>
-            </button>
-
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-              {filteredSongs.map((s, idx) => {
-                const isCurrent = s.id === activeSong.id;
-                const evItem = activeEventList?.songs.find(
-                  (i) => i.songId === s.id
-                );
-                const keyBadge = evItem?.customKey || s.originalKey;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => selectSongWithContextKey(s)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
-                      isCurrent
-                        ? `${accent.bgClass} shadow-md`
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    <span className="font-mono opacity-80">0{idx + 1}.</span>
-                    <span>{s.title}</span>
-                    <span className="px-1.5 py-0.5 rounded bg-black/25 font-mono text-[11px]">
-                      {keyBadge}
-                    </span>
-                  </button>
-                );
-              })}
+          {/* Controles en Vivo: Auto-Scroll, Clic de Referencia, Transposición, Letra y Salir */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Auto-scroll */}
+            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setIsAutoScrolling((prev) => !prev)}
+                className={`min-h-[36px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                  isAutoScrolling
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                {isAutoScrolling ? (
+                  <>
+                    <Pause className="w-3.5 h-3.5" />
+                    <span>Pausar Scroll</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5" />
+                    <span>Auto-Scroll</span>
+                  </>
+                )}
+              </button>
+              {isAutoScrolling && (
+                <select
+                  value={scrollSpeed}
+                  onChange={(e) =>
+                    setScrollSpeed(
+                      e.target.value as 'slow' | 'medium' | 'fast'
+                    )
+                  }
+                  className="bg-slate-900 text-amber-400 text-xs font-bold px-2 py-1 rounded-lg border border-slate-700"
+                >
+                  <option value="slow">Lento</option>
+                  <option value="medium">Medio</option>
+                  <option value="fast">Rápido</option>
+                </select>
+              )}
             </div>
 
+            {/* Clic / Pulso en vivo */}
             <button
               type="button"
-              disabled={filteredSongs.length <= 1}
-              onClick={() => handleNavigatePlaylist('next')}
-              className={`min-h-[46px] px-5 py-2 rounded-2xl disabled:opacity-40 text-xs sm:text-sm font-bold flex items-center gap-2 shrink-0 ${accent.bgClass}`}
+              onClick={() => setIsStageClickPlaying((prev) => !prev)}
+              className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                isStageClickPlaying
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+              }`}
+              title="Escuchar clic/pulso de referencia al BPM de la canción"
             >
-              <span>Siguiente Canción</span>
-              <ChevronRight className="w-5 h-5" />
+              <Volume2 className="w-4 h-4" />
+              <span>{isStageClickPlaying ? 'Clic ON' : `${activeSong.bpm} BPM`}</span>
             </button>
-          </footer>
-        </div>
-      )}
 
-      {/* =======================================================================
-          PANTALLA DE LA CANCIÓN EN MODO DE VISTA GRANDE DEDICADA
-         ======================================================================= */}
-      {openedSongId && activeSong ? (
-        <div className="space-y-3.5 w-full max-w-full min-w-0">
-          {/* Barra superior compacta para volver y navegar */}
-          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            {/* Transposición rápida */}
+            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setSemitoneOffset((s) => s - 1)}
+                className="min-h-[36px] min-w-[36px] rounded-lg hover:bg-slate-700 flex items-center justify-center font-mono font-bold text-sm"
+              >
+                -1
+              </button>
+              <span className="px-2.5 font-mono text-sm font-extrabold text-amber-400">
+                {currentKey}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSemitoneOffset((s) => s + 1)}
+                className="min-h-[36px] min-w-[36px] rounded-lg hover:bg-slate-700 flex items-center justify-center font-mono font-bold text-sm"
+              >
+                +1
+              </button>
+            </div>
+
+            {/* Solo letra / Acordes */}
+            <button
+              type="button"
+              onClick={() => setShowLyricsOnly((v) => !v)}
+              className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-bold border ${
+                showLyricsOnly
+                  ? 'bg-emerald-600 text-white border-emerald-500'
+                  : 'bg-slate-800 text-slate-300 border-slate-700'
+              }`}
+            >
+              {showLyricsOnly ? 'Solo Letra' : 'Acordes + Letra'}
+            </button>
+
+            {/* Tamaño de letra */}
+            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setFontSize((f) => Math.max(13, f - 1))}
+                className="min-h-[36px] px-2 rounded-lg hover:bg-slate-700 text-xs font-bold"
+              >
+                A-
+              </button>
+              <button
+                type="button"
+                onClick={() => setFontSize((f) => Math.min(26, f + 1))}
+                className="min-h-[36px] px-2 rounded-lg hover:bg-slate-700 text-xs font-bold"
+              >
+                A+
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => {
-                setOpenedSongId(null);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setIsAutoScrolling(false);
+                setIsStageClickPlaying(false);
+                setIsStageMode(false);
               }}
-              className="min-h-[34px] px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 transition-colors"
+              className="min-h-[42px] px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span className="truncate max-w-[180px] sm:max-w-none">
-                {activeSubView === 'setlists' && activeEventList
-                  ? `Setlist: ${activeEventList.title}`
-                  : 'Repertorio'}
-              </span>
+              <Minimize2 className="w-4 h-4" />
+              <span>Salir</span>
             </button>
+          </div>
+        </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              {filteredSongs.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleNavigatePlaylist('prev')}
-                    className="min-h-[32px] px-2.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
-                    title="Canción anterior"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Anterior</span>
-                  </button>
-                  <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 px-1">
-                    {currentSongIndexInList + 1}/{filteredSongs.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleNavigatePlaylist('next')}
-                    className="min-h-[32px] px-2.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
-                    title="Siguiente canción"
-                  >
-                    <span className="hidden sm:inline">Siguiente</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              )}
+        {/* Cuerpo de la Hoja en Modo Escenario */}
+        <div
+          ref={stageScrollContainerRef}
+          className="flex-1 overflow-y-auto p-6 sm:p-10 max-w-5xl mx-auto w-full space-y-6"
+        >
+          {/* Estructura visible arriba */}
+          <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-800">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1">
+              Orden:
+            </span>
+            {(activeSong.structure || []).map((sec, idx) => (
+              <span
+                key={idx}
+                className="px-3 py-1 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-amber-400"
+              >
+                {idx + 1}. {sec}
+              </span>
+            ))}
+          </div>
+
+          {sheetViewMode === 'image' && activeSong.chordSheetImageUrl ? (
+            <div className="rounded-3xl overflow-hidden border border-slate-800 bg-slate-900 p-4 flex justify-center">
+              <img
+                src={activeSong.chordSheetImageUrl}
+                alt={activeSong.title}
+                className="max-w-full h-auto rounded-2xl"
+              />
+            </div>
+          ) : (
+            <div
+              style={{ fontSize: `${fontSize + 2}px` }}
+              className="font-mono leading-relaxed select-text pb-24"
+            >
+              {renderSongLines(activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || '')}
+            </div>
+          )}
+
+          {activeSong.notes && (
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-sm text-amber-200">
+              <strong className="font-bold block mb-1">
+                Nota de Dirección Musical:
+              </strong>
+              {activeSong.notes}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 w-full max-w-full min-w-0">
+      {/* BARRA SUPERIOR COMPACTA: Selector Repertorio vs Setlists + Buscador + Subir Canción */}
+      <div className="flex flex-col gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {onBackToGroup && (
+              <button
+                type="button"
+                onClick={onBackToGroup}
+                className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />
+                <span>Volver al Grupo</span>
+              </button>
+            )}
+
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setActiveSubView('repertoire')}
+                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                  activeSubView === 'repertoire'
+                    ? `${accent.bgClass} shadow-xs`
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Music className="w-3.5 h-3.5" />
+                <span>Repertorio Base ({songs.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveSubView('setlists')}
+                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                  activeSubView === 'setlists'
+                    ? `${accent.bgClass} shadow-xs`
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <ListMusic className="w-3.5 h-3.5" />
+                <span>Setlists de Eventos ({events.length})</span>
+              </button>
             </div>
           </div>
 
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-4 w-full max-w-full min-w-0">
-            {/* Cabecera resumida de la Canción + Botones de Acción Compactos */}
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3.5 border-b border-slate-200 dark:border-slate-800">
-              <div className="space-y-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  <span className={`font-bold ${accent.textClass}`}>
-                    {normalizeSongStyle(activeSong.style)}
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span className="font-mono tabular-nums">
-                    Base: <strong>{activeSong.originalKey}</strong>
-                  </span>
-                  {activeEventSongItem?.customKey && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-mono font-bold">
-                        Semana: {activeEventSongItem.customKey}
-                      </span>
-                    </>
+          <button
+            type="button"
+            onClick={() => setShowAddSongModal(true)}
+            className={`min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 ${accent.bgClass}`}
+          >
+            <Plus className="w-4 h-4" />
+            <span>Subir Canción</span>
+          </button>
+        </div>
+
+        {/* Buscador y Filtros Rápidos (Estilo, Tonalidad y Tempo/BPM) cuando estamos en Repertorio Base */}
+        {activeSubView === 'repertoire' && (
+          <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="flex flex-col lg:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por título, artista o frase de la letra..."
+                  className="w-full min-h-[38px] pl-9 pr-9 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtros adicionales de Tono y Velocidad/BPM */}
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                <select
+                  value={selectedKeyFilter}
+                  onChange={(e) => setSelectedKeyFilter(e.target.value)}
+                  className="min-h-[36px] px-2.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200"
+                >
+                  <option value="all">Todos los Tonos</option>
+                  <optgroup label="Mayores">
+                    {MAJOR_KEYS.map((k) => (
+                      <option key={k} value={k}>
+                        Tono {k}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Menores">
+                    {MINOR_KEYS.map((k) => (
+                      <option key={k} value={k}>
+                        Tono {k}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+
+                <select
+                  value={selectedBpmFilter}
+                  onChange={(e) =>
+                    setSelectedBpmFilter(
+                      e.target.value as 'all' | 'slow' | 'medium' | 'fast'
+                    )
+                  }
+                  className="min-h-[36px] px-2.5 py-1 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200"
+                >
+                  <option value="all">Cualquier Tempo</option>
+                  <option value="slow">Lento (&lt; 75 BPM)</option>
+                  <option value="medium">Medio (75 - 110 BPM)</option>
+                  <option value="fast">Rápido (&gt; 110 BPM)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
+              {['all', ...STYLES].map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setSelectedStyle(st)}
+                  className={`min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all shrink-0 ${
+                    selectedStyle === st
+                      ? `${accent.bgClass}`
+                      : 'bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {st === 'all' ? 'Todos los Estilos' : st}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* =====================================================================
+          VISTA PRINCIPAL:
+          - Si NO hay canción abierta (`!selectedSongId`), mostramos la cuadrícula limpia de Canciones o Setlists.
+          - Si el usuario toca una canción (`selectedSongId`), abrimos su vista enfocada con botón de "Volver".
+         ===================================================================== */}
+      {!selectedSongId || !activeSong ? (
+        activeSubView === 'repertoire' ? (
+          songs.length === 0 ? (
+            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 sm:p-12 text-center space-y-4">
+              <div
+                className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto ${accent.softBgClass}`}
+              >
+                <Music className="w-8 h-8" />
+              </div>
+              <div className="max-w-md mx-auto space-y-1.5">
+                <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                  El Repertorio Base de este grupo está vacío
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Tanto el Líder como los Miembros pueden subir canciones con acordes, estructura, notas de voz y hojas para toda la banda.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddSongModal(true)}
+                className={`min-h-[48px] px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 shadow-md ${accent.bgClass}`}
+              >
+                <Plus className="w-4 h-4" />
+                <span>Subir Primera Canción</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Toca cualquier canción para abrir sus acordes, estructura, notas y transpositor:
+                </p>
+                <span className="text-xs font-mono font-bold text-slate-500">
+                  {filteredSongs.length}{' '}
+                  {filteredSongs.length === 1 ? 'canción' : 'canciones'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {filteredSongs.map((song) => (
+                  <button
+                    key={song.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSongId(song.id);
+                      setSemitoneOffset(0);
+                      setIsFullSheetExpanded(true);
+                    }}
+                    className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors truncate">
+                            {song.title}
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            {song.artist}
+                          </p>
+                        </div>
+                        <span
+                          className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${accent.softBgClass}`}
+                        >
+                          {song.originalKey}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-1.5 font-mono">
+                        <span>{song.bpm} BPM</span>
+                        <span>·</span>
+                        <span>{song.timeSignature}</span>
+                        <span>·</span>
+                        <span className="font-sans">{song.style}</span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 shrink-0" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        ) : (
+          /* Sub-vista 2: Setlists de Eventos */
+          <div className="space-y-4">
+            {events.length === 0 ? (
+              <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 text-center">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  No hay eventos programados aún para mostrar su Setlist.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Selector horizontal de evento */}
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full">
+                    {events.map((ev) => (
+                      <button
+                        key={ev.id}
+                        type="button"
+                        onClick={() => setSelectedSetlistEventId(ev.id)}
+                        className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                          activeSetlistEvent?.id === ev.id
+                            ? `${accent.bgClass} shadow-xs`
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {ev.title} ({ev.date.slice(5)})
+                      </button>
+                    ))}
+                  </div>
+
+                  {activeSetlistEvent && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {activeSetlistEvent.songs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const firstItem = activeSetlistEvent.songs[0];
+                            const firstSong = songs.find(
+                              (s) => s.id === firstItem.songId
+                            );
+                            if (firstSong) {
+                              setSelectedSongId(firstSong.id);
+                              const targetKey =
+                                firstItem.customKey || firstSong.originalKey;
+                              setSemitoneOffset(
+                                getSemitoneStepsBetweenKeys(
+                                  firstSong.originalKey,
+                                  targetKey
+                                )
+                              );
+                              setIsStageMode(true);
+                            }
+                          }}
+                          className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-xs"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                          <span>Modo Atril del Setlist</span>
+                        </button>
+                      )}
+
+                      {isLeader && (
+                        <button
+                          type="button"
+                          onClick={() => setShowManagePlaylistModal(true)}
+                          className={`min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Editar Setlist</span>
+                        </button>
+                      )}
+                    </div>
                   )}
-                  <span aria-hidden="true">·</span>
-                  <span className="font-mono tabular-nums">{activeSong.bpm} BPM</span>
-                  <span aria-hidden="true">·</span>
-                  <span className="font-mono tabular-nums">
-                    {activeSong.timeSignature}
-                  </span>
                 </div>
 
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white truncate">
+                {/* Lista de canciones del evento seleccionado */}
+                {activeSetlistEvent && (
+                  <div className="space-y-3">
+                    {activeSetlistEvent.rehearsals &&
+                      activeSetlistEvent.rehearsals.length > 0 && (
+                        <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/25 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-semibold">
+                            <Calendar className="w-4 h-4 shrink-0" />
+                            <span>
+                              Esta misma Setlist se ensaya en:{' '}
+                              <strong>
+                                {activeSetlistEvent.rehearsals
+                                  .map(
+                                    (r) =>
+                                      `${r.title} (${r.date.slice(5)} · ${r.time})`
+                                  )
+                                  .join(' · ')}
+                              </strong>
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                    {activeSetlistEvent.songs.length === 0 ? (
+                      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 text-center space-y-3">
+                        <p className="text-xs sm:text-sm text-slate-500">
+                          Este evento aún no tiene canciones asignadas en su Setlist.
+                        </p>
+                        {isLeader && (
+                          <button
+                            type="button"
+                            onClick={() => setShowManagePlaylistModal(true)}
+                            className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 ${accent.bgClass}`}
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Armar Setlist del Evento</span>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        {activeSetlistEvent.songs.map((evSong, index) => {
+                          const songObj = songs.find(
+                            (s) => s.id === evSong.songId
+                          );
+                          if (!songObj) return null;
+                          const targetKey =
+                            evSong.customKey || songObj.originalKey;
+                          const isKeyTransposed =
+                            targetKey !== songObj.originalKey;
+
+                          return (
+                            <button
+                              key={`${evSong.songId}-${index}`}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSongId(songObj.id);
+                                setIsFullSheetExpanded(true);
+                                setSemitoneOffset(
+                                  getSemitoneStepsBetweenKeys(
+                                    songObj.originalKey,
+                                    targetKey
+                                  )
+                                );
+                              }}
+                              className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
+                            >
+                              <div className="space-y-1.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <span className="text-[10px] font-mono font-bold text-amber-500 uppercase">
+                                      Orden #{index + 1}
+                                    </span>
+                                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-amber-500 truncate">
+                                      {songObj.title}
+                                    </h3>
+                                  </div>
+                                  <span
+                                    className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${
+                                      isKeyTransposed
+                                        ? 'bg-amber-500 text-slate-950'
+                                        : accent.softBgClass
+                                    }`}
+                                  >
+                                    Tono: {targetKey}
+                                  </span>
+                                </div>
+
+                                <p className="text-xs text-slate-500 truncate">
+                                  Voz: {evSong.vocalLeader || 'Por definir'}
+                                  {evSong.backingVocals &&
+                                  evSong.backingVocals.length > 0
+                                    ? ` · Coros: ${evSong.backingVocals.join(', ')}`
+                                    : ''}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] font-mono text-slate-500">
+                                <span>
+                                  {songObj.bpm} BPM · {songObj.timeSignature}
+                                </span>
+                                <span className="font-sans font-bold text-amber-500">
+                                  Abrir cifrado →
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )
+      ) : (
+        /* ===================================================================
+           VISTA DETALLE DE LA CANCIÓN SELECCIONADA (CON TRANSPOSITOR DIRECTO)
+           =================================================================== */
+        <div className="space-y-4">
+          {/* Barra para volver a la lista de canciones o cambiar rápido entre temas */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedSongId(null)}
+              className="min-h-[40px] px-3.5 py-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 shadow-2xs"
+            >
+              <ArrowLeft className="w-4 h-4 text-amber-500" />
+              <span>
+                {activeSubView === 'setlists'
+                  ? 'Volver al Setlist del Evento'
+                  : 'Volver al Repertorio'}
+              </span>
+            </button>
+
+            {setlistOrderIds.length > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleNavigateAdjacentSong(-1)}
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Anterior</span>
+                </button>
+                <span className="text-xs font-mono font-bold text-slate-500 px-1">
+                  {currentIndexInOrder + 1}/{setlistOrderIds.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleNavigateAdjacentSong(1)}
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                >
+                  <span>Siguiente</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 space-y-5 shadow-xs">
+            {/* Cabecera de la canción + Acciones */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-lg font-bold ${accent.softBgClass}`}
+                  >
+                    {activeSong.style}
+                  </span>
+                  <span>·</span>
+                  <span className="font-mono font-bold">
+                    Tono Base: {activeSong.originalKey}
+                  </span>
+                  <span>·</span>
+                  <span className="font-mono">
+                    {activeSong.bpm} BPM ({activeSong.timeSignature})
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
                   {activeSong.title}
                 </h2>
-
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                  {activeSong.artist} · Subida por{' '}
-                  <strong className="text-slate-700 dark:text-slate-300">
-                    {activeSong.addedByName}
-                  </strong>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  {activeSong.artist}
                 </p>
               </div>
 
-              {/* Fila de botones compactos */}
-              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsStageMode(true)}
-                  className={`min-h-[34px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-transform active:scale-95 ${accent.bgClass}`}
-                >
-                  <Maximize2 className="w-3.5 h-3.5" />
-                  <span>Atril</span>
-                </button>
-
-                {hasValidSpotifyUrl(activeSong.spotifyUrl) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {activeSong.spotifyUrl && (
                   <a
                     href={activeSong.spotifyUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
-                    title="Escuchar en Spotify"
+                    className="min-h-[38px] px-3 py-1.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs flex items-center gap-1.5 shadow-2xs"
                   >
-                    <Headphones className="w-3.5 h-3.5 text-black" />
+                    <Headphones className="w-3.5 h-3.5" />
                     <span>Spotify</span>
                   </a>
                 )}
@@ -1473,1445 +1570,459 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 <button
                   type="button"
                   onClick={() =>
-                    onOpenMetronomeWithSong(activeSong.bpm, activeSong.timeSignature)
+                    onOpenMetronomeWithSong(
+                      activeSong.bpm,
+                      activeSong.timeSignature
+                    )
                   }
-                  className="min-h-[34px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 hover:border-amber-500/50 transition-colors"
-                  title="Abrir en Herramientas"
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"
                 >
-                  <Sliders className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="hidden sm:inline">Herramientas</span>
+                  <Clock className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Abrir en Metrónomo ({activeSong.bpm})</span>
                 </button>
-
-                {(isLeader || activeSong.addedByUserId === activeMember.id) && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditSongModal()}
-                      className="min-h-[34px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 hover:border-amber-500/50 transition-colors"
-                      title="Editar datos base de la canción"
-                    >
-                      <Pencil className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Editar</span>
-                    </button>
-
-                    {onDeleteSong && (
-                      confirmDeleteSongId === activeSong.id ? (
-                        <div className="flex items-center gap-1 bg-rose-500/15 border border-rose-500/40 px-2.5 py-1 rounded-xl">
-                          <span className="text-[11px] font-bold text-rose-500">
-                            ¿Borrar?
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onDeleteSong(activeSong.id);
-                              setConfirmDeleteSongId(null);
-                            }}
-                            className="px-2 py-0.5 rounded-lg bg-rose-600 text-white text-[11px] font-bold"
-                          >
-                            Sí
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteSongId(null)}
-                            className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-300"
-                          >
-                            No
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteSongId(activeSong.id)}
-                          className="min-h-[34px] px-2.5 py-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors"
-                          title="Eliminar canción del repertorio"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* ===============================================================
-                BARRA COMPACTA: METRÓNOMO Y TRANSPOSICIÓN EN EL CELULAR
-               =============================================================== */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
-              {/* Metrónomo integrado compacto */}
-              <div className="px-3 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setIsSongMetronomePlaying(!isSongMetronomePlaying)
-                    }
-                    className={`min-h-[34px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all ${
-                      isSongMetronomePlaying
-                        ? 'bg-rose-600 text-white'
-                        : 'bg-slate-900 dark:bg-white text-white dark:text-slate-950'
-                    }`}
-                  >
-                    {isSongMetronomePlaying ? (
-                      <>
-                        <Square className="w-3.5 h-3.5 fill-current" />
-                        <span>Parar</span>
-                      </>
-                    ) : (
-                      <>
-                        <Radio className="w-3.5 h-3.5 text-amber-400 dark:text-amber-600" />
-                        <span>Clic</span>
-                      </>
-                    )}
-                  </button>
-
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-bold text-slate-900 dark:text-white font-mono">
-                        {songMetronomeBpm} BPM
-                      </span>
-                      {songMetronomeBpm !== activeSong.bpm && (
-                        <button
-                          type="button"
-                          onClick={() => setSongMetronomeBpm(activeSong.bpm)}
-                          className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 hover:underline"
-                        >
-                          ({activeSong.bpm})
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 mt-1">
-                      {Array.from({ length: beatsPerBar }).map((_, bIdx) => {
-                        const isBeatActive =
-                          isSongMetronomePlaying && currentBeat === bIdx + 1;
-                        return (
-                          <div
-                            key={bIdx}
-                            className={`px-1.5 py-0.2 rounded font-mono text-[10px] font-bold transition-all ${
-                              isBeatActive
-                                ? bIdx === 0
-                                  ? 'bg-amber-500 text-slate-950'
-                                  : 'bg-emerald-500 text-slate-950'
-                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                            }`}
-                          >
-                            {bIdx + 1}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSongMetronomeBpm((b) => Math.max(30, b - 5))
-                    }
-                    className="min-h-[30px] px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-[11px] font-bold"
-                  >
-                    -5
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSongMetronomeBpm((b) => Math.max(30, b - 1))
-                    }
-                    className="min-h-[30px] px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-[11px] font-bold"
-                  >
-                    -1
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSongMetronomeBpm((b) => Math.min(250, b + 1))
-                    }
-                    className="min-h-[30px] px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-[11px] font-bold"
-                  >
-                    +1
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSongMetronomeBpm((b) => Math.min(250, b + 5))
-                    }
-                    className="min-h-[30px] px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-[11px] font-bold"
-                  >
-                    +5
-                  </button>
-                </div>
-              </div>
-
-              {/* Transposición compacta */}
-              <div className="px-3 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSemitones((s) => s - 1)}
-                    className="min-h-[34px] px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 flex items-center gap-0.5"
-                    title="Bajar 1 semitono"
-                  >
-                    <Minus className="w-3.5 h-3.5" />1
-                  </button>
-
-                  <div className="min-h-[34px] px-3 py-1 rounded-xl bg-slate-900 text-white font-mono text-xs font-bold flex items-center gap-1.5">
-                    <span>Tono: {currentKeyDisplay}</span>
-                    {currentKey !== activeSong.originalKey && (
-                      <span className="text-[10px] text-amber-400">
-                        ({activeSong.originalKey})
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setSemitones((s) => s + 1)}
-                    className="min-h-[34px] px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-800 dark:text-slate-100 flex items-center gap-0.5"
-                    title="Subir 1 semitono"
-                  >
-                    <Plus className="w-3.5 h-3.5" />1
-                  </button>
-
-                  {semitones !== 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setSemitones(0)}
-                      className="min-h-[32px] px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center gap-1"
-                      title="Volver al tono original"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setUseSolfege(!useSolfege)}
-                    className="min-h-[32px] px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300"
-                  >
-                    {useSolfege ? 'Do,Re,Mi' : 'C,D,E'}
-                  </button>
-
-                  {events.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleSaveKeyForActiveEvent(
-                          (activeEventList || events[0]).id
-                        )
-                      }
-                      className={`min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 ${accent.bgClass}`}
-                      title={`Guardar tono ${currentKey} para ${(activeEventList || events[0]).title}`}
-                    >
-                      <BookmarkCheck className="w-3.5 h-3.5" />
-                      <span className="truncate max-w-[110px]">
-                        Fijar en {(activeEventList || events[0]).title}
-                      </span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {savedWeeklyKeyNotice && (
-              <div className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-                <Check className="w-3.5 h-3.5 shrink-0" />
-                <span>{savedWeeklyKeyNotice}</span>
-              </div>
-            )}
-
-            {/* Selector de Vista en una sola fila compacta (3 columnas en móvil y escritorio) */}
-            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/70">
-              <button
-                type="button"
-                onClick={() => {
-                  setViewFormat('text');
-                  setLyricsOnly(false);
-                }}
-                className={`min-h-[36px] px-2 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 transition-all ${
-                  viewFormat === 'text' && !lyricsOnly
-                    ? `${accent.bgClass} shadow-xs`
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Acordes + Letra</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setViewFormat('text');
-                  setLyricsOnly(true);
-                }}
-                className={`min-h-[36px] px-2 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 transition-all ${
-                  viewFormat === 'text' && lyricsOnly
-                    ? 'bg-amber-500 text-slate-950 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Mic className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Solo Letra</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewFormat('image')}
-                className={`min-h-[36px] px-2 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1.5 transition-all ${
-                  viewFormat === 'image'
-                    ? `${accent.bgClass} shadow-xs`
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <ImageIcon className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Archivo / Hoja</span>
-              </button>
-            </div>
-
-            {/* ===============================================================
-                APARTADO DE ESTRUCTURA DE LA CANCIÓN (ORDEN DE LAS SECCIONES)
-               =============================================================== */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-slate-950 text-white border border-slate-800 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                    <ListMusic className="w-4 h-4" />
-                    <span>Estructura / Orden de las Secciones</span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Mapa del orden en que se toca la canción (Intro, Versos, Coros, Repeticiones, Puente y Final)
-                  </p>
-                </div>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setStructureDraft(activeSongStructure);
-                    setIsEditingStructure(!isEditingStructure);
-                  }}
-                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-amber-300"
+                  onClick={() => setIsStageMode(true)}
+                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs ${accent.bgClass}`}
                 >
-                  {isEditingStructure ? 'Cancelar' : 'Editar Estructura'}
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span>Modo Escenario / Atril</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={openEditModalForActiveSong}
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500 flex items-center gap-1"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Editar</span>
+                </button>
+
+                {isLeader && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirmModal(true)}
+                    className="min-h-[38px] px-2.5 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400"
+                    title="Eliminar canción"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
-
-              {!isEditingStructure ? (
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  {activeSongStructure.map((sec, idx) => (
-                    <React.Fragment key={`${sec}-${idx}`}>
-                      <span
-                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold ${getSectionBadgeColors(
-                          sec
-                        )}`}
-                      >
-                        <span className="font-mono opacity-75 mr-1">
-                          {idx + 1}.
-                        </span>
-                        {sec}
-                      </span>
-                      {idx < activeSongStructure.length - 1 && (
-                        <span className="text-slate-600 font-bold text-xs">
-                          →
-                        </span>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-3 pt-2 border-t border-slate-800">
-                  {/* Botones rápidos para añadir secciones */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Toca para añadir una sección al final del orden:</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setStructureDraft(
-                            extractStructureFromLyrics(activeSong.lyricsAndChords)
-                          )
-                        }
-                        className="text-amber-400 hover:underline font-semibold"
-                      >
-                        Detectar de la letra
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {SECTION_PRESETS.map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => handleAddSectionToDraft(preset)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200"
-                        >
-                          + {preset}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Input personalizado para secciones o repeticiones especiales */}
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={customSectionInput}
-                      onChange={(e) => setCustomSectionInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddSectionToDraft(customSectionInput);
-                        }
-                      }}
-                      placeholder="Sección personalizada (ej. Puente Suave x3, Solo Guitarra, Coro sin batería)..."
-                      className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddSectionToDraft(customSectionInput)}
-                      className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold ${accent.bgClass}`}
-                    >
-                      + Agregar
-                    </button>
-                  </div>
-
-                  {/* Orden actual editable (mover o eliminar bloques) */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {structureDraft.map((sec, idx) => (
-                      <div
-                        key={`${sec}-${idx}`}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-xl border text-xs font-bold ${getSectionBadgeColors(
-                          sec
-                        )}`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleMoveSectionInDraft(idx, -1)}
-                          disabled={idx === 0}
-                          className="opacity-70 hover:opacity-100 disabled:opacity-25 px-0.5"
-                          title="Mover antes"
-                        >
-                          ←
-                        </button>
-                        <span>
-                          {idx + 1}. {sec}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveSectionInDraft(idx, 1)}
-                          disabled={idx === structureDraft.length - 1}
-                          className="opacity-70 hover:opacity-100 disabled:opacity-25 px-0.5"
-                          title="Mover después"
-                        >
-                          →
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSectionFromDraft(idx)}
-                          className="ml-1 text-rose-400 hover:text-rose-300 font-bold"
-                          title="Quitar sección"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setStructureDraft([])}
-                      className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
-                    >
-                      Limpiar todo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveStructure}
-                      className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold ${accent.bgClass}`}
-                    >
-                      Guardar Estructura de la Canción
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Spotify ya está accesible en la barra superior de la canción */}
+            {/* BARRA DE TRANSPOSICIÓN CON SELECTOR DIRECTO DE TONO DESTINO */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  Transponer Tono:
+                </span>
 
-            {viewFormat === 'text' ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {lyricsOnly
-                      ? 'Modo Solo Letra activo: Acordes ocultos para lectura limpia de voces'
-                      : 'Letra y acordes compartidos con todo el grupo'}
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setSemitoneOffset((s) => s - 1)}
+                    className="min-h-[34px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-xs font-bold"
+                  >
+                    -1
+                  </button>
+                  <span
+                    className={`px-3 py-1 rounded-lg font-mono text-sm font-extrabold ${accent.softBgClass}`}
+                  >
+                    {currentKey}
                   </span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setEditedLyrics(activeSong.lyricsAndChords);
-                      setIsEditingLyrics(!isEditingLyrics);
-                    }}
-                    className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline"
+                    onClick={() => setSemitoneOffset((s) => s + 1)}
+                    className="min-h-[34px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-xs font-bold"
                   >
-                    {isEditingLyrics ? 'Cancelar edición' : 'Editar letra / acordes'}
+                    +1
                   </button>
                 </div>
 
-                {isEditingLyrics ? (
-                  <div className="space-y-3">
-                    <textarea
-                      rows={14}
-                      value={editedLyrics}
-                      onChange={(e) => setEditedLyrics(e.target.value)}
-                      className="w-full p-4 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-mono text-sm text-slate-900 dark:text-slate-100"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleSaveEditedLyrics}
-                        className={`min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
-                      >
-                        Guardar Cambios para Todos
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-5 sm:p-6 rounded-2xl bg-slate-50/80 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono text-xs sm:text-sm leading-relaxed overflow-x-auto min-w-0 max-w-full">
-                    {renderSheetLines(transposedText, false)}
-                  </div>
+                {/* Selector directo de Tono Destino */}
+                <select
+                  value={currentKey}
+                  onChange={(e) => {
+                    const target = e.target.value;
+                    setSemitoneOffset(
+                      getSemitoneStepsBetweenKeys(
+                        activeSong.originalKey,
+                        target
+                      )
+                    );
+                  }}
+                  className="min-h-[36px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-xs font-bold text-slate-800 dark:text-slate-200"
+                  title="Saltar directamente a un tono"
+                >
+                  {(activeSong.originalKey.endsWith('m')
+                    ? MINOR_KEYS
+                    : MAJOR_KEYS
+                  ).map((k) => (
+                    <option key={k} value={k}>
+                      Ir a Tono: {k}{' '}
+                      {k === activeSong.originalKey ? '(Original)' : ''}
+                    </option>
+                  ))}
+                </select>
+
+                {semitoneOffset !== 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSemitoneOffset(0)}
+                    className="px-2.5 py-1 rounded-lg text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Original ({activeSong.originalKey})</span>
+                  </button>
                 )}
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Archivo compartido: <strong>{activeSong.attachedFileName || 'Partitura.svg'}</strong> (Subido por {activeSong.addedByName})
-                  </p>
-                  <div>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleUploadImageForActiveSong}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`min-h-[44px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
-                    >
-                      <Upload className="w-4 h-4" />
-                      Actualizar Imagen / Archivo de Acordes
-                    </button>
-                  </div>
-                </div>
 
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 p-3 flex items-center justify-center">
-                  <img
-                    src={
-                      activeSong.chordSheetImageUrl ||
-                      generateLeadSheetSVGDataUrl(
-                        activeSong.title,
-                        activeSong.artist,
-                        currentKey,
-                        activeSong.bpm,
-                        activeSong.timeSignature,
-                        transposedPreviewChords
-                      )
-                    }
-                    alt={`Archivo de acordes de ${activeSong.title}`}
-                    referrerPolicy="no-referrer"
-                    className="w-full max-h-[540px] object-contain rounded-xl"
-                  />
-                </div>
-              </div>
-            )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLyricsOnly((v) => !v)}
+                  className={`min-h-[34px] px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 border ${
+                    showLyricsOnly
+                      ? 'bg-emerald-600 text-white border-emerald-500'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {showLyricsOnly ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Modo Vocal (Solo Letra)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Acordes + Letra</span>
+                    </>
+                  )}
+                </button>
 
-            {/* ===============================================================
-                SECCIÓN DE NOTAS GRUPALES Y NOTAS PERSONALES DE LA CANCIÓN
-               =============================================================== */}
-            <div className="space-y-3">
-              {notesSavedFeedback && (
-                <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>{notesSavedFeedback}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Tarjeta 1: Notas Grupales de la Canción (Visibles para toda la banda) */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <FileText className={`w-4 h-4 ${accent.textClass}`} />
-                        <span>Notas Grupales de la Canción</span>
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
-                        Para todo el grupo
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Indicaciones generales de entrada, cortes, dinámicas o arreglos que ve toda la banda.
-                    </p>
-                    <textarea
-                      rows={3}
-                      value={groupNotesDraft}
-                      onChange={(e) => setGroupNotesDraft(e.target.value)}
-                      placeholder="Ej. Entramos solo piano y voz en Verso 1; batería entra en el Coro; en el Puente subir intensidad..."
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleSaveSongGroupNotes}
-                      className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Guardar Nota Grupal</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Tarjeta 2: Mis Notas Personales en esta Canción (Privadas por integrante) */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <User className="w-4 h-4 text-emerald-500" />
-                        <span>Mis Notas Personales ({activeMember.name})</span>
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
-                        Solo para ti
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Tus apuntes privados para esta canción (efectos, segunda voz, capo, recordatorios tuyos).
-                    </p>
-                    <textarea
-                      rows={3}
-                      value={personalNotesDraft}
-                      onChange={(e) => setPersonalNotesDraft(e.target.value)}
-                      placeholder="Escribe aquí tus apuntes personales de esta canción (nadie más modificará tu nota)..."
-                      className="w-full p-3 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleSaveSongPersonalNotes}
-                      className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Guardar Mi Nota Personal</span>
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setFontSize((f) => Math.max(12, f - 1))}
+                    className="px-2 py-1 text-xs font-bold text-slate-600 dark:text-slate-300"
+                  >
+                    A-
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFontSize((f) => Math.min(24, f + 1))}
+                    className="px-2 py-1 text-xs font-bold text-slate-600 dark:text-slate-300"
+                  >
+                    A+
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* ===============================================================
-                SECCIÓN DE NOTAS DE VOZ Y CLIPS DE AUDIO DE LA CANCIÓN
-               =============================================================== */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* ESTRUCTURA DE LA CANCIÓN */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Estructura / Orden de Secciones:
+                </span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {QUICK_STRUCTURE_CHIPS.slice(0, 6).map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => handleAddStructureSection(chip)}
+                      className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/20 text-[10px] font-bold text-slate-600 dark:text-slate-300"
+                    >
+                      + {chip}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(activeSong.structure || []).map((sec, idx) => (
+                  <span
+                    key={`${sec}-${idx}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200"
+                  >
+                    <span className="text-amber-500 font-mono">{idx + 1}.</span>
+                    <span>{sec}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveStructureSection(idx)}
+                      className="text-slate-400 hover:text-rose-500 ml-0.5"
+                      title="Quitar sección"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* PESTAÑAS INTERNAS DE LA HOJA: Cifrado Interactivo vs Imagen de Partitura/Hoja */}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSheetViewMode('interactive')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                      sheetViewMode === 'interactive'
+                        ? `${accent.bgClass}`
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Cifrado Interactivo</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSheetViewMode('image')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                      sheetViewMode === 'image'
+                        ? `${accent.bgClass}`
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Hoja / Imagen Adjunta</span>
+                  </button>
+                </div>
+
+                <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                  <Upload className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Subir Foto de Partitura/Acordes</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, 'direct')}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {sheetViewMode === 'image' && activeSong.chordSheetImageUrl ? (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 p-4 flex justify-center">
+                  <img
+                    src={activeSong.chordSheetImageUrl}
+                    alt={activeSong.title}
+                    className="max-w-full h-auto rounded-xl"
+                  />
+                </div>
+              ) : (
+                <div
+                  style={{ fontSize: `${fontSize}px` }}
+                  className="p-4 sm:p-6 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono overflow-x-auto"
+                >
+                  {renderSongLines(activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || '')}
+                </div>
+              )}
+            </div>
+
+            {/* NOTAS DE VOZ DE REFERENCIA EN LA CANCIÓN */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Mic className={`w-4 h-4 ${accent.textClass}`} />
-                    Notas de Voz y Clips de Arreglos ({activeSong.voiceNotes?.length || 0})
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Mic className="w-4 h-4 text-rose-500" />
+                    <span>
+                      Notas de Voz e Ideas de Arreglo (
+                      {(activeSong.voiceNotes || []).length})
+                    </span>
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Graba o adjunta ideas de voces, arreglos de intro, cortes o guías para esta canción.
+                  <p className="text-[11px] text-slate-500">
+                    Graba un fragmento de melodía, intro o arreglo para que la banda lo escuche.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <input
-                    ref={voiceFileInputRef}
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleUploadVoiceAudioFile}
-                    className="hidden"
+                    type="text"
+                    value={voiceNoteLabel}
+                    onChange={(e) => setVoiceNoteLabel(e.target.value)}
+                    placeholder="Etiqueta (ej. Riff guitarra, 2da voz)..."
+                    className="min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                   />
-                  <button
-                    type="button"
-                    onClick={() => voiceFileInputRef.current?.click()}
-                    className="min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Subir Audio</span>
-                  </button>
+                  {isRecordingVoice ? (
+                    <button
+                      type="button"
+                      onClick={stopVoiceRecording}
+                      className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-bold flex items-center gap-1.5 animate-pulse"
+                    >
+                      <Square className="w-3.5 h-3.5" />
+                      <span>Detener ({recordingSeconds}s)</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startVoiceRecording}
+                      className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                      <span>Grabar Idea</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Grabadora de Nota de Voz en Vivo */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                <input
-                  type="text"
-                  value={voiceNoteTitle}
-                  onChange={(e) => setVoiceNoteTitle(e.target.value)}
-                  placeholder="Título del clip (ej. Arreglo segunda voz en coro, Intro guitarra)..."
-                  className="flex-1 min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
-                />
-
-                {!isRecordingVoiceNote ? (
-                  <button
-                    type="button"
-                    onClick={handleStartRecordingVoiceNote}
-                    className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shrink-0 ${accent.bgClass}`}
-                  >
-                    <Mic className="w-4 h-4" />
-                    <span>Grabar Nota de Voz</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleStopAndSaveVoiceNote}
-                    className="min-h-[44px] px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center justify-center gap-2 shrink-0 animate-pulse"
-                  >
-                    <Square className="w-4 h-4 fill-current" />
-                    <span>Detener y Guardar ({recordingSeconds}s)</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Lista de Notas de Voz grabadas en esta canción */}
               {(activeSong.voiceNotes || []).length > 0 && (
-                <div className="space-y-2.5 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
                   {(activeSong.voiceNotes || []).map((vn) => (
                     <div
                       key={vn.id}
-                      className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2"
                     >
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                          {vn.title}
-                        </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Grabado por <strong>{vn.authorName}</strong> ·{' '}
-                          {vn.durationSec}s · {vn.createdAt}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <audio
-                          controls
-                          src={vn.audioDataUrl}
-                          className="h-9 max-w-[220px] sm:max-w-[250px]"
-                        />
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {vn.label || vn.title}
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            Por {vn.authorName} ({vn.authorRole}) · {vn.createdAt}
+                          </p>
+                        </div>
                         {(isLeader || vn.authorId === activeMember.id) && (
                           <button
                             type="button"
                             onClick={() => handleDeleteVoiceNote(vn.id)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-rose-500"
-                            title="Eliminar nota de voz"
+                            className="text-slate-400 hover:text-rose-500 p-1"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
+                      {vn.audioDataUrl ? (
+                        <audio
+                          controls
+                          src={vn.audioDataUrl}
+                          className="w-full h-8"
+                        />
+                      ) : (
+                        <p className="text-[11px] text-slate-400 italic">
+                          Audio local compactado
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Barra Inferior para Volver Cómodamente desde la Vista Grande */}
-          <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={() => {
-                setOpenedSongId(null);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="w-full sm:w-auto min-h-[46px] px-5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center justify-center gap-2 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4 text-amber-500" />
-              <span>
-                {activeSubView === 'setlists' && activeEventList
-                  ? `Volver a Setlists («${activeEventList.title}»)`
-                  : 'Volver al Repertorio Base'}
-              </span>
-            </button>
-
-            {filteredSongs.length > 1 && (
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleNavigatePlaylist('prev');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="flex-1 sm:flex-initial min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-200"
-                >
-                  ← Anterior
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleNavigatePlaylist('next');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className={`flex-1 sm:flex-initial min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
-                >
-                  Siguiente →
-                </button>
+            {/* NOTAS GRUPALES Y PERSONALES DE LA CANCIÓN */}
+            {savedFeedbackMessage && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                <Check className="w-4 h-4" />
+                <span>{savedFeedbackMessage}</span>
               </div>
             )}
-          </div>
-        </div>
-      ) : (
-        /* =======================================================================
-            PANTALLAS PRINCIPALES DEL CANCIONERO (REPERTORIO BASE Y SETLISTS)
-           ======================================================================= */
-        <div className="space-y-5 w-full max-w-full min-w-0">
-          {/* Cabecera con Pestañas Dedicadas: Repertorio Base vs Setlists */}
-          <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Music2 className={`w-5 h-5 ${accent.textClass}`} />
-                  <span>Cancionero del Grupo</span>
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Accede a la biblioteca central de alabanzas o revisa los setlists programados por culto y semana.
-                </p>
-              </div>
 
-              <button
-                type="button"
-                onClick={() => setShowAddModal(true)}
-                className={`min-h-[46px] px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md transition-transform active:scale-[0.98] whitespace-nowrap shrink-0 ${accent.bgClass}`}
-              >
-                <Plus className="w-4 h-4" />
-                <span>Subir Canción al Repertorio</span>
-              </button>
-            </div>
-
-            {/* Selector de Pantallas Independientes */}
-            <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveSubView('repertorio');
-                  setSemitones(0);
-                }}
-                className={`min-h-[50px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                  activeSubView === 'repertorio'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Music2 className="w-4 h-4 text-amber-500" />
-                <span>Repertorio Base</span>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                  {songs.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveSubView('setlists');
-                  if (events[0]) {
-                    setSelectedEventId(events[0].id);
-                  }
-                }}
-                className={`min-h-[50px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                  activeSubView === 'setlists'
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <FolderKanban className="w-4 h-4 text-emerald-500" />
-                <span>Setlists de Eventos</span>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                  {events.length}
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* =======================================================================
-              SUB-PANTALLA 1: REPERTORIO BASE
-             ======================================================================= */}
-          {activeSubView === 'repertorio' && (
-            <div className="space-y-4">
-              {/* Buscador y Filtros de Estilo */}
-              <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar por título, autor, tono base o quién la agregó..."
-                    className="w-full min-h-[46px] pl-11 pr-10 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none"
-                  />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Chips de filtro por Género Musical: Júbilo, Congregacional, Adoración */}
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 mr-1">
-                    Género:
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    Notas Grupales de la Canción
                   </span>
-                  {[
-                    { id: 'all', label: 'Todos' },
-                    { id: 'Júbilo', label: 'Júbilo' },
-                    { id: 'Congregacional', label: 'Congregacional' },
-                    { id: 'Adoración', label: 'Adoración' },
-                  ].map((cat) => {
-                    const active = selectedStyleFilter === cat.id;
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setSelectedStyleFilter(cat.id)}
-                        className={`min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                          active
-                            ? `${accent.bgClass} shadow-xs`
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    );
-                  })}
+                  <span className="text-[10px] font-bold text-amber-500">
+                    Visible para todos
+                  </span>
+                </div>
+                <textarea
+                  rows={2}
+                  value={groupNotesDraft}
+                  onChange={(e) => setGroupNotesDraft(e.target.value)}
+                  placeholder="Indicaciones de cortes, intensidad, entradas..."
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleSaveGroupNotes}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                  >
+                    Guardar Nota Grupal
+                  </button>
                 </div>
               </div>
 
-              {/* Contador */}
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-                <span>
-                  Mostrando <strong>{filteredSongs.length}</strong> de {songs.length} canciones
-                </span>
-                {searchQuery && (
+              <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    Mis Apuntes Personales ({activeMember.name.split(' ')[0]})
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-500">
+                    Solo para ti
+                  </span>
+                </div>
+                <textarea
+                  rows={2}
+                  value={personalNotesDraft}
+                  onChange={(e) => setPersonalNotesDraft(e.target.value)}
+                  placeholder="Tus efectos, presets, capo o recordatorios..."
+                  className="w-full p-2.5 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                />
+                <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="text-amber-500 hover:underline font-bold"
+                    onClick={handleSavePersonalNotes}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"
                   >
-                    Limpiar búsqueda
+                    Guardar Mi Apunte
                   </button>
-                )}
+                </div>
               </div>
-
-              {/* Lista Compacta de Canciones del Repertorio Base */}
-              {filteredSongs.length === 0 ? (
-                <div className="p-8 sm:p-12 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
-                  <Music2 className="w-10 h-10 text-slate-400 mx-auto" />
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                    No se encontraron canciones
-                  </h4>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    {searchQuery
-                      ? `No hay coincidencias con «${searchQuery}». Intenta buscar con otro término.`
-                      : 'El repertorio está vacío. Puedes subir la primera canción ahora.'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedStyleFilter('all');
-                    }}
-                    className="min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-bold text-amber-500 hover:underline"
-                  >
-                    Restablecer filtros
-                  </button>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800/80 overflow-hidden shadow-xs">
-                  {filteredSongs.map((song) => {
-                    const canManageSong =
-                      isLeader || song.addedByUserId === activeMember.id;
-                    const normalizedGenre = normalizeSongStyle(song.style);
-                    const validSpotify = hasValidSpotifyUrl(song.spotifyUrl);
-
-                    if (confirmDeleteSongId === song.id) {
-                      return (
-                        <div
-                          key={song.id}
-                          className="px-3.5 py-2.5 bg-rose-500/10 flex flex-wrap items-center justify-between gap-2"
-                        >
-                          <span className="text-xs font-bold text-rose-600 dark:text-rose-400 truncate">
-                            ¿Eliminar «{song.title}» del repertorio?
-                          </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onDeleteSong?.(song.id);
-                                setConfirmDeleteSongId(null);
-                              }}
-                              className="h-8 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
-                            >
-                              Sí, borrar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteSongId(null)}
-                              className="h-8 px-2.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold"
-                            >
-                              No
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div
-                        key={song.id}
-                        className="px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        {/* Bloque izquierdo clicable para abrir la canción */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            selectSongWithContextKey(song);
-                            setOpenedSongId(song.id);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          className="flex items-center gap-3 min-w-0 flex-1 text-left group"
-                        >
-                          <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-xs font-bold flex items-center justify-center shrink-0 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
-                            {song.originalKey}
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-amber-500 transition-colors">
-                              {song.title}
-                            </p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                              {song.artist} ·{' '}
-                              <span className={`font-semibold ${accent.textClass}`}>
-                                {normalizedGenre}
-                              </span>{' '}
-                              · <span className="font-mono">{song.bpm} BPM</span>
-                            </p>
-                          </div>
-                        </button>
-
-                        {/* Botones compactos de acceso rápido a la derecha (sin agrandar la fila) */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          {validSpotify && (
-                            <a
-                              href={song.spotifyUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="h-8 px-2.5 rounded-lg bg-[#1DB954] hover:bg-[#1ed760] text-black text-[11px] font-bold flex items-center gap-1 transition-colors shrink-0"
-                              title="Escuchar en Spotify"
-                            >
-                              <Headphones className="w-3.5 h-3.5 text-black shrink-0" />
-                              <span className="hidden sm:inline">Spotify</span>
-                            </a>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              selectSongWithContextKey(song);
-                              setOpenedSongId(song.id);
-                              setIsStageMode(true);
-                            }}
-                            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-amber-500 flex items-center justify-center shrink-0"
-                            title="Abrir directo en Modo Atril"
-                          >
-                            <Maximize2 className="w-3.5 h-3.5" />
-                          </button>
-
-                          {canManageSong && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditSongModal(song)}
-                              className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-amber-500 flex items-center justify-center shrink-0"
-                              title="Editar datos de la canción"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-
-                          {canManageSong && onDeleteSong && (
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteSongId(song.id)}
-                              className="w-8 h-8 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/40 flex items-center justify-center shrink-0"
-                              title="Eliminar canción"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
-          )}
-
-          {/* =======================================================================
-              SUB-PANTALLA 2: SETLISTS DE EVENTOS
-             ======================================================================= */}
-          {activeSubView === 'setlists' && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <FolderKanban className={`w-4 h-4 ${accent.textClass}`} />
-                    <span>Setlists Programados por Evento</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Cada evento tiene su playlist organizada y su propia tonalidad semanal asignada para los ensayos y cultos.
-                  </p>
-                </div>
-
-                {isLeader && activeEventList && (
-                  <button
-                    type="button"
-                    onClick={() => setShowManagePlaylistModal(true)}
-                    className={`min-h-[42px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 ${accent.bgClass}`}
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Editar Playlist y Tonos Semanales</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Selector simple y limpio de Eventos (Pills horizontales) */}
-              {events.length === 0 ? (
-                <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
-                  <Calendar className="w-10 h-10 text-slate-400 mx-auto" />
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                    No hay eventos programados
-                  </h4>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    Crea un evento en la sección de Eventos para poder armarle su playlist de alabanzas.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full min-w-0">
-                  {events.map((ev) => {
-                    const isSelected = activeEventList?.id === ev.id;
-                    return (
-                      <button
-                        key={ev.id}
-                        type="button"
-                        onClick={() => setSelectedEventId(ev.id)}
-                        className={`px-4 py-2.5 rounded-2xl text-xs font-bold shrink-0 flex items-center gap-2 transition-all border min-h-[44px] ${
-                          isSelected
-                            ? `${accent.borderClass} ${accent.bgClass} shadow-sm`
-                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
-                        }`}
-                      >
-                        <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate max-w-[200px]">{ev.title}</span>
-                        <span className="font-mono text-[11px] opacity-75">({ev.date})</span>
-                        <span className="ml-0.5 px-2 py-0.5 rounded-full text-[10px] font-mono bg-black/15 dark:bg-white/15">
-                          {ev.songs.length} {ev.songs.length === 1 ? 'canción' : 'canciones'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Detalle del Setlist Activo */}
-              {activeEventList && (
-                <div className="space-y-4 pt-1">
-                  {/* Banner de información, Spotify y atril */}
-                  <div className="p-4 sm:p-5 rounded-3xl bg-slate-900 text-white border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-400 font-mono font-bold">
-                        <CalendarCheck className="w-4 h-4" />
-                        <span>{activeEventList.date} · {activeEventList.time}</span>
-                        <span>·</span>
-                        <span>{activeEventList.location}</span>
-                      </div>
-                      <h3 className="text-lg sm:text-xl font-bold truncate text-white">
-                        Setlist: {activeEventList.title}
-                      </h3>
-                      <p className="text-xs text-slate-300">
-                        {activeEventList.songs.length} {activeEventList.songs.length === 1 ? 'canción' : 'canciones'} preparadas para este culto con su tonalidad semanal.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      {/* Botón Escuchar Playlist en Spotify */}
-                      {activeEventList.spotifyPlaylistUrl && (
-                        <a
-                          href={activeEventList.spotifyPlaylistUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="min-h-[44px] px-4 py-2 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md transition-colors"
-                          title="Abrir playlist en Spotify"
-                        >
-                          <Headphones className="w-4 h-4 text-black" />
-                          <span>Escuchar en Spotify</span>
-                        </a>
-                      )}
-
-                      {activeEventList.songs.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const firstSong = songs.find(s => s.id === activeEventList.songs[0]?.songId);
-                            if (firstSong) {
-                              selectSongWithContextKey(firstSong, activeEventList);
-                              setOpenedSongId(firstSong.id);
-                              setIsStageMode(true);
-                            }
-                          }}
-                          className="min-h-[44px] px-4 py-2 rounded-xl bg-white text-slate-950 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md hover:bg-slate-100 transition-colors"
-                        >
-                          <Maximize2 className="w-4 h-4" />
-                          <span>Modo Atril</span>
-                        </button>
-                      )}
-
-                      {isLeader && (
-                        <button
-                          type="button"
-                          onClick={() => setShowManagePlaylistModal(true)}
-                          className={`min-h-[44px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md ${accent.bgClass}`}
-                        >
-                          <ShieldCheck className="w-4 h-4" />
-                          <span>Gestionar Playlist</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Vinculación rápida de Spotify Playlist para el Líder */}
-                  {isLeader && (
-                    <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Headphones className="w-4 h-4 text-[#1DB954] shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                            {activeEventList.spotifyPlaylistUrl
-                              ? 'Playlist de Spotify Vinculada al Evento'
-                              : 'Vincular Playlist de Spotify a este Evento'}
-                          </p>
-                          <p className="text-[11px] text-slate-500 truncate">
-                            {activeEventList.spotifyPlaylistUrl ||
-                              'Añade el enlace de Spotify para que la banda escuche la setlist completa'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        {isEditingEventSpotify ? (
-                          <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                            <input
-                              type="url"
-                              value={eventSpotifyDraft}
-                              onChange={(e) => setEventSpotifyDraft(e.target.value)}
-                              placeholder="https://open.spotify.com/playlist/..."
-                              className="min-h-[38px] px-3 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white w-52 sm:w-64"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleSaveActiveEventSpotifyPlaylist()}
-                              className="min-h-[38px] px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0"
-                            >
-                              Guardar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setIsEditingEventSpotify(false)}
-                              className="min-h-[38px] px-2.5 py-1 rounded-xl text-xs font-bold text-slate-500"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingEventSpotify(true)}
-                            className="min-h-[38px] px-3 py-1.5 rounded-xl border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                            <span>
-                              {activeEventList.spotifyPlaylistUrl
-                                ? 'Cambiar Link Spotify'
-                                : '+ Vincular Playlist'}
-                            </span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {eventSpotifySavedNotice && (
-                    <div className="px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                      ✓ {eventSpotifySavedNotice}
-                    </div>
-                  )}
-
-                  {/* Listado ordenado de canciones del setlist */}
-                  {activeEventList.songs.length === 0 ? (
-                    <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
-                      <FolderKanban className="w-10 h-10 text-slate-400 mx-auto" />
-                      <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                        Aún no hay canciones en este setlist
-                      </h4>
-                      <p className="text-xs text-slate-500 max-w-md mx-auto">
-                        {isLeader
-                          ? 'Como líder puedes agregar canciones del repertorio base y ajustar la tonalidad para cada una.'
-                          : 'El líder aún no ha agregado alabanzas a este evento. Puedes revisar el Repertorio Base.'}
-                      </p>
-                      {isLeader && (
-                        <button
-                          type="button"
-                          onClick={() => setShowManagePlaylistModal(true)}
-                          className={`min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 ${accent.bgClass}`}
-                        >
-                          <Plus className="w-4 h-4" />
-                          <span>Armar Playlist de este Evento</span>
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5 w-full min-w-0 max-w-full">
-                      {activeEventList.songs.map((item, idx) => {
-                        const song = songs.find((s) => s.id === item.songId);
-                        if (!song) return null;
-                        const weeklyKey = item.customKey || song.originalKey;
-
-                        return (
-                          <div
-                            key={`${item.songId}-${idx}`}
-                            className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-xs w-full min-w-0"
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono font-bold text-sm shrink-0 ${accent.softBgClass} ${accent.textClass}`}>
-                                {idx < 9 ? `0${idx + 1}` : idx + 1}
-                              </div>
-
-                              <div className="min-w-0 space-y-0.5">
-                                <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
-                                  {song.title}
-                                </h4>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                                  {song.artist} · <span className="font-mono">{song.bpm} BPM</span> · <span className="font-mono">{song.timeSignature}</span> · {song.style}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
-                              {/* Tono Semanal destacado */}
-                              <div className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 font-mono text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                                <span>Tono: <strong>{weeklyKey}</strong></span>
-                                {weeklyKey !== song.originalKey && (
-                                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
-                                    (Base: {song.originalKey})
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Abrir Canción directamente a la pantalla grande */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  selectSongWithContextKey(song, activeEventList);
-                                  setOpenedSongId(song.id);
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
-                              >
-                                <BookOpen className="w-3.5 h-3.5" />
-                                <span>Abrir Canción</span>
-                              </button>
-
-                              {/* Abrir directo en Atril */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  selectSongWithContextKey(song, activeEventList);
-                                  setOpenedSongId(song.id);
-                                  setIsStageMode(true);
-                                }}
-                                className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:bg-slate-900 hover:text-white"
-                                title="Abrir directo en Modo Atril"
-                              >
-                                <Maximize2 className="w-3.5 h-3.5" />
-                                <span className="hidden md:inline">Atril</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* MODAL: AGREGAR CANCIÓN AL REPERTORIO BASE (Líder y Miembros) */}
-      {showAddModal && (
+      {/* =====================================================================
+          MODAL: SUBIR NUEVA CANCIÓN AL REPERTORIO (CON TAP TEMPO)
+         ===================================================================== */}
+      {showAddSongModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Subir Canción y Archivo al Repertorio del Grupo
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Se registrará que fue agregada por <strong>{activeMember.name}</strong> ({activeMember.role === 'leader' ? 'Líder / Admin' : 'Miembro'}) y todos podrán verla.
-                </p>
-              </div>
+          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 my-8 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                Subir Canción al Repertorio del Grupo
+              </h3>
               <button
                 type="button"
-                onClick={() => setShowAddModal(false)}
+                onClick={() => setShowAddSongModal(false)}
                 className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateNewSong} className="space-y-4 pt-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <form onSubmit={handleCreateSongSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Título de la Canción
+                    Título de la Canción *
                   </label>
                   <input
                     type="text"
                     required
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="Ej. Cordero y León"
-                    className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    placeholder="Ej. Way Maker / Aquí Estás"
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Artista / Versión de Referencia
+                    Artista / Autor
                   </label>
                   <input
                     type="text"
                     value={newArtist}
                     onChange={(e) => setNewArtist(e.target.value)}
-                    placeholder="Ej. jesustone Worship"
-                    className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    placeholder="Ej. Miel San Marcos, Marcos Witt..."
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
@@ -2919,55 +2030,64 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Tonalidad Normal (Base)
+                    Tono Original
                   </label>
                   <select
                     value={newKey}
                     onChange={(e) => setNewKey(e.target.value)}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
                   >
-                    <optgroup label="Tonalidades Mayores">
+                    <optgroup label="Mayores">
                       {MAJOR_KEYS.map((k) => (
                         <option key={k} value={k}>
                           {k} Mayor
                         </option>
                       ))}
                     </optgroup>
-                    <optgroup label="Tonalidades Menores">
+                    <optgroup label="Menores">
                       {MINOR_KEYS.map((k) => (
                         <option key={k} value={k}>
-                          {k} ({k.replace(/m$/, '')} Menor)
+                          {k}
                         </option>
                       ))}
                     </optgroup>
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    BPM
+                    BPM + Tap
                   </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="120"
-                    value={newBpm}
-                    onChange={(e) => {
-                      const cleaned = e.target.value
-                        .replace(/\D/g, '')
-                        .replace(/^0+/, '');
-                      setNewBpm(cleaned);
-                    }}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
-                  />
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={40}
+                      max={240}
+                      value={newBpm}
+                      onChange={(e) => setNewBpm(Number(e.target.value))}
+                      className="w-full min-h-[42px] px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleTapTempo('create')}
+                      className="min-h-[42px] px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 text-[11px] font-extrabold shrink-0"
+                      title="Toca varias veces al ritmo de la canción para calcular el BPM"
+                    >
+                      TAP
+                    </button>
+                  </div>
                 </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Compás
                   </label>
                   <select
                     value={newTimeSig}
-                    onChange={(e) => setNewTimeSig(e.target.value as TimeSignature)}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
+                    onChange={(e) =>
+                      setNewTimeSig(e.target.value as TimeSignature)
+                    }
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
                   >
                     <option value="4/4">4/4</option>
                     <option value="3/4">3/4</option>
@@ -2975,168 +2095,76 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     <option value="2/4">2/4</option>
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Género
+                    Estilo
                   </label>
                   <select
                     value={newStyle}
-                    onChange={(e) => setNewStyle(e.target.value as Song['style'])}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    onChange={(e) => setNewStyle(e.target.value as SongStyle)}
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
                   >
-                    <option value="Júbilo">Júbilo</option>
-                    <option value="Congregacional">Congregacional</option>
-                    <option value="Adoración">Adoración</option>
+                    {STYLES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              {/* Estructura de la Canción al crearla */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-2.5">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Estructura / Orden de las Secciones
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {SECTION_PRESETS.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() =>
-                        setNewStructure((prev) => [...prev, preset])
-                      }
-                      className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200"
-                    >
-                      + {preset}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Estructura (separada por comas)
+                  </label>
                   <input
                     type="text"
-                    value={newCustomSection}
-                    onChange={(e) => setNewCustomSection(e.target.value)}
-                    placeholder="Otra sección (ej. Puente x3, Solo Batería)..."
-                    className="flex-1 min-h-[38px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                    value={newStructureText}
+                    onChange={(e) => setNewStructureText(e.target.value)}
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
                   />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (newCustomSection.trim()) {
-                        setNewStructure((prev) => [
-                          ...prev,
-                          newCustomSection.trim(),
-                        ]);
-                        setNewCustomSection('');
-                      }
-                    }}
-                    className={`min-h-[38px] px-3 py-1 rounded-xl text-xs font-bold ${accent.bgClass}`}
-                  >
-                    + Añadir
-                  </button>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  {newStructure.map((sec, idx) => (
-                    <span
-                      key={`${sec}-${idx}`}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 text-amber-300 text-xs font-bold"
-                    >
-                      <span>
-                        {idx + 1}. {sec}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setNewStructure((prev) =>
-                            prev.filter((_, i) => i !== idx)
-                          )
-                        }
-                        className="text-rose-400 hover:text-rose-300 font-bold"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Enlace de Spotify (Opcional)
+                  </label>
+                  <input
+                    type="url"
+                    value={newSpotifyUrl}
+                    onChange={(e) => setNewSpotifyUrl(e.target.value)}
+                    placeholder="https://open.spotify.com/track/..."
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Letra y Acordes en Texto
+                  Letra y Acordes (coloca los acordes entre corchetes, ej. [G] [D/F#] [Em7])
                 </label>
                 <textarea
-                  rows={6}
-                  value={newLyrics}
-                  onChange={(e) => setNewLyrics(e.target.value)}
-                  className="w-full p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs text-slate-900 dark:text-white"
+                  rows={7}
+                  value={newRawLyrics}
+                  onChange={(e) => setNewRawLyrics(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs sm:text-sm text-slate-900 dark:text-white"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-                  <Headphones className="w-3.5 h-3.5 text-emerald-500" />
-                  Enlace de Referencia de Spotify (Opcional)
-                </label>
-                <input
-                  type="url"
-                  value={newSpotifyUrl}
-                  onChange={(e) => setNewSpotifyUrl(e.target.value)}
-                  placeholder="https://open.spotify.com/track/... o link a la canción en Spotify"
-                  className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Notas Grupales de la Canción (Opcional — para toda la banda)
-                </label>
-                <input
-                  type="text"
-                  value={newGroupNotes}
-                  onChange={(e) => setNewGroupNotes(e.target.value)}
-                  placeholder="Ej. Empieza solo acústica; en el coro 2 entran todos con fuerza..."
-                  className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Subir Archivo / Imagen de Partitura o Acordes (Visible para todos)
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      setNewFileName(f.name);
-                      const compressed = await compressImageFileToDataUrl(f);
-                      if (compressed) {
-                        const cloudUrl = await uploadMediaDataUrlToStorage(
-                          'chord_sheets',
-                          f.name,
-                          compressed
-                        );
-                        setNewImageDataUrl(cloudUrl);
-                      }
-                    }
-                  }}
-                  className="text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-200 dark:file:bg-slate-800 file:text-slate-800 dark:file:text-slate-200"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="min-h-[46px] px-4 py-2 rounded-xl text-xs font-bold text-slate-500"
+                  onClick={() => setShowAddSongModal(false)}
+                  className="min-h-[42px] px-4 py-2 rounded-xl text-xs font-bold text-slate-500"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className={`min-h-[46px] px-6 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                  className={`min-h-[42px] px-6 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
                 >
-                  Publicar Canción en el Repertorio
+                  Guardar en el Repertorio
                 </button>
               </div>
             </form>
@@ -3144,17 +2172,236 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         </div>
       )}
 
-      {/* MODAL DEL LÍDER: ARMAR PLAYLIST DE EVENTO Y ELEGIR TONALIDAD POR SEMANA */}
-      {showManagePlaylistModal && activeEventList && isLeader && (
+      {/* =====================================================================
+          MODAL: EDITAR CANCIÓN EXISTENTE
+         ===================================================================== */}
+      {showEditSongModal && activeSong && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
+          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 my-8 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                Editar Canción: {activeSong.title}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowEditSongModal(false)}
+                className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSongSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Título *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Artista / Autor
+                  </label>
+                  <input
+                    type="text"
+                    value={editArtist}
+                    onChange={(e) => setEditArtist(e.target.value)}
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Tono Base
+                  </label>
+                  <select
+                    value={editKey}
+                    onChange={(e) => setEditKey(e.target.value)}
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <optgroup label="Mayores">
+                      {MAJOR_KEYS.map((k) => (
+                        <option key={k} value={k}>
+                          {k} Mayor
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Menores">
+                      {MINOR_KEYS.map((k) => (
+                        <option key={k} value={k}>
+                          {k}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    BPM + Tap
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={40}
+                      max={240}
+                      value={editBpm}
+                      onChange={(e) => setEditBpm(Number(e.target.value))}
+                      className="w-full min-h-[42px] px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleTapTempo('edit')}
+                      className="min-h-[42px] px-2.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-extrabold shrink-0"
+                    >
+                      TAP
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Compás
+                  </label>
+                  <select
+                    value={editTimeSig}
+                    onChange={(e) =>
+                      setEditTimeSig(e.target.value as TimeSignature)
+                    }
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="4/4">4/4</option>
+                    <option value="3/4">3/4</option>
+                    <option value="6/8">6/8</option>
+                    <option value="2/4">2/4</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Estilo
+                  </label>
+                  <select
+                    value={editStyle}
+                    onChange={(e) => setEditStyle(e.target.value as SongStyle)}
+                    className="w-full min-h-[42px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    {STYLES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Estructura (separada por comas)
+                  </label>
+                  <input
+                    type="text"
+                    value={editStructureText}
+                    onChange={(e) => setEditStructureText(e.target.value)}
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Enlace de Spotify
+                  </label>
+                  <input
+                    type="url"
+                    value={editSpotifyUrl}
+                    onChange={(e) => setEditSpotifyUrl(e.target.value)}
+                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Letra y Acordes entre corchetes
+                </label>
+                <textarea
+                  rows={8}
+                  value={editRawLyrics}
+                  onChange={(e) => setEditRawLyrics(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs sm:text-sm text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowEditSongModal(false)}
+                  className="min-h-[42px] px-4 py-2 rounded-xl text-xs font-bold text-slate-500"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className={`min-h-[42px] px-6 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRMAR ELIMINACIÓN DE CANCIÓN */}
+      {showDeleteConfirmModal && activeSong && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              ¿Eliminar «{activeSong.title}» del repertorio?
+            </h3>
+            <p className="text-xs text-slate-500">
+              Esta acción quitará la canción del Repertorio Base y de las listas donde esté asignada.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirmModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteActiveSong}
+                className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold"
+              >
+                Sí, eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR SETLIST DEL EVENTO DESDE EL CANCIONERO */}
+      {showManagePlaylistModal && activeSetlistEvent && isLeader && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 my-8 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Playlist y Tonos de la Semana: {activeEventList.title}
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Setlist para «{activeSetlistEvent.title}»
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Selecciona canciones del Repertorio y asigna la tonalidad en que se tocarán este evento
+                <p className="text-xs text-slate-500">
+                  Esta misma lista aplica para el evento y sus ensayos programados.
                 </p>
               </div>
               <button
@@ -3166,327 +2413,114 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </button>
             </div>
 
-            {/* Vinculación de Playlist de Spotify del Evento */}
-            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
-              <label className="text-xs font-bold text-slate-800 dark:text-emerald-300 flex items-center gap-1.5">
-                <Headphones className="w-3.5 h-3.5 text-emerald-500" />
-                Playlist de Spotify de este Culto/Evento (para el grupo)
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={eventSpotifyDraft}
-                  onChange={(e) => setEventSpotifyDraft(e.target.value)}
-                  placeholder="https://open.spotify.com/playlist/... (para escuchar la setlist completa)"
-                  className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
-                />
-                {onUpdateEvent && (
-                  <button
-                    type="button"
-                    onClick={() => handleSaveActiveEventSpotifyPlaylist()}
-                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0"
-                  >
-                    Guardar Link
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2.5 max-h-[55vh] overflow-y-auto">
-              {activeEventList.songs.length > 1 && (
-                <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2 mb-3">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Orden Actual de la Playlist (Usa ↑ / ↓ para reordenar):
-                  </span>
-                  <div className="space-y-1.5">
-                    {activeEventList.songs.map((item, sIdx) => {
-                      const sObj = songs.find((x) => x.id === item.songId);
-                      if (!sObj) return null;
-                      return (
-                        <div
-                          key={`${item.songId}-${sIdx}`}
-                          className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs"
-                        >
-                          <span className="font-bold text-slate-900 dark:text-white truncate">
-                            {sIdx + 1}. {sObj.title} ({item.customKey || sObj.originalKey})
-                          </span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              disabled={sIdx === 0}
-                              onClick={() => handleMovePlaylistSong(sIdx, -1)}
-                              className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold disabled:opacity-30"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              disabled={sIdx === activeEventList.songs.length - 1}
-                              onClick={() => handleMovePlaylistSong(sIdx, 1)}
-                              className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold disabled:opacity-30"
-                            >
-                              ↓
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {songs.map((song) => {
-                const eventItem = activeEventList.songs.find(
-                  (item) => item.songId === song.id
-                );
-                const included = Boolean(eventItem);
-                return (
-                  <div
-                    key={song.id}
-                    className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
-                      included
-                        ? `${accent.borderClass} ${accent.softBgClass}`
-                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleSongInActiveEventPlaylist(song)}
-                      className="flex items-center gap-3 text-left flex-1 min-w-0"
+            {activeSetlistEvent.songs.length > 0 && (
+              <div className="space-y-2">
+                {activeSetlistEvent.songs.map((item, idx) => {
+                  const s = songs.find((x) => x.id === item.songId);
+                  if (!s) return null;
+                  return (
+                    <div
+                      key={`${item.songId}-${idx}`}
+                      className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/30 flex flex-wrap items-center justify-between gap-2"
                     >
-                      <div
-                        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">
+                        {idx + 1}. {s.title}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => moveSetlistSongOrder(idx, -1)}
+                          className="p-1 rounded bg-slate-200 dark:bg-slate-800 text-xs disabled:opacity-30"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            idx === activeSetlistEvent.songs.length - 1
+                          }
+                          onClick={() => moveSetlistSongOrder(idx, 1)}
+                          className="p-1 rounded bg-slate-200 dark:bg-slate-800 text-xs disabled:opacity-30"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                        <select
+                          value={item.customKey || s.originalKey}
+                          onChange={(e) =>
+                            updateSetlistItemField(s.id, {
+                              customKey: e.target.value,
+                            })
+                          }
+                          className="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 font-mono text-xs font-bold"
+                        >
+                          {ALL_KEYS.map((k) => (
+                            <option key={k} value={k}>
+                              Tono {k}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => toggleSongInSetlist(s)}
+                          className="text-rose-500 p-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="space-y-2 pt-2">
+              <input
+                type="text"
+                value={playlistSearchModal}
+                onChange={(e) => setPlaylistSearchModal(e.target.value)}
+                placeholder="Buscar canciones del repertorio para agregar..."
+                className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+              />
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {songs
+                  .filter((s) =>
+                    s.title
+                      .toLowerCase()
+                      .includes(playlistSearchModal.toLowerCase())
+                  )
+                  .map((s) => {
+                    const included = activeSetlistEvent.songs.some(
+                      (i) => i.songId === s.id
+                    );
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => toggleSongInSetlist(s)}
+                        className={`w-full px-3 py-2 rounded-xl border flex items-center justify-between text-xs font-bold ${
                           included
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 text-slate-800 dark:text-slate-200'
                         }`}
                       >
-                        {included ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          <Plus className="w-4 h-4" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                          {song.title}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Tono Normal Base: <strong>{song.originalKey}</strong> ·{' '}
-                          {song.bpm} BPM
-                        </p>
-                      </div>
-                    </button>
-
-                    {included && eventItem && (
-                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                        <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                          Tono esta semana:
+                        <span>
+                          {s.title} ({s.originalKey})
                         </span>
-                        <select
-                          value={eventItem.customKey || song.originalKey}
-                          onChange={(e) =>
-                            updateSongWeeklyKeyInEventPlaylist(
-                              song.id,
-                              e.target.value
-                            )
-                          }
-                          className="min-h-[38px] px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs font-bold text-slate-900 dark:text-white"
-                        >
-                          <optgroup label="Tonalidades Mayores">
-                            {MAJOR_KEYS.map((k) => (
-                              <option key={k} value={k}>
-                                {k} Mayor {k === song.originalKey ? '(Base)' : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Tonalidades Menores">
-                            {MINOR_KEYS.map((k) => (
-                              <option key={k} value={k}>
-                                {k} ({k.replace(/m$/, '')}m) {k === song.originalKey ? '(Base)' : ''}
-                              </option>
-                            ))}
-                          </optgroup>
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                        <span>{included ? '✓ Agregada' : '+ Agregar'}</span>
+                      </button>
+                    );
+                  })}
+              </div>
             </div>
 
             <button
               type="button"
-              onClick={() => {
-                if (
-                  activeEventList &&
-                  onUpdateEvent &&
-                  eventSpotifyDraft !== (activeEventList.spotifyPlaylistUrl || '')
-                ) {
-                  handleSaveActiveEventSpotifyPlaylist();
-                }
-                setShowManagePlaylistModal(false);
-              }}
-              className={`w-full min-h-[48px] rounded-2xl text-sm font-bold ${accent.bgClass}`}
+              onClick={() => setShowManagePlaylistModal(false)}
+              className={`w-full min-h-[44px] rounded-2xl text-xs font-bold ${accent.bgClass}`}
             >
-              Listo · Guardar Playlist y Tonos Semanales
+              Listo
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: EDITAR DATOS BASE DE UNA CANCIÓN YA CREADA */}
-      {showEditSongModal && activeSong && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Editar Datos de la Canción
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Modifica título, artista, tono base, BPM, compás, estilo o enlace de Spotify
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEditSongModal(false)}
-                className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEditedSongMetadata} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Título de la Canción *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editSongTitle}
-                    onChange={(e) => setEditSongTitle(e.target.value)}
-                    className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Artista / Ministerio
-                  </label>
-                  <input
-                    type="text"
-                    value={editSongArtist}
-                    onChange={(e) => setEditSongArtist(e.target.value)}
-                    className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Tono Base
-                  </label>
-                  <select
-                    value={editSongKey}
-                    onChange={(e) => setEditSongKey(e.target.value)}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
-                  >
-                    <optgroup label="Tonalidades Mayores">
-                      {MAJOR_KEYS.map((k) => (
-                        <option key={k} value={k}>
-                          {k} Mayor
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Tonalidades Menores">
-                      {MINOR_KEYS.map((k) => (
-                        <option key={k} value={k}>
-                          {k} ({k.replace(/m$/, '')} Menor)
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    BPM
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="120"
-                    value={editSongBpm}
-                    onChange={(e) => {
-                      const cleaned = e.target.value
-                        .replace(/\D/g, '')
-                        .replace(/^0+/, '');
-                      setEditSongBpm(cleaned);
-                    }}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Compás
-                  </label>
-                  <select
-                    value={editSongTimeSig}
-                    onChange={(e) => setEditSongTimeSig(e.target.value as TimeSignature)}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
-                  >
-                    <option value="4/4">4/4</option>
-                    <option value="3/4">3/4</option>
-                    <option value="6/8">6/8</option>
-                    <option value="2/4">2/4</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Género
-                  </label>
-                  <select
-                    value={editSongStyle}
-                    onChange={(e) => setEditSongStyle(e.target.value as Song['style'])}
-                    className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
-                  >
-                    <option value="Júbilo">Júbilo</option>
-                    <option value="Congregacional">Congregacional</option>
-                    <option value="Adoración">Adoración</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Enlace de Referencia Spotify (Opcional)
-                </label>
-                <input
-                  type="url"
-                  value={editSongSpotifyUrl}
-                  onChange={(e) => setEditSongSpotifyUrl(e.target.value)}
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowEditSongModal(false)}
-                  className="min-h-[46px] px-4 py-2 rounded-xl text-xs font-bold text-slate-500"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className={`min-h-[46px] px-5 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
-                >
-                  Guardar Cambios
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

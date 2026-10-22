@@ -721,15 +721,15 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                           </div>
                         )}
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
+                          <div className="min-w-0">
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                               1. Fecha / Evento a cubrir
                             </label>
                             <select
                               value={selectedEventId}
                               onChange={(e) => setSelectedEventId(e.target.value)}
-                              className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white"
+                              className="w-full max-w-full min-w-0 truncate min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white"
                             >
                               {upcomingActiveGroupEvents.map((ev) => (
                                 <option key={ev.id} value={ev.id}>
@@ -742,7 +742,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                             </select>
                           </div>
 
-                          <div>
+                          <div className="min-w-0">
                             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
                               2. Instrumento / Rol asignado
                             </label>
@@ -751,7 +751,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                               onChange={(e) =>
                                 setSelectedRole(e.target.value as InstrumentRole)
                               }
-                              className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white"
+                              className="w-full max-w-full min-w-0 truncate min-h-[40px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white"
                             >
                               {Array.from(
                                 new Set([
@@ -770,7 +770,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                         </div>
 
                         {selectedEventId === 'directory_only' && (
-                          <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                             <button
                               type="button"
                               onClick={() => setInviteAsGuestPass(true)}
@@ -804,7 +804,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                           </div>
                         )}
 
-                        <div className="flex items-center justify-end gap-2 pt-1">
+                        <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                           <button
                             type="button"
                             onClick={() => setShowConvokePanel(false)}
@@ -817,8 +817,8 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                             onClick={handleConfirmConvokeOrAdd}
                             className="min-h-[38px] px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-sm"
                           >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>
+                            <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            <span className="truncate">
                               {selectedEventId !== 'directory_only'
                                 ? 'Confirmar Convocatoria al Evento'
                                 : inviteAsGuestPass

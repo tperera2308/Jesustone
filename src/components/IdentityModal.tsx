@@ -768,20 +768,22 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                       {friendsNotInGroup.map((friend) => (
                         <div
                           key={friend.id}
-                          className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2.5"
+                          className="w-full sm:w-auto p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 min-w-0"
                         >
-                          <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-500 flex items-center justify-center text-[11px] font-bold shrink-0">
-                            {friend.avatarInitials}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-500 flex items-center justify-center text-[11px] font-bold shrink-0">
+                              {friend.avatarInitials}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {friend.name}
+                              </p>
+                              <p className="text-[10px] text-slate-500 truncate">
+                                @{friend.username} · {friend.instruments[0] || 'Músico'}
+                              </p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                              {friend.name}
-                            </p>
-                            <p className="text-[10px] text-slate-500 truncate">
-                              @{friend.username} · {friend.instruments[0] || 'Músico'}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 shrink-0">
                             <button
                               type="button"
                               onClick={() => {
@@ -1154,7 +1156,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                             </p>
                           </div>
                         </button>
-                        <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 self-end sm:self-center max-w-full">
                           {onOpenMusicianProfile && (
                             <button
                               type="button"

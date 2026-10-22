@@ -4,6 +4,7 @@ import {
   AccentColorId,
   AppUser,
   BandMember,
+  EventRehearsal,
   EventSongItem,
   InstrumentRole,
   MemberAvailabilityRecord,
@@ -36,7 +37,9 @@ import {
   ListMusic,
   Lock,
   MapPin,
+  Maximize2,
   Mic,
+  Music,
   Plus,
   Repeat,
   Search,
@@ -93,7 +96,12 @@ interface EventsModuleProps {
     reason: string;
   }) => void;
   onRemoveAvailability: (recordId: string) => void;
-  onOpenSongInSongbook: (songId: string, customKey?: string) => void;
+  onOpenSongInSongbook: (
+    songId: string,
+    customKey?: string,
+    eventId?: string,
+    autoStageMode?: boolean
+  ) => void;
   friends?: AppUser[];
   onConvokeFriendAsGuest?: (friendUser: AppUser) => BandMember;
 }
@@ -412,8 +420,8 @@ const InteractiveDatePicker: React.FC<InteractiveDatePickerProps> = ({
           </div>
 
           {/* Escritura manual con teclado por si el usuario prefiere escribir la fecha */}
-          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 flex-1">
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
               <span className="text-[11px] font-bold text-slate-500 shrink-0">
                 O escribe (AAAA-MM-DD):
               </span>
@@ -423,7 +431,7 @@ const InteractiveDatePicker: React.FC<InteractiveDatePickerProps> = ({
                 value={manualText}
                 onChange={(e) => handleManualInputChange(e.target.value)}
                 placeholder="2026-11-01"
-                className="w-full min-h-[36px] px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white"
+                className="w-full min-w-0 min-h-[36px] px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white"
               />
             </div>
             <button
@@ -526,7 +534,7 @@ const InteractiveTimePicker: React.FC<InteractiveTimePickerProps> = ({
       </label>
 
       {/* Controles directos de Hora y Minuto + Botón de horarios rápidos */}
-      <div className="flex items-center gap-1.5 min-h-[46px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+      <div className="flex flex-wrap items-center gap-1.5 min-h-[46px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 min-w-0 max-w-full">
         <Clock className="w-4 h-4 text-amber-500 shrink-0" />
 
         {/* Selector directo de Hora */}
@@ -534,7 +542,7 @@ const InteractiveTimePicker: React.FC<InteractiveTimePickerProps> = ({
           value={currentHour}
           onChange={(e) => handleHourChange(e.target.value)}
           aria-label={`${label} - Hora`}
-          className="px-1.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
+          className="px-1.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white min-w-0"
         >
           {HOURS_24.map((h) => (
             <option key={h} value={h}>
@@ -550,7 +558,7 @@ const InteractiveTimePicker: React.FC<InteractiveTimePickerProps> = ({
           value={MINUTES_STEP_5.includes(currentMin) ? currentMin : '00'}
           onChange={(e) => handleMinChange(e.target.value)}
           aria-label={`${label} - Minutos`}
-          className="px-1.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white"
+          className="px-1.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-mono text-xs sm:text-sm font-bold text-slate-900 dark:text-white min-w-0"
         >
           {MINUTES_STEP_5.map((m) => (
             <option key={m} value={m}>
@@ -647,7 +655,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const accent = getAccentClasses(accentColor);
   const isLeader = activeMember.role === 'leader';
 
-  const [filterType, setFilterType] = useState<'all' | 'sunday' | 'rehearsal' | 'special' | 'past'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'sunday' | 'special' | 'past'>('all');
+  const [onlyMyEvents, setOnlyMyEvents] = useState<boolean>(false);
   const [selectedEventId, setSelectedEventId] = useState<string>(events[0]?.id || '');
   // Vista inicial en tarjetas resumidas; al tocar una tarjeta se abre toda la información del evento
   const [openedEventId, setOpenedEventId] = useState<string | null>(null);
@@ -658,9 +667,24 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
   const [songSearchCreate, setSongSearchCreate] = useState('');
   const [songSearchEditor, setSongSearchEditor] = useState('');
+  const [editorKeyFilter, setEditorKeyFilter] = useState<string>('all');
+  const [editorBpmFilter, setEditorBpmFilter] = useState<'all' | 'slow' | 'medium' | 'fast'>('all');
   const [expandedDraftMemberId, setExpandedDraftMemberId] = useState<string | null>(null);
   const [showExtraEventFields, setShowExtraEventFields] = useState(false);
   const [showAddMemberInDetail, setShowAddMemberInDetail] = useState(false);
+  const [showAddRehearsalInDetail, setShowAddRehearsalInDetail] = useState(false);
+  const [subSearchAssignmentIdx, setSubSearchAssignmentIdx] = useState<number | null>(null);
+
+  // Rehearsal form state inside Event Detail
+  const [rehTitleDraft, setRehTitleDraft] = useState('Ensayo General del Evento');
+  const [rehDateDraft, setRehDateDraft] = useState(() => getNextDayOfWeekDateStr(4));
+  const [rehCallTimeDraft, setRehCallTimeDraft] = useState('19:00');
+  const [rehTimeDraft, setRehTimeDraft] = useState('19:30');
+  const [rehLocationDraft, setRehLocationDraft] = useState('Salón de Ensayo / Auditorio');
+  const [rehNotesDraft, setRehNotesDraft] = useState('');
+
+  // RSVP quick note draft for the current user
+  const [rsvpNoteDraft, setRsvpNoteDraft] = useState('');
 
   // Edit Existing Event Form State
   const [editTitle, setEditTitle] = useState('');
@@ -683,10 +707,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [availStatus, setAvailStatus] = useState<'unavailable' | 'available'>('unavailable');
   const [availReason, setAvailReason] = useState('');
 
-  // New Event Form State + Recurrence + Templates
+  // New Event Form State + Recurrence + Templates + Internal Rehearsals
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<'sunday' | 'rehearsal' | 'special'>('sunday');
-  const [newDate, setNewDate] = useState(() => getTodayDateStr());
+  const [newDate, setNewDate] = useState(() => getNextDayOfWeekDateStr(0));
   const [newTime, setNewTime] = useState('10:30');
   const [newCallTime, setNewCallTime] = useState('08:45');
   const [newLocation, setNewLocation] = useState('Auditorio Central');
@@ -695,6 +719,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [newNotes, setNewNotes] = useState('');
   const [newSpotifyPlaylistUrl, setNewSpotifyPlaylistUrl] = useState('');
   const [recurrenceWeeks, setRecurrenceWeeks] = useState<number>(1); // 1, 2, or 4 weeks
+  const [draftRehearsals, setDraftRehearsals] = useState<EventRehearsal[]>([]);
   const [selectedSongItems, setSelectedSongItems] = useState<EventSongItem[]>(() =>
     songs.slice(0, 3).map((s) => ({
       songId: s.id,
@@ -851,9 +876,16 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const filteredEvents = events
     .filter((ev) => {
       const isPast = ev.date < todayStr;
-      if (filterType === 'past') return isPast;
-      if (isPast) return false;
-      return filterType === 'all' ? true : ev.type === filterType;
+      if (filterType === 'past') {
+        if (!isPast) return false;
+      } else {
+        if (isPast) return false;
+        if (filterType !== 'all' && ev.type !== filterType) return false;
+      }
+      if (onlyMyEvents) {
+        return ev.assignments.some((a) => a.memberId === activeMember.id);
+      }
+      return true;
     })
     .sort(
       (a, b) =>
@@ -871,12 +903,14 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       setEventPersonalNotesDraft(
         activeEvent.personalNotes?.[activeMember.id] || ''
       );
+      setRsvpNoteDraft(activeEvent.rsvpNotes?.[activeMember.id] || '');
+      setRehDateDraft(addDaysToDateStr(activeEvent.date, -3));
     }
   }, [activeEvent?.id, activeMember.id]);
 
   const handleOpenEditEventModal = (ev: WorshipEvent) => {
     setEditTitle(ev.title);
-    setEditType(ev.type);
+    setEditType(ev.type === 'rehearsal' ? 'sunday' : ev.type);
     setEditDate(ev.date);
     setEditCallTime(ev.callTime);
     setEditTime(ev.time);
@@ -929,26 +963,115 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     window.setTimeout(() => setEventNotesSavedNotice(''), 3000);
   };
 
-  // Apply 1-tap Event Template
+  const handleAddRehearsalToActiveEvent = (preset?: 'thursday' | 'saturday') => {
+    if (!activeEvent || !isLeader) return;
+    const baseDate = activeEvent.date;
+    const newReh: EventRehearsal =
+      preset === 'thursday'
+        ? {
+            id: `reh-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            title: 'Ensayo General (Jueves previo)',
+            date: addDaysToDateStr(baseDate, -3),
+            callTime: '19:00',
+            time: '19:30',
+            location: 'Salón de Ensayo / Auditorio',
+            notes: 'Mismo equipo convocado y setlist del evento.',
+            rsvpByMemberId: {},
+          }
+        : preset === 'saturday'
+        ? {
+            id: `reh-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            title: 'Ensayo General (Sábado previo)',
+            date: addDaysToDateStr(baseDate, -1),
+            callTime: '16:30',
+            time: '17:00',
+            location: 'Auditorio Principal',
+            notes: 'Pasada general con sonido y voces.',
+            rsvpByMemberId: {},
+          }
+        : {
+            id: `reh-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+            title: rehTitleDraft.trim() || 'Ensayo del Evento',
+            date: rehDateDraft || addDaysToDateStr(baseDate, -3),
+            callTime: rehCallTimeDraft || '19:00',
+            time: rehTimeDraft || '19:30',
+            location: rehLocationDraft.trim() || activeEvent.location,
+            notes: rehNotesDraft.trim() || undefined,
+            rsvpByMemberId: {},
+          };
+
+    const nextRehearsals = [...(activeEvent.rehearsals || []), newReh].sort(
+      (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)
+    );
+    onUpdateEvent({
+      ...activeEvent,
+      rehearsals: nextRehearsals,
+    });
+    setShowAddRehearsalInDetail(false);
+    setRehNotesDraft('');
+  };
+
+  const handleRemoveRehearsalFromActiveEvent = (rehearsalId: string) => {
+    if (!activeEvent || !isLeader) return;
+    onUpdateEvent({
+      ...activeEvent,
+      rehearsals: (activeEvent.rehearsals || []).filter((r) => r.id !== rehearsalId),
+    });
+  };
+
+  const handleToggleMyRehearsalRSVP = (rehearsalId: string, status: RSVPStatus) => {
+    if (!activeEvent) return;
+    const nextRehearsals = (activeEvent.rehearsals || []).map((r) => {
+      if (r.id !== rehearsalId) return r;
+      return {
+        ...r,
+        rsvpByMemberId: {
+          ...(r.rsvpByMemberId || {}),
+          [activeMember.id]: status,
+        },
+      };
+    });
+    onUpdateEvent({
+      ...activeEvent,
+      rehearsals: nextRehearsals,
+    });
+  };
+
+  // Apply 1-tap Event Template (Domingos o Eventos Especiales con Ensayos incluidos)
   const applyEventTemplate = (
-    template: 'sunday' | 'rehearsal' | 'special' | 'copy_last'
+    template: 'sunday' | 'sunday_with_rehearsal' | 'special' | 'copy_last'
   ) => {
+    const nextSun = getNextDayOfWeekDateStr(0);
     if (template === 'sunday') {
       setNewTitle('Domingo de Servicio y Alabanza');
       setNewType('sunday');
+      setNewDate(nextSun);
       setNewCallTime('08:30');
       setNewTime('10:30');
       setNewLocation('Auditorio Principal');
       setNewTheme('Servicio Dominical Congregacional');
       setNewNotes('Prueba de sonido 08:30 hrs. Oración en camerino 10:00 hrs.');
-    } else if (template === 'rehearsal') {
-      setNewTitle('Ensayo General de Banda y Voces');
-      setNewType('rehearsal');
-      setNewCallTime('19:00');
-      setNewTime('19:30');
-      setNewLocation('Salón de Ensayo Principal');
-      setNewTheme('Montaje de repertorio, voces y secuencias de la semana');
-      setNewNotes('Traer in-ears e instrumentos afinados. Escuchar lista previa.');
+    } else if (template === 'sunday_with_rehearsal') {
+      setNewTitle('Domingo de Servicio y Alabanza');
+      setNewType('sunday');
+      setNewDate(nextSun);
+      setNewCallTime('08:30');
+      setNewTime('10:30');
+      setNewLocation('Auditorio Principal');
+      setNewTheme('Servicio Dominical Congregacional');
+      setNewNotes('Prueba de sonido 08:30 hrs.');
+      setDraftRehearsals([
+        {
+          id: `reh-draft-${Date.now()}`,
+          title: 'Ensayo General del Domingo',
+          date: addDaysToDateStr(nextSun, -3),
+          callTime: '19:00',
+          time: '19:30',
+          location: 'Salón de Ensayo / Auditorio',
+          notes: 'Montaje de las canciones del domingo con los mismos convocados.',
+          rsvpByMemberId: {},
+        },
+      ]);
     } else if (template === 'special') {
       setNewTitle('Evento Especial de Adoración');
       setNewType('special');
@@ -957,10 +1080,22 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       setNewLocation('Auditorio Central');
       setNewTheme('Evento Especial de Adoración e Intercesión');
       setNewNotes('Setlist extendido con transiciones espontáneas.');
+      setDraftRehearsals([
+        {
+          id: `reh-draft-${Date.now()}`,
+          title: 'Ensayo Previo de Evento Especial',
+          date: addDaysToDateStr(newDate, -2),
+          callTime: '18:30',
+          time: '19:00',
+          location: 'Auditorio Central',
+          notes: 'Ensayo general con todo el equipo convocado al evento.',
+          rsvpByMemberId: {},
+        },
+      ]);
     } else if (template === 'copy_last' && events[0]) {
       const last = events[0];
       setNewTitle(last.title);
-      setNewType(last.type);
+      setNewType(last.type === 'rehearsal' ? 'sunday' : last.type);
       setNewDate(addDaysToDateStr(last.date, 7));
       setNewCallTime(last.callTime);
       setNewTime(last.time);
@@ -968,6 +1103,16 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       setNewTheme(last.preacherOrTheme);
       setNewNotes(last.notes);
       setSelectedSongItems(last.songs);
+      if (last.rehearsals && last.rehearsals.length > 0) {
+        setDraftRehearsals(
+          last.rehearsals.map((r, idx) => ({
+            ...r,
+            id: `reh-copy-${Date.now()}-${idx}`,
+            date: addDaysToDateStr(r.date, 7),
+            rsvpByMemberId: {},
+          }))
+        );
+      }
       if (last.assignments && last.assignments.length > 0) {
         setDraftAssignments(
           last.assignments.map((a, idx) => ({
@@ -980,7 +1125,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     }
   };
 
-  // Duplicate an existing event to next week (+7 days)
+  // Duplicate an existing event to next week (+7 days) including its nested rehearsals
   const handleDuplicateEventNextWeek = (ev: WorshipEvent) => {
     if (!isLeader) return;
     const nextDate = addDaysToDateStr(ev.date, 7);
@@ -993,9 +1138,18 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       rsvpStatus: 'pending' as RSVPStatus,
     }));
 
+    const duplicatedRehearsals: EventRehearsal[] = (ev.rehearsals || []).map(
+      (r, idx) => ({
+        ...r,
+        id: `reh-${Date.now()}-${idx}`,
+        date: addDaysToDateStr(r.date, 7),
+        rsvpByMemberId: {},
+      })
+    );
+
     onCreateEvent({
       title: `${ev.title}`,
-      type: ev.type,
+      type: ev.type === 'rehearsal' ? 'sunday' : ev.type,
       date: nextDate,
       time: ev.time,
       callTime: ev.callTime,
@@ -1004,6 +1158,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       alertReminder: ev.alertReminder,
       notes: ev.notes,
       spotifyPlaylistUrl: ev.spotifyPlaylistUrl,
+      rehearsals: duplicatedRehearsals,
       songs: ev.songs.map((s) => ({ ...s })),
       assignments,
     });
@@ -1032,12 +1187,19 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         };
       });
 
+      const weekRehearsals: EventRehearsal[] = draftRehearsals.map((r, rIdx) => ({
+        ...r,
+        id: `reh-${Date.now()}-${weekIdx}-${rIdx}`,
+        date: addDaysToDateStr(r.date, weekIdx * 7),
+        rsvpByMemberId: {},
+      }));
+
       const titleSuffix =
         totalWeeks > 1 ? ` (Semana ${weekIdx + 1}/${totalWeeks})` : '';
 
       onCreateEvent({
         title: `${newTitle.trim()}${titleSuffix}`,
-        type: newType,
+        type: newType === 'rehearsal' ? 'sunday' : newType,
         date: eventDate,
         time: newTime,
         callTime: newCallTime,
@@ -1046,6 +1208,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         alertReminder: newAlertReminder.trim() || undefined,
         notes: newNotes.trim() || 'Llegar puntuales para prueba de sonido y oración.',
         spotifyPlaylistUrl: newSpotifyPlaylistUrl.trim() || undefined,
+        rehearsals: weekRehearsals,
         songs: selectedSongItems.map((item) => ({ ...item })),
         assignments,
       });
@@ -1055,6 +1218,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     setNewTheme('');
     setNewAlertReminder('');
     setNewSpotifyPlaylistUrl('');
+    setDraftRehearsals([]);
     setRecurrenceWeeks(1);
     setShowCreateModal(false);
   };
@@ -1189,7 +1353,6 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           {[
             { id: 'all', label: 'Próximos' },
             { id: 'sunday', label: 'Domingos' },
-            { id: 'rehearsal', label: 'Ensayos' },
             { id: 'special', label: 'Especiales' },
             {
               id: 'past',
@@ -1209,6 +1372,20 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               {tab.label}
             </button>
           ))}
+
+          <button
+            type="button"
+            onClick={() => setOnlyMyEvents((prev) => !prev)}
+            className={`min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1 ${
+              onlyMyEvents
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+            title="Ver únicamente eventos donde estás convocado"
+          >
+            <User className="w-3 h-3 shrink-0" />
+            <span>Mis Eventos</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
@@ -1367,6 +1544,19 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       </span>
                     </div>
 
+                    {/* Resumen de Ensayos incluidos dentro de este Evento */}
+                    {ev.rehearsals && ev.rehearsals.length > 0 && (
+                      <div className="px-2.5 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-between gap-2 text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold">
+                        <span className="truncate">
+                          🎵 {ev.rehearsals.length}{' '}
+                          {ev.rehearsals.length === 1 ? 'Ensayo' : 'Ensayos'}:{' '}
+                          {ev.rehearsals
+                            .map((r) => `${formatReadableDateEs(r.date)} (${r.time})`)
+                            .join(' · ')}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Estado resumido de mi propia invitación en la tarjeta */}
                     {myAssigns.length > 0 ? (
                       <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-2">
@@ -1401,7 +1591,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between text-xs pt-3 border-t border-slate-100 dark:border-slate-800 font-mono tabular-nums text-slate-500">
-                    <span>{ev.songs.length} canciones</span>
+                    <span>
+                      {ev.songs.length} canciones
+                      {ev.rehearsals && ev.rehearsals.length > 0
+                        ? ` · ${ev.rehearsals.length} ens.`
+                        : ''}
+                    </span>
                     <span className="font-bold text-emerald-600 dark:text-emerald-400">
                       {confirmedCount}/{ev.assignments.length} confirmados
                     </span>
@@ -1576,73 +1771,335 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 });
               };
 
+              const handleSaveMyRsvpNote = (newStatus?: RSVPStatus) => {
+                if (newStatus) {
+                  handleUpdateMyOwnRSVP(newStatus);
+                }
+                const cleanNote = rsvpNoteDraft.trim();
+                const nextNotes = { ...(activeEvent.rsvpNotes || {}) };
+                if (cleanNote) {
+                  nextNotes[activeMember.id] = cleanNote;
+                } else {
+                  delete nextNotes[activeMember.id];
+                }
+                onUpdateEvent({
+                  ...activeEvent,
+                  rsvpNotes: nextNotes,
+                });
+              };
+
               if (currentStatus === 'confirmed') {
                 return (
-                  <div className="px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 truncate">
-                        Asistencia confirmada ·{' '}
-                        <span className="font-semibold">
-                          {myRolesCombined.join(' + ')}
-                        </span>
-                      </p>
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 truncate">
+                          Asistencia confirmada al evento y sus ensayos ·{' '}
+                          <span className="font-semibold">
+                            {myRolesCombined.join(' + ')}
+                          </span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveMyRsvpNote('declined')}
+                        className="px-2.5 py-1 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 hover:border-rose-500 text-[11px] font-bold text-rose-600 dark:text-rose-400 transition-colors shrink-0"
+                      >
+                        Declinar
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateMyOwnRSVP('declined')}
-                      className="px-2.5 py-1 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 hover:border-rose-500 text-[11px] font-bold text-rose-600 dark:text-rose-400 transition-colors shrink-0"
-                    >
-                      Declinar
-                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={rsvpNoteDraft}
+                        onChange={(e) => setRsvpNoteDraft(e.target.value)}
+                        onBlur={() => handleSaveMyRsvpNote()}
+                        placeholder="Nota opcional (ej. Llego 10 min tarde por trabajo)..."
+                        className="flex-1 min-h-[32px] px-2.5 py-1 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-emerald-500/20 text-[11px] text-slate-800 dark:text-slate-200"
+                      />
+                    </div>
                   </div>
                 );
               }
 
               return (
-                <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-extrabold uppercase tracking-wider">
-                        Tu Invitación
-                      </span>
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                        {myRolesCombined.join(' + ')}
-                      </span>
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/40 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-extrabold uppercase tracking-wider">
+                          Tu Invitación
+                        </span>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {myRolesCombined.join(' + ')}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300">
+                        {currentStatus === 'declined'
+                          ? 'Has declinado esta invitación. Puedes confirmar si cambió tu disponibilidad:'
+                          : 'Confirma o declina tu participación en este evento y sus ensayos:'}
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300">
-                      {currentStatus === 'declined'
-                        ? 'Has declinado esta invitación. Puedes confirmar si cambió tu disponibilidad:'
-                        : 'Confirma o declina tu participación en este evento:'}
-                    </p>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveMyRsvpNote('confirmed')}
+                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Aceptar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSaveMyRsvpNote('declined')}
+                        className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                          currentStatus === 'declined'
+                            ? 'bg-rose-600 text-white'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-rose-500'
+                        }`}
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>{currentStatus === 'declined' ? 'Declinada' : 'Declinar'}</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateMyOwnRSVP('confirmed')}
-                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Aceptar</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateMyOwnRSVP('declined')}
-                      className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                        currentStatus === 'declined'
-                          ? 'bg-rose-600 text-white'
-                          : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-rose-500'
-                      }`}
-                    >
-                      <XCircle className="w-3.5 h-3.5" />
-                      <span>{currentStatus === 'declined' ? 'Declinada' : 'Declinar'}</span>
-                    </button>
-                  </div>
+                  <input
+                    type="text"
+                    value={rsvpNoteDraft}
+                    onChange={(e) => setRsvpNoteDraft(e.target.value)}
+                    onBlur={() => handleSaveMyRsvpNote()}
+                    placeholder="Motivo o comentario opcional para el Líder (ej. Llego directo del trabajo)..."
+                    className="w-full min-h-[34px] px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/30 text-xs text-slate-800 dark:text-slate-200"
+                  />
                 </div>
               );
             })()}
+
+            {/* ===============================================================
+                1.5 ENSAYOS DE ESTE EVENTO (MISMO EQUIPO Y MISMA SETLIST)
+               =============================================================== */}
+            <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/25 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-indigo-500" />
+                    <span>
+                      Ensayos de este Evento ({(activeEvent.rehearsals || []).length})
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Los ensayos forman parte de este mismo evento: participan los mismos músicos convocados ({activeEvent.assignments.length}) y se ensaya la misma Setlist ({activeEvent.songs.length} canciones).
+                  </p>
+                </div>
+
+                {isLeader && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleAddRehearsalToActiveEvent('thursday')}
+                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 text-xs font-bold"
+                      title="Agregar ensayo automático el jueves previo a las 19:30"
+                    >
+                      + Jueves Previo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddRehearsalToActiveEvent('saturday')}
+                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 text-xs font-bold"
+                      title="Agregar ensayo automático el sábado previo a las 17:00"
+                    >
+                      + Sábado Previo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddRehearsalInDetail((prev) => !prev)}
+                      className={`min-h-[34px] px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1 ${accent.bgClass}`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>
+                        {showAddRehearsalInDetail
+                          ? 'Cerrar'
+                          : 'Otra Fecha de Ensayo'}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Formulario desplegable para agregar un ensayo con fecha/hora personalizada dentro del evento */}
+              {isLeader && showAddRehearsalInDetail && (
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-500/30 space-y-3">
+                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                    Programar Ensayo para «{activeEvent.title}»
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                        Nombre del Ensayo
+                      </label>
+                      <input
+                        type="text"
+                        value={rehTitleDraft}
+                        onChange={(e) => setRehTitleDraft(e.target.value)}
+                        placeholder="Ej. Ensayo General / Voces"
+                        className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <InteractiveDatePicker
+                      label="Fecha del Ensayo"
+                      value={rehDateDraft}
+                      onChange={(d) => setRehDateDraft(d)}
+                    />
+                    <InteractiveTimePicker
+                      label="Hora Citación"
+                      value={rehCallTimeDraft}
+                      onChange={(t) => setRehCallTimeDraft(t)}
+                    />
+                    <InteractiveTimePicker
+                      label="Hora Inicio"
+                      value={rehTimeDraft}
+                      onChange={(t) => setRehTimeDraft(t)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <input
+                      type="text"
+                      value={rehLocationDraft}
+                      onChange={(e) => setRehLocationDraft(e.target.value)}
+                      placeholder="Lugar del ensayo (ej. Salón de Ensayo)"
+                      className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                    <input
+                      type="text"
+                      value={rehNotesDraft}
+                      onChange={(e) => setRehNotesDraft(e.target.value)}
+                      placeholder="Nota para el ensayo (ej. Traer in-ears y pistas listas)"
+                      className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleAddRehearsalToActiveEvent()}
+                      className={`min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Guardar Ensayo en este Evento</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Lista de Ensayos programados dentro de este evento */}
+              {(!activeEvent.rehearsals || activeEvent.rehearsals.length === 0) ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400 py-1">
+                  Aún no se han programado fechas de ensayo para este evento.
+                  {isLeader
+                    ? ' Usa los botones "+ Jueves Previo" o "+ Sábado Previo" arriba para agregar uno en 1 toque.'
+                    : ''}
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {activeEvent.rehearsals.map((reh) => {
+                    const isAmConvoked = activeEvent.assignments.some(
+                      (a) => a.memberId === activeMember.id
+                    );
+                    const myRehRsvp = reh.rsvpByMemberId?.[activeMember.id];
+                    const confirmedRehCount = Object.values(
+                      reh.rsvpByMemberId || {}
+                    ).filter((st) => st === 'confirmed').length;
+
+                    return (
+                      <div
+                        key={reh.id}
+                        className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-500/25 flex flex-col justify-between gap-2.5"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="px-2 py-0.5 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 text-[10px] font-bold">
+                              {formatReadableDateEs(reh.date)} ({reh.date})
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-mono text-slate-500">
+                                {confirmedRehCount}/{activeEvent.assignments.length} conf.
+                              </span>
+                              {isLeader && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleRemoveRehearsalFromActiveEvent(reh.id)
+                                  }
+                                  className="text-slate-400 hover:text-rose-500 p-1"
+                                  title="Eliminar fecha de ensayo"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                            {reh.title}
+                          </p>
+                          <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                            Citación: {reh.callTime} · Inicio: {reh.time} ·{' '}
+                            <span className="font-sans">{reh.location}</span>
+                          </p>
+                          {reh.notes && (
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                              {reh.notes}
+                            </p>
+                          )}
+                        </div>
+
+                        {isAmConvoked && (
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <span className="text-[11px] font-semibold text-slate-500">
+                              Tu asistencia al ensayo:
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleToggleMyRehearsalRSVP(reh.id, 'confirmed')
+                                }
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                                  myRehRsvp === 'confirmed'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-emerald-500/20'
+                                }`}
+                              >
+                                {myRehRsvp === 'confirmed'
+                                  ? '✓ Asistiré'
+                                  : 'Confirmar'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleToggleMyRehearsalRSVP(reh.id, 'declined')
+                                }
+                                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                                  myRehRsvp === 'declined'
+                                    ? 'bg-rose-600 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-rose-500'
+                                }`}
+                              >
+                                No puedo
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* ===============================================================
                 2. PLAYLIST DEL EVENTO CON REORDENAMIENTO, TONOS Y VOCES POR CANCIÓN
@@ -1652,14 +2109,34 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <ListMusic className={`w-5 h-5 ${accent.textClass}`} />
-                    Playlist, Orden y Voces de cada Canción ({activeEvent.songs.length})
+                    Playlist del Evento y sus Ensayos ({activeEvent.songs.length})
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Toca una canción para abrirla en el Cancionero. El Líder puede reordenar la lista y asignar quién lleva la voz principal y coros en cada tema.
+                    Toca una canción para abrirla en el Cancionero o lanza el Modo Atril en Vivo para ensayar/tocar toda la lista seguida.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {activeEvent.songs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const first = activeEvent.songs[0];
+                        onOpenSongInSongbook(
+                          first.songId,
+                          first.customKey,
+                          activeEvent.id,
+                          true
+                        );
+                      }}
+                      className="min-h-[44px] px-3.5 py-2 rounded-2xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 font-bold text-xs flex items-center gap-2 shadow-sm"
+                      title="Abrir todas las canciones de este evento en Modo Escenario / Atril"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                      <span>Modo Atril en Vivo</span>
+                    </button>
+                  )}
+
                   {activeEvent.spotifyPlaylistUrl && (
                     <a
                       href={activeEvent.spotifyPlaylistUrl}
@@ -1708,7 +2185,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         <button
                           type="button"
                           onClick={() =>
-                            onOpenSongInSongbook(songObj.id, weeklyKey)
+                            onOpenSongInSongbook(
+                              songObj.id,
+                              weeklyKey,
+                              activeEvent.id,
+                              false
+                            )
                           }
                           className="text-left min-w-0 flex-1"
                         >
@@ -1812,9 +2294,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
               {/* Panel desplegable del Líder/Admin para agregar un miembro o amigo invitado al evento */}
               {isLeader && showAddMemberInDetail && (
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div className="flex items-center gap-2 flex-1">
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3 w-full max-w-full min-w-0 overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
                         Integrante:
                       </span>
@@ -1830,18 +2312,18 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             setAddActiveRoles(['Coros']);
                           }
                         }}
-                        className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white flex-1"
+                        className="w-full max-w-full min-w-0 min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white flex-1 truncate"
                       >
                         {members.map((m) => {
                           const av = getMemberAvailabilityForDate(
                             m.id,
                             activeEvent.date
                           );
+                          const primaryInst = m.instruments[0] || 'Miembro';
                           return (
                             <option key={m.id} value={m.id}>
                               {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
-                              {m.name} {m.isGuest ? '(Suplente) ' : ''}(
-                              {m.instruments.join(', ') || 'Miembro'})
+                              {m.name} {m.isGuest ? '(Suplente) ' : ''}· {primaryInst}
                             </option>
                           );
                         })}
@@ -1872,7 +2354,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         ]);
                         setShowAddMemberInDetail(false);
                       }}
-                      className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
+                      className={`w-full sm:w-auto min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
                     >
                       <Plus className="w-4 h-4" />
                       <span>Asignar al Evento</span>
@@ -2129,9 +2611,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 );
                                 onUpdateEventAssignments(activeEvent.id, updated);
                               }}
-                              className="px-2 py-0.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-transparent text-[11px] font-bold text-slate-500 hover:border-amber-500"
+                              className="max-w-full min-w-0 truncate px-2 py-0.5 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-transparent text-[11px] font-bold text-slate-500 hover:border-amber-500"
                             >
-                              <option value="">+ Sumar instrumento/voz</option>
+                              <option value="">+ Sumar rol</option>
                               {allAvailableRoles.map((rOpt) => (
                                 <option
                                   key={rOpt}
@@ -2143,11 +2625,65 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                               ))}
                             </select>
                           )}
+                          {/* Nota opcional de asistencia del miembro */}
+                          {activeEvent.rsvpNotes?.[assign.memberId] && (
+                            <span className="text-[11px] italic text-slate-500 dark:text-slate-400">
+                              «{activeEvent.rsvpNotes[assign.memberId]}»
+                            </span>
+                          )}
                         </div>
+
+                        {/* Buscador rápido de suplente cuando el miembro declinó o tiene fecha bloqueada */}
+                        {isLeader && subSearchAssignmentIdx === assignIdx && (
+                          <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-1.5 mt-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200">
+                                Elegir suplente para {assignedRolesList[0]}:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setSubSearchAssignmentIdx(null)}
+                                className="text-[11px] text-slate-400 hover:text-slate-700"
+                              >
+                                Cerrar
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {members
+                                .filter(
+                                  (m) =>
+                                    m.id !== assign.memberId &&
+                                    getMemberAvailabilityForDate(
+                                      m.id,
+                                      activeEvent.date
+                                    )?.status !== 'unavailable'
+                                )
+                                .map((candidate) => (
+                                  <button
+                                    key={candidate.id}
+                                    type="button"
+                                    onClick={() => {
+                                      onReassignRole(
+                                        activeEvent.id,
+                                        assign.role,
+                                        candidate.id,
+                                        assignIdx
+                                      );
+                                      setSubSearchAssignmentIdx(null);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500 text-[11px] font-bold text-slate-800 dark:text-slate-200"
+                                  >
+                                    Reemplazar con {candidate.name.split(' ')[0]} (
+                                    {candidate.instruments[0] || 'Músico'})
+                                  </button>
+                                ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Estado de Invitación (Solo lectura en la lista general) + Botón de Eliminar para el Líder */}
-                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      {/* Estado de Invitación + Botón de Buscar Suplente / Eliminar para el Líder */}
+                      <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
                         {assign.rsvpStatus === 'confirmed' && (
                           <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1.5">
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -2166,6 +2702,23 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             Declinado
                           </span>
                         )}
+
+                        {isLeader &&
+                          (assign.rsvpStatus === 'declined' || isBlockedDate) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSubSearchAssignmentIdx(
+                                  subSearchAssignmentIdx === assignIdx
+                                    ? null
+                                    : assignIdx
+                                )
+                              }
+                              className="min-h-[34px] px-2.5 py-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 text-xs font-bold"
+                            >
+                              Buscar Suplente
+                            </button>
+                          )}
 
                         {isLeader && (
                           <button
@@ -2326,7 +2879,6 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                   >
                     <option value="sunday">Domingo de Servicio</option>
-                    <option value="rehearsal">Ensayo General</option>
                     <option value="special">Evento Especial</option>
                   </select>
                 </div>
@@ -2655,7 +3207,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5 max-w-full">
                             <button
                               type="button"
                               disabled={idx === 0}
@@ -2681,7 +3233,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                   customKey: e.target.value,
                                 })
                               }
-                              className="min-h-[34px] px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs font-bold text-slate-900 dark:text-white"
+                              className="max-w-full min-w-0 min-h-[34px] px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs font-bold text-slate-900 dark:text-white"
                             >
                               <optgroup label="Tonalidades Mayores">
                                 {MAJOR_KEYS.map((k) => (
@@ -2710,8 +3262,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         </div>
 
                         {/* Selector de Voz Principal y Coros para esta canción */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/70 dark:border-slate-800">
-                          <div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/70 dark:border-slate-800 min-w-0">
+                          <div className="min-w-0">
                             <label className="block text-[11px] font-bold text-slate-500 mb-1">
                               Voz Principal en esta canción:
                             </label>
@@ -2722,18 +3274,18 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                   vocalLeader: e.target.value,
                                 })
                               }
-                              className="w-full min-h-[36px] px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white"
+                              className="w-full max-w-full min-w-0 truncate min-h-[36px] px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white"
                             >
                               <option value="">Sin asignar / Instrumental</option>
                               {members.map((m) => (
                                 <option key={m.id} value={m.name}>
-                                  {m.name} ({m.instruments.join(', ')})
+                                  {m.name} ({m.instruments[0] || 'Voz'})
                                 </option>
                               ))}
                             </select>
                           </div>
 
-                          <div>
+                          <div className="min-w-0">
                             <label className="block text-[11px] font-bold text-slate-500 mb-1">
                               Coros en esta canción (toca para elegir):
                             </label>
@@ -2773,39 +3325,84 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               </div>
             )}
 
-            {/* 2. Buscador para agregar más canciones del Repertorio Base */}
+            {/* 2. Buscador para agregar más canciones del Repertorio Base con filtros por Tono y BPM */}
             <div className="space-y-2">
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 2. Buscar y agregar canciones del Repertorio Base
               </p>
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={songSearchEditor}
-                  onChange={(e) => setSongSearchEditor(e.target.value)}
-                  placeholder="Escribe el nombre o autor de la canción para buscar..."
-                  className="w-full min-h-[40px] pl-9 pr-8 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                />
-                {songSearchEditor && (
-                  <button
-                    type="button"
-                    onClick={() => setSongSearchEditor('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={songSearchEditor}
+                    onChange={(e) => setSongSearchEditor(e.target.value)}
+                    placeholder="Escribe el nombre o autor de la canción..."
+                    className="w-full min-h-[40px] pl-9 pr-8 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                  {songSearchEditor && (
+                    <button
+                      type="button"
+                      onClick={() => setSongSearchEditor('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <select
+                  value={editorKeyFilter}
+                  onChange={(e) => setEditorKeyFilter(e.target.value)}
+                  className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200"
+                >
+                  <option value="all">Todos los Tonos</option>
+                  {MAJOR_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      Tono {k}
+                    </option>
+                  ))}
+                  {MINOR_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      Tono {k}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={editorBpmFilter}
+                  onChange={(e) =>
+                    setEditorBpmFilter(
+                      e.target.value as 'all' | 'slow' | 'medium' | 'fast'
+                    )
+                  }
+                  className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200"
+                >
+                  <option value="all">Cualquier BPM</option>
+                  <option value="slow">Lento (&lt; 75)</option>
+                  <option value="medium">Medio (75-110)</option>
+                  <option value="fast">Rápido (&gt; 110)</option>
+                </select>
               </div>
               <div className="space-y-1.5 max-h-48 overflow-y-auto">
                 {songs
                   .filter((song) => {
                     const q = songSearchEditor.trim().toLowerCase();
-                    if (!q) return true;
-                    return (
+                    const matchesQ =
+                      !q ||
                       song.title.toLowerCase().includes(q) ||
-                      song.artist.toLowerCase().includes(q)
-                    );
+                      song.artist.toLowerCase().includes(q);
+                    const matchesKey =
+                      editorKeyFilter === 'all' ||
+                      song.originalKey === editorKeyFilter;
+                    const matchesBpm =
+                      editorBpmFilter === 'all' ||
+                      (editorBpmFilter === 'slow' && song.bpm < 75) ||
+                      (editorBpmFilter === 'medium' &&
+                        song.bpm >= 75 &&
+                        song.bpm <= 110) ||
+                      (editorBpmFilter === 'fast' && song.bpm > 110);
+                    return matchesQ && matchesKey && matchesBpm;
                   })
                   .map((song) => {
                     const included = activeEvent.songs.some(
@@ -2869,8 +3466,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           MODAL: PROGRAMAR EVENTO CON PLANTILLAS, RECURRENCIA Y DISPONIBILIDAD EN VIVO
          ===================================================================== */}
       {showCreateModal && isLeader && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-3xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 my-8 max-h-[92vh] overflow-y-auto space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto overflow-x-hidden">
+          <div className="w-full max-w-3xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-6 my-8 max-h-[92vh] overflow-y-auto overflow-x-hidden space-y-5 min-w-0">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -2893,9 +3490,22 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
             <div className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                Plantillas Rápidas de Eventos (1 Toque)
+                Plantillas Rápidas de Eventos y sus Ensayos (1 Toque)
               </span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => applyEventTemplate('sunday_with_rehearsal')}
+                  className="p-2.5 rounded-xl border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-left"
+                >
+                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-300">
+                    Domingo + Ensayo
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    Dom 10:30 + Ens. Jue
+                  </p>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => applyEventTemplate('sunday')}
@@ -2911,19 +3521,6 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => applyEventTemplate('rehearsal')}
-                  className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:border-amber-500 text-left"
-                >
-                  <p className="text-xs font-bold text-slate-900 dark:text-white">
-                    Ensayo General
-                  </p>
-                  <p className="text-[10px] text-slate-500 font-mono">
-                    Cit: 19:00 · Ini: 19:30
-                  </p>
-                </button>
-
-                <button
-                  type="button"
                   onClick={() => applyEventTemplate('special')}
                   className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:border-amber-500 text-left"
                 >
@@ -2931,7 +3528,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     Evento Especial
                   </p>
                   <p className="text-[10px] text-slate-500 font-mono">
-                    Cit: 17:30 · Ini: 19:30
+                    Incluye ensayo previo
                   </p>
                 </button>
 
@@ -2969,15 +3566,14 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Tipo de Evento
+                    Tipo de Evento Principal
                   </label>
                   <select
-                    value={newType}
+                    value={newType === 'rehearsal' ? 'sunday' : newType}
                     onChange={(e) => setNewType(e.target.value as WorshipEvent['type'])}
                     className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                   >
                     <option value="sunday">Domingo de Servicio</option>
-                    <option value="rehearsal">Ensayo General</option>
                     <option value="special">Evento Especial</option>
                   </select>
                 </div>
@@ -2986,7 +3582,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                   <InteractiveDatePicker
-                    label="Fecha"
+                    label="Fecha del Evento"
                     value={newDate}
                     onChange={(d) => setNewDate(d)}
                   />
@@ -3020,6 +3616,131 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     <option value={4}>Repetir 4 semanas (Mes)</option>
                   </select>
                 </div>
+              </div>
+
+              {/* ===============================================================
+                  ENSAYOS DENTRO DE ESTE EVENTO (MISMO EQUIPO Y MISMA SETLIST)
+                 =============================================================== */}
+              <div className="p-3.5 rounded-2xl bg-indigo-500/5 border border-indigo-500/25 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-indigo-500" />
+                      Fechas de Ensayo para este Evento ({draftRehearsals.length})
+                    </span>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Los ensayos quedan dentro de este evento con los mismos convocados y la misma setlist.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDraftRehearsals((prev) => [
+                          ...prev,
+                          {
+                            id: `reh-draft-${Date.now()}-thu`,
+                            title: 'Ensayo General (Jueves previo)',
+                            date: addDaysToDateStr(newDate, -3),
+                            callTime: '19:00',
+                            time: '19:30',
+                            location: newLocation || 'Salón de Ensayo',
+                            rsvpByMemberId: {},
+                          },
+                        ])
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 text-[11px] font-bold"
+                    >
+                      + Ensayo Jueves Previo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDraftRehearsals((prev) => [
+                          ...prev,
+                          {
+                            id: `reh-draft-${Date.now()}-sat`,
+                            title: 'Ensayo General (Sábado previo)',
+                            date: addDaysToDateStr(newDate, -1),
+                            callTime: '16:30',
+                            time: '17:00',
+                            location: newLocation || 'Auditorio Principal',
+                            rsvpByMemberId: {},
+                          },
+                        ])
+                      }
+                      className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 text-[11px] font-bold"
+                    >
+                      + Ensayo Sábado Previo
+                    </button>
+                  </div>
+                </div>
+
+                {draftRehearsals.length > 0 && (
+                  <div className="space-y-1.5">
+                    {draftRehearsals.map((reh, rIdx) => (
+                      <div
+                        key={reh.id}
+                        className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/25 flex flex-wrap items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                          <input
+                            type="text"
+                            value={reh.title}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDraftRehearsals((prev) =>
+                                prev.map((item, i) =>
+                                  i === rIdx ? { ...item, title: val } : item
+                                )
+                              );
+                            }}
+                            className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white"
+                          />
+                          <input
+                            type="date"
+                            value={reh.date}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDraftRehearsals((prev) =>
+                                prev.map((item, i) =>
+                                  i === rIdx ? { ...item, date: val } : item
+                                )
+                              );
+                            }}
+                            className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs text-slate-900 dark:text-white"
+                          />
+                          <input
+                            type="time"
+                            value={reh.time}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDraftRehearsals((prev) =>
+                                prev.map((item, i) =>
+                                  i === rIdx ? { ...item, time: val } : item
+                                )
+                              );
+                            }}
+                            className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs text-slate-900 dark:text-white"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDraftRehearsals((prev) =>
+                              prev.filter((_, i) => i !== rIdx)
+                            )
+                          }
+                          className="text-slate-400 hover:text-rose-500 p-1"
+                          title="Quitar ensayo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Opciones Adicionales Colapsables (Ubicación, Tema, Notas, Spotify) para vista limpia */}
@@ -3162,12 +3883,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     };
 
                     return (
-                      <div key={m.id} className="px-3 py-2 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
+                      <div key={m.id} className="px-3 py-2.5 space-y-2 min-w-0 max-w-full overflow-hidden">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
                           <button
                             type="button"
                             onClick={toggleMemberSelection}
-                            className="flex items-center gap-2.5 min-w-0 flex-1 text-left"
+                            className="flex items-center gap-2 min-w-0 flex-1 text-left"
                           >
                             <div
                               className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors shrink-0 ${
@@ -3180,9 +3901,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                 <span
-                                  className={`text-xs font-bold truncate ${
+                                  className={`text-xs font-bold truncate max-w-full ${
                                     isSelected
                                       ? 'text-slate-900 dark:text-white'
                                       : 'text-slate-500 dark:text-slate-400'
@@ -3191,19 +3912,19 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                   {m.name}
                                 </span>
                                 {m.isGuest && (
-                                  <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[9px] font-bold">
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[9px] font-bold shrink-0">
                                     Suplente
                                   </span>
                                 )}
                                 {isUnavailable ? (
                                   <span
-                                    className="px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-semibold truncate"
+                                    className="px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-semibold truncate shrink-0"
                                     title={avail?.reason || 'Fecha bloqueada'}
                                   >
                                     ⚠️ No disp.
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium shrink-0">
                                     · Disp.
                                   </span>
                                 )}
@@ -3217,18 +3938,18 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                               onClick={() =>
                                 setExpandedDraftMemberId(isExpanded ? null : m.id)
                               }
-                              className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 text-[11px] font-bold flex items-center gap-1 shrink-0 max-w-[170px]"
+                              className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 text-[11px] font-bold flex items-center gap-1 shrink-0 max-w-[115px] sm:max-w-[175px] min-w-0"
                               title="Cambiar o agregar instrumentos para este evento"
                             >
                               <span className="truncate">
                                 {currentRoles.join(' + ')}
                               </span>
-                              <span className="text-[9px] opacity-75">
+                              <span className="text-[9px] opacity-75 shrink-0">
                                 {isExpanded ? '▲' : '▾'}
                               </span>
                             </button>
                           ) : (
-                            <span className="text-[11px] text-slate-400 truncate max-w-[120px]">
+                            <span className="text-[11px] text-slate-400 truncate max-w-[95px] sm:max-w-[130px] shrink-0">
                               {m.instruments[0] || 'Músico'}
                             </span>
                           )}
@@ -3236,7 +3957,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
                         {/* Selector desplegable de instrumentos solo cuando el líder toca el rol del miembro */}
                         {isSelected && isExpanded && (
-                          <div className="pt-1.5 pl-7 flex flex-wrap gap-1">
+                          <div className="pt-1.5 pl-2 sm:pl-7 flex flex-wrap gap-1 max-w-full">
                             {allAvailableRoles.map((roleOpt) => {
                               const activeRole = currentRoles.includes(roleOpt);
                               return (

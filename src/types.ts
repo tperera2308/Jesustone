@@ -161,6 +161,17 @@ export interface EventSongItem {
   backingVocals?: string[];
 }
 
+export interface EventRehearsal {
+  id: string;
+  title: string;
+  date: string; // YYYY-MM-DD
+  callTime: string; // HH:mm
+  time: string; // HH:mm
+  location: string;
+  notes?: string;
+  rsvpByMemberId?: Record<string, RSVPStatus>;
+}
+
 export interface WorshipEvent {
   id: string;
   title: string;
@@ -173,6 +184,8 @@ export interface WorshipEvent {
   alertReminder?: string;
   notes: string;
   personalNotes?: Record<string, string>; // keyed by memberId / userId
+  rsvpNotes?: Record<string, string>; // optional note when declining or confirming RSVP
+  rehearsals?: EventRehearsal[]; // Ensayos propios dentro de este domingo o evento especial
   songs: EventSongItem[];
   assignments: ServiceAssignment[];
   spotifyPlaylistUrl?: string;
@@ -180,14 +193,27 @@ export interface WorshipEvent {
 
 export type TimeSignature = '2/4' | '3/4' | '4/4' | '6/8';
 
+export type SongStyle =
+  | 'Adoración'
+  | 'Alabanza'
+  | 'Contemporáneo'
+  | 'Himno'
+  | 'Especial'
+  | 'Congregacional'
+  | 'Júbilo'
+  | 'Alabanza / Júbilo'
+  | 'Intimidad';
+
 export interface SongVoiceNote {
   id: string;
   title: string;
+  label?: string;
   authorId: string;
   authorName: string;
-  authorRole: UserRole;
+  authorRole: UserRole | string;
   audioDataUrl: string;
-  durationSec: number;
+  durationSec?: number;
+  durationSeconds?: number;
   createdAt: string;
 }
 
@@ -198,19 +224,16 @@ export interface Song {
   originalKey: string;
   bpm: number;
   timeSignature: TimeSignature;
-  style:
-    | 'Adoración'
-    | 'Congregacional'
-    | 'Júbilo'
-    | 'Alabanza / Júbilo'
-    | 'Intimidad';
+  style: SongStyle;
   characteristics: string[];
+  tags?: string[];
   structure?: string[]; // Ordered song sections, e.g. ['Intro', 'Verso 1', 'Coro', 'Puente x2', 'Final']
   spotifyUrl?: string;
   spotifyTrackId?: string;
   referenceDuration: string;
   chordProgPreview: string[];
   lyricsAndChords: string;
+  rawLyricsAndChords?: string;
   chordSheetImageUrl?: string;
   attachedFileName?: string;
   notes?: string;

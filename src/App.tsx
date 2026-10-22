@@ -243,7 +243,10 @@ export default function App() {
   const [selectedSongNav, setSelectedSongNav] = useState<{
     songId: string | null;
     customKey: string | null;
-  }>({ songId: null, customKey: null });
+    eventId?: string | null;
+    autoStageMode?: boolean;
+  }>({ songId: null, customKey: null, eventId: null, autoStageMode: false });
+  const [returnToGroupScreen, setReturnToGroupScreen] = useState(false);
   const [metronomePreset, setMetronomePreset] = useState<{
     bpm: number | null;
     timeSignature: TimeSignature | null;
@@ -1832,8 +1835,8 @@ export default function App() {
 
   const handleConvokeFriendAsGuest = (
     friendUser: AppUser,
-    role: InstrumentRole
-  ): BandMember | null => {
+    role: InstrumentRole = 'Voz Principal'
+  ): BandMember => {
     const existing = activeGroup.members.find((m) => m.id === friendUser.id);
     if (existing) {
       return existing;
@@ -2332,8 +2335,18 @@ export default function App() {
     }));
   };
 
-  const handleOpenSongInSongbook = (songId: string, customKey?: string) => {
-    setSelectedSongNav({ songId, customKey: customKey || null });
+  const handleOpenSongInSongbook = (
+    songId: string,
+    customKey?: string,
+    eventId?: string,
+    autoStageMode?: boolean
+  ) => {
+    setSelectedSongNav({
+      songId,
+      customKey: customKey || null,
+      eventId: eventId || null,
+      autoStageMode: Boolean(autoStageMode),
+    });
     setActiveTab('cancionero');
   };
 
@@ -2672,7 +2685,6 @@ export default function App() {
   }[] = [
     { id: 'inicio', label: 'Inicio', shortLabel: 'Inicio', icon: Home },
     { id: 'eventos', label: 'Eventos', shortLabel: 'Eventos', icon: Calendar },
-    { id: 'cancionero', label: 'Cancionero', shortLabel: 'Canciones', icon: Music },
     { id: 'devocionales', label: 'Estudio', shortLabel: 'Estudio', icon: BookOpen },
     { id: 'chat', label: 'Chat', shortLabel: 'Chat', icon: MessageSquare },
     { id: 'herramientas', label: 'Herramientas', shortLabel: 'Herramientas', icon: Sliders },
@@ -2736,26 +2748,38 @@ export default function App() {
           </div>
         )}
 
-        {/* TOP BAR MINIMALISTA: Wordmark + Navegación Desktop + 3 Controles Limpios */}
-        <header className="sticky top-0 z-30 h-14 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3.5 sm:px-6 flex items-center justify-between gap-3">
-          {/* Zona 1: Wordmark jesustone + Selector rápido de Grupo */}
+        {/* TOP BAR MINIMALISTA Y ESPACIADA: Wordmark + Navegación Desktop + Notificaciones y Menú Usuario */}
+        <header className="sticky top-0 z-30 h-15 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3.5 sm:px-6 flex items-center justify-between gap-3">
+          {/* Zona 1: Wordmark jesustone + indicador sutil de grupo activo sin saturar */}
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               type="button"
               onClick={() => setActiveTab('inicio')}
-              className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0 flex items-center gap-2"
+              className="text-left min-w-0 flex items-center gap-2 group"
+              title="Ir a Inicio"
             >
-              <GuitarPickCrossIcon className={`w-5 h-5 ${accent.textClass}`} />
-              <span>jesustone</span>
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${accent.softBgClass}`}
+              >
+                <GuitarPickCrossIcon className={`w-4 h-4 ${accent.textClass}`} />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-sm sm:text-base font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+                  jesustone
+                </span>
+                <span className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 truncate max-w-[115px] sm:max-w-[180px] leading-tight">
+                  {identity.ministryName}
+                </span>
+              </div>
             </button>
 
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
-              className="min-h-[32px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 max-w-[145px] sm:max-w-[200px] transition-colors"
+              className="hidden sm:inline-flex min-h-[32px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 items-center gap-1 transition-colors shrink-0"
               title="Cambiar o crear grupo musical"
             >
-              <span className="truncate">{identity.ministryName}</span>
+              <span>Cambiar grupo</span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             </button>
           </div>
@@ -2781,8 +2805,8 @@ export default function App() {
             })}
           </nav>
 
-          {/* Zona 3: Solo 2 botones limpios a la derecha (Notificaciones + Menú de Perfil) */}
-          <div className="flex items-center gap-2 shrink-0 relative">
+          {/* Zona 3: Notificaciones + Menú General de Usuario con holgura y separación limpia */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 relative">
             <button
               type="button"
               onClick={() => {
@@ -2793,7 +2817,7 @@ export default function App() {
               title="Notificaciones"
               aria-label="Notificaciones"
             >
-              <Bell className="w-4 h-4 text-amber-500" />
+              <Bell className="w-4 h-4 text-amber-500 shrink-0" />
               {unreadNotificationsCount > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono text-[10px] font-bold">
                   {unreadNotificationsCount}
@@ -2804,21 +2828,21 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsUserMenuOpen((prev) => !prev)}
-              className={`min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
-              title="Mi Perfil, Red de Amigos y Ajustes"
+              className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 shadow-2xs ${accent.bgClass}`}
+              title="Menú de Usuario y Ajustes Generales"
             >
               {currentUser.avatarUrl ? (
                 <img
                   src={currentUser.avatarUrl}
                   alt={currentUser.name}
-                  className="w-5 h-5 rounded-md object-cover border border-white/30"
+                  className="w-5 h-5 rounded-md object-cover border border-white/30 shrink-0"
                 />
               ) : userRole === 'leader' ? (
-                <ShieldCheck className="w-3.5 h-3.5" />
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
               ) : (
-                <User className="w-3.5 h-3.5" />
+                <User className="w-3.5 h-3.5 shrink-0" />
               )}
-              <span className="max-w-[95px] sm:max-w-[140px] truncate">
+              <span className="max-w-[90px] sm:max-w-[140px] truncate">
                 @{currentUser.username}
               </span>
               {friendRequests.some(
@@ -2833,10 +2857,10 @@ export default function App() {
                   }
                 </span>
               )}
-              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+              <ChevronDown className="w-3.5 h-3.5 opacity-80 shrink-0" />
             </button>
 
-            {/* Menú Desplegable Minimalista de Usuario y Ajustes */}
+            {/* Menú Desplegable de Opciones Generales del Usuario (sin opciones internas del grupo) */}
             {isUserMenuOpen && (
               <>
                 <div
@@ -2850,11 +2874,7 @@ export default function App() {
                     </p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                       @{currentUser.username} ·{' '}
-                      {userRole === 'leader'
-                        ? 'Líder'
-                        : activeMember.isGuest
-                        ? 'Suplente'
-                        : 'Miembro'}
+                      {currentUser.musicianCode || 'Músico'}
                     </p>
                   </div>
 
@@ -2897,23 +2917,6 @@ export default function App() {
                     <FolderPlus className="w-4 h-4 text-sky-500" />
                     <span>Mis Grupos / Cambiar Grupo</span>
                   </button>
-
-                  {!isRestrictedGuest && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsUserMenuOpen(false);
-                        setIdentityModalState({
-                          open: true,
-                          section: 'invitaciones',
-                        });
-                      }}
-                      className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
-                    >
-                      <Settings className="w-4 h-4 text-emerald-500" />
-                      <span>Miembros y Datos del Grupo</span>
-                    </button>
-                  )}
 
                   <button
                     type="button"
@@ -2970,12 +2973,16 @@ export default function App() {
               devotionals={activeGroup.devotionals}
               alerts={activeGroup.alerts}
               activityFeed={isRestrictedGuest ? [] : activeGroup.activityFeed}
+              userGroups={myGroups}
+              activeGroupId={activeGroup.id}
+              currentUserId={currentUser.id}
               friendsCount={myFriends.length}
               pendingFriendRequestsCount={
                 friendRequests.filter(
                   (r) => r.status === 'pending' && r.toUserId === currentUser.id
                 ).length
               }
+              onSelectGroup={(gId) => setActiveGroupId(gId)}
               onNavigate={setActiveTab}
               onOpenIdentityModal={(section) =>
                 setIdentityModalState({ open: true, section })
@@ -2985,6 +2992,7 @@ export default function App() {
               onUpdateRSVP={handleUpdateRSVP}
               onOpenSongInSongbook={handleOpenSongInSongbook}
               onOpenMetronomeWithSong={handleOpenMetronomeWithSong}
+              initialOpenGroupScreen={returnToGroupScreen}
             />
           )}
 
@@ -3024,6 +3032,12 @@ export default function App() {
               accentColor={identity.accentColor}
               initialSongId={selectedSongNav.songId}
               initialTargetKey={selectedSongNav.customKey}
+              initialEventId={selectedSongNav.eventId}
+              initialAutoStageMode={selectedSongNav.autoStageMode}
+              onBackToGroup={() => {
+                setReturnToGroupScreen(true);
+                setActiveTab('inicio');
+              }}
               onAddSong={handleAddSong}
               onUpdateSong={handleUpdateSong}
               onDeleteSong={handleDeleteSong}
@@ -3095,7 +3109,7 @@ export default function App() {
         {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL CON BOTONES GRANDES TÁCTILES */}
         <nav
           aria-label="Navegación móvil jesustone"
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-6 items-center h-16 pb-safe px-1"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-5 items-center h-16 pb-safe px-1"
         >
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -3104,7 +3118,10 @@ export default function App() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.id === 'inicio') setReturnToGroupScreen(false);
+                  setActiveTab(item.id);
+                }}
                 className={`min-h-[48px] flex flex-col items-center justify-center rounded-2xl transition-all ${
                   isActive
                     ? `${accent.textClass} font-bold`
