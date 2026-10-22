@@ -20,6 +20,10 @@ import {
   generateDemoVoiceClipDataUrl,
   playMetronomeClick,
 } from '../utils/audioEngine';
+import {
+  uploadMediaBlobToStorage,
+  uploadMediaDataUrlToStorage,
+} from '../firebase';
 import { getAccentClasses } from './IdentityModal';
 import {
   ArrowLeft,
@@ -633,12 +637,18 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         if (audioChunksRef.current.length > 0) {
           const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           const reader = new FileReader();
-          reader.onloadend = () => {
-            if (typeof reader.result === 'string') {
-              saveVoiceNoteWithUrl(reader.result);
-            } else {
-              saveVoiceNoteWithUrl(generateDemoVoiceClipDataUrl(finalDuration));
-            }
+          reader.onloadend = async () => {
+            const fallbackUrl =
+              typeof reader.result === 'string'
+                ? reader.result
+                : generateDemoVoiceClipDataUrl(finalDuration);
+            const cloudUrl = await uploadMediaBlobToStorage(
+              'song_voice_notes',
+              `vn_${activeSong.id}_${Date.now()}.webm`,
+              blob,
+              fallbackUrl
+            );
+            saveVoiceNoteWithUrl(cloudUrl);
           };
           reader.readAsDataURL(blob);
         } else {
@@ -658,15 +668,21 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result === 'string') {
+        const cloudUrl = await uploadMediaBlobToStorage(
+          'song_voice_notes',
+          file.name,
+          file,
+          reader.result
+        );
         const noteObj: SongVoiceNote = {
           id: `vn-${Date.now()}`,
           title: voiceNoteTitle.trim() || file.name.replace(/\.[^.]+$/, ''),
           authorId: activeMember.id,
           authorName: activeMember.name,
           authorRole: activeMember.role,
-          audioDataUrl: reader.result,
+          audioDataUrl: cloudUrl,
           durationSec: 12,
           createdAt: 'Archivo subido',
         };
@@ -696,9 +712,14 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     if (!file) return;
     const compressedDataUrl = await compressImageFileToDataUrl(file);
     if (compressedDataUrl) {
+      const cloudUrl = await uploadMediaDataUrlToStorage(
+        'chord_sheets',
+        file.name,
+        compressedDataUrl
+      );
       onUpdateSong({
         ...activeSong,
-        chordSheetImageUrl: compressedDataUrl,
+        chordSheetImageUrl: cloudUrl,
         attachedFileName: file.name,
       });
       setViewFormat('image');
@@ -3097,7 +3118,12 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       setNewFileName(f.name);
                       const compressed = await compressImageFileToDataUrl(f);
                       if (compressed) {
-                        setNewImageDataUrl(compressed);
+                        const cloudUrl = await uploadMediaDataUrlToStorage(
+                          'chord_sheets',
+                          f.name,
+                          compressed
+                        );
+                        setNewImageDataUrl(cloudUrl);
                       }
                     }
                   }}

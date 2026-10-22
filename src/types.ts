@@ -228,6 +228,7 @@ export type ChatChannelId = 'avisos' | 'general' | 'ensayos' | 'sugerencias' | '
 
 export interface ChatMessage {
   id: string;
+  groupId?: string;
   channel: ChatChannelId;
   senderId: string;
   senderName: string;
@@ -236,6 +237,7 @@ export interface ChatMessage {
   senderInstrument: string;
   text: string;
   timestamp: string;
+  createdAtMs?: number;
   isPinned?: boolean;
   prayerCount?: number;
   prayedByMemberIds?: string[];
@@ -299,6 +301,9 @@ export interface AppNotification {
 export interface WorshipGroup {
   id: string;
   leaderUserId: string;
+  memberIds?: string[];
+  invitedIdentifiers?: string[];
+  inviteCodeNormalized?: string;
   identity: AppIdentity;
   members: BandMember[];
   invitations: GmailInvitation[];

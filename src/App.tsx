@@ -51,10 +51,16 @@ import { ToolsModule } from './components/ToolsModule';
 import { useOnlineStatus, usePWAInstall } from './hooks/usePWAInstall';
 import {
   clearAllCloudData,
+  deleteChatMessageFromFirestore,
   deleteNotificationFromFirestore,
   deleteSongFromFirestore,
+  enrichGroupIndexes,
+  findGroupByInviteCodeInCloud,
   firebaseConfig,
+  signOutFirebaseOfficial,
   subscribeToJesustoneCloud,
+  syncChatMessageToFirestore,
+  syncFirebaseEmailAuth,
   syncGroupToFirestore,
   syncNotificationToFirestore,
   syncSongToFirestore,
@@ -91,6 +97,7 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'jesustone_notifications_v4',
   DELETED_SONG_IDS: 'jesustone_deleted_songs_v4',
   DELETED_EVENT_IDS: 'jesustone_deleted_events_v4',
+  DELETED_MSG_IDS: 'jesustone_deleted_msgs_v4',
 };
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -198,169 +205,226 @@ export default function App() {
 
   useEffect(() => {
     testFirestoreConnection();
-    const unsub = subscribeToJesustoneCloud({
-      onUsersSnapshot: (cloudUsers) => {
-        setUsers((prevLocal) => {
-          const cloudMap = new Map(cloudUsers.map((u) => [u.id, u]));
-          const merged = [...cloudUsers];
-          for (const localU of prevLocal) {
-            if (!cloudMap.has(localU.id)) {
-              merged.push(localU);
-              syncUserToFirestore(localU);
-            }
-          }
-          return merged;
-        });
+  }, []);
+
+  useEffect(() => {
+    const unsub = subscribeToJesustoneCloud(
+      {
+        currentUserId: currentUserId || undefined,
+        activeGroupId: activeGroupId || undefined,
+        messageLimit: 120,
       },
-      onGroupsSnapshot: (cloudGroups) => {
-        const deletedSongs = new Set<string>(
-          loadFromStorage<string[]>(STORAGE_KEYS.DELETED_SONG_IDS, [])
-        );
-        const deletedEvents = new Set<string>(
-          loadFromStorage<string[]>(STORAGE_KEYS.DELETED_EVENT_IDS, [])
-        );
-
-        setGroups((prevLocalGroups) => {
-          const cloudGroupIds = new Set(cloudGroups.map((cg) => cg.id));
-          const mergedGroups: WorshipGroup[] = cloudGroups.map((cloudGrp) => {
-            const localGrp = prevLocalGroups.find((g) => g.id === cloudGrp.id);
-            if (!localGrp) return cloudGrp;
-
-            const cloudSongMap = new Map(
-              (cloudGrp.songs || [])
-                .filter((s) => !deletedSongs.has(s.id))
-                .map((s) => [s.id, s])
-            );
-
-            let needsResync = false;
-            const mergedSongs: Song[] = [];
-            const seenSongIds = new Set<string>();
-
-            // 1. Conservar canciones agregadas localmente que aún no estaban en el snapshot de la nube
-            for (const localSong of localGrp.songs || []) {
-              if (deletedSongs.has(localSong.id)) continue;
-              if (!cloudSongMap.has(localSong.id)) {
-                mergedSongs.push(localSong);
-                seenSongIds.add(localSong.id);
-                needsResync = true;
-                syncSongToFirestore(cloudGrp.id, localSong);
+      {
+        onUsersSnapshot: (cloudUsers) => {
+          setUsers((prevLocal) => {
+            const cloudMap = new Map(cloudUsers.map((u) => [u.id, u]));
+            const merged = [...cloudUsers];
+            for (const localU of prevLocal) {
+              if (!cloudMap.has(localU.id)) {
+                merged.push(localU);
+                syncUserToFirestore(localU);
               }
             }
-
-            // 2. Añadir canciones de la nube (conservando adjuntos locales si el documento de grupo fue compactado)
-            for (const cloudSong of cloudGrp.songs || []) {
-              if (deletedSongs.has(cloudSong.id) || seenSongIds.has(cloudSong.id)) {
-                continue;
-              }
-              const localMatch = (localGrp.songs || []).find(
-                (ls) => ls.id === cloudSong.id
-              );
-              mergedSongs.push({
-                ...cloudSong,
-                chordSheetImageUrl:
-                  cloudSong.chordSheetImageUrl || localMatch?.chordSheetImageUrl,
-              });
-              seenSongIds.add(cloudSong.id);
-            }
-
-            if ((cloudGrp.songs || []).some((s) => deletedSongs.has(s.id))) {
-              needsResync = true;
-            }
-
-            // 3. Conservar eventos locales + eventos de la nube
-            const cloudEventMap = new Map(
-              (cloudGrp.events || [])
-                .filter((e) => !deletedEvents.has(e.id))
-                .map((e) => [e.id, e])
-            );
-            const mergedEvents: WorshipEvent[] = [];
-            const seenEventIds = new Set<string>();
-
-            for (const localEv of localGrp.events || []) {
-              if (deletedEvents.has(localEv.id)) continue;
-              if (!cloudEventMap.has(localEv.id)) {
-                mergedEvents.push(localEv);
-                seenEventIds.add(localEv.id);
-                needsResync = true;
-              }
-            }
-
-            for (const cloudEv of cloudGrp.events || []) {
-              if (deletedEvents.has(cloudEv.id) || seenEventIds.has(cloudEv.id)) {
-                continue;
-              }
-              mergedEvents.push(cloudEv);
-              seenEventIds.add(cloudEv.id);
-            }
-
-            const mergedGroup: WorshipGroup = {
-              ...cloudGrp,
-              songs: mergedSongs,
-              events: mergedEvents,
-            };
-
-            if (needsResync) {
-              syncGroupToFirestore(mergedGroup);
-            }
-
-            return mergedGroup;
+            return merged;
           });
+        },
+        onGroupsSnapshot: (cloudGroups) => {
+          const deletedSongs = new Set<string>(
+            loadFromStorage<string[]>(STORAGE_KEYS.DELETED_SONG_IDS, [])
+          );
+          const deletedEvents = new Set<string>(
+            loadFromStorage<string[]>(STORAGE_KEYS.DELETED_EVENT_IDS, [])
+          );
 
-          // Si había un grupo creado localmente que aún no subió a la nube, conservarlo
-          for (const localG of prevLocalGroups) {
-            if (!cloudGroupIds.has(localG.id)) {
-              mergedGroups.push(localG);
-              syncGroupToFirestore(localG);
-            }
-          }
+          setGroups((prevLocalGroups) => {
+            const cloudGroupIds = new Set(cloudGroups.map((cg) => cg.id));
+            const mergedGroups: WorshipGroup[] = cloudGroups.map((cloudGrp) => {
+              const localGrp = prevLocalGroups.find((g) => g.id === cloudGrp.id);
+              if (!localGrp) return enrichGroupIndexes(cloudGrp);
 
-          return mergedGroups;
-        });
-      },
-      onSongsSnapshot: (songsByGroup) => {
-        const deletedSongs = new Set<string>(
-          loadFromStorage<string[]>(STORAGE_KEYS.DELETED_SONG_IDS, [])
-        );
-        setGroups((prevGroups) =>
-          prevGroups.map((grp) => {
-            const extraSongs = (songsByGroup[grp.id] || []).filter(
-              (s) => !deletedSongs.has(s.id)
-            );
-            if (extraSongs.length === 0) return grp;
+              const cloudSongMap = new Map(
+                (cloudGrp.songs || [])
+                  .filter((s) => !deletedSongs.has(s.id))
+                  .map((s) => [s.id, s])
+              );
 
-            const existingMap = new Map(grp.songs.map((s) => [s.id, s]));
-            let changed = false;
-            const nextSongs = [...grp.songs];
+              let needsResync = false;
+              const mergedSongs: Song[] = [];
+              const seenSongIds = new Set<string>();
 
-            for (const extSong of extraSongs) {
-              const existing = existingMap.get(extSong.id);
-              if (!existing) {
-                nextSongs.unshift(extSong);
-                changed = true;
-              } else if (
-                !existing.chordSheetImageUrl &&
-                extSong.chordSheetImageUrl
-              ) {
-                const idx = nextSongs.findIndex((x) => x.id === extSong.id);
-                if (idx !== -1) {
-                  nextSongs[idx] = {
-                    ...existing,
-                    chordSheetImageUrl: extSong.chordSheetImageUrl,
-                  };
-                  changed = true;
+              // 1. Conservar canciones agregadas localmente que aún no estaban en el snapshot de la nube
+              for (const localSong of localGrp.songs || []) {
+                if (deletedSongs.has(localSong.id)) continue;
+                if (!cloudSongMap.has(localSong.id)) {
+                  mergedSongs.push(localSong);
+                  seenSongIds.add(localSong.id);
+                  needsResync = true;
+                  syncSongToFirestore(cloudGrp.id, localSong);
+                }
+              }
+
+              // 2. Añadir canciones de la nube (conservando adjuntos locales si el documento de grupo fue compactado)
+              for (const cloudSong of cloudGrp.songs || []) {
+                if (
+                  deletedSongs.has(cloudSong.id) ||
+                  seenSongIds.has(cloudSong.id)
+                ) {
+                  continue;
+                }
+                const localMatch = (localGrp.songs || []).find(
+                  (ls) => ls.id === cloudSong.id
+                );
+                mergedSongs.push({
+                  ...cloudSong,
+                  chordSheetImageUrl:
+                    cloudSong.chordSheetImageUrl ||
+                    localMatch?.chordSheetImageUrl,
+                });
+                seenSongIds.add(cloudSong.id);
+              }
+
+              if ((cloudGrp.songs || []).some((s) => deletedSongs.has(s.id))) {
+                needsResync = true;
+              }
+
+              // 3. Conservar eventos locales + eventos de la nube
+              const cloudEventMap = new Map(
+                (cloudGrp.events || [])
+                  .filter((e) => !deletedEvents.has(e.id))
+                  .map((e) => [e.id, e])
+              );
+              const mergedEvents: WorshipEvent[] = [];
+              const seenEventIds = new Set<string>();
+
+              for (const localEv of localGrp.events || []) {
+                if (deletedEvents.has(localEv.id)) continue;
+                if (!cloudEventMap.has(localEv.id)) {
+                  mergedEvents.push(localEv);
+                  seenEventIds.add(localEv.id);
+                  needsResync = true;
+                }
+              }
+
+              for (const cloudEv of cloudGrp.events || []) {
+                if (
+                  deletedEvents.has(cloudEv.id) ||
+                  seenEventIds.has(cloudEv.id)
+                ) {
+                  continue;
+                }
+                mergedEvents.push(cloudEv);
+                seenEventIds.add(cloudEv.id);
+              }
+
+              if (!cloudGrp.memberIds || cloudGrp.memberIds.length === 0) {
+                needsResync = true;
+              }
+
+              const mergedGroup: WorshipGroup = enrichGroupIndexes({
+                ...cloudGrp,
+                songs: mergedSongs,
+                events: mergedEvents,
+              });
+
+              if (needsResync) {
+                syncGroupToFirestore(mergedGroup);
+              }
+
+              return mergedGroup;
+            });
+
+            // Conservar grupos locales del usuario que aún no hayan subido o que no vinieron en el filtro
+            for (const localG of prevLocalGroups) {
+              if (!cloudGroupIds.has(localG.id)) {
+                const enrichedLocal = enrichGroupIndexes(localG);
+                mergedGroups.push(enrichedLocal);
+                if (
+                  currentUserId &&
+                  enrichedLocal.memberIds?.includes(currentUserId)
+                ) {
+                  syncGroupToFirestore(enrichedLocal);
                 }
               }
             }
 
-            return changed ? { ...grp, songs: nextSongs } : grp;
-          })
-        );
-      },
-      onNotificationsSnapshot: (cloudNotifs) => setNotifications(cloudNotifs),
-      onSyncStatusChange: (status) => setCloudStatus(status),
-    });
+            return mergedGroups;
+          });
+        },
+        onSongsSnapshot: (songsByGroup) => {
+          const deletedSongs = new Set<string>(
+            loadFromStorage<string[]>(STORAGE_KEYS.DELETED_SONG_IDS, [])
+          );
+          setGroups((prevGroups) =>
+            prevGroups.map((grp) => {
+              const extraSongs = (songsByGroup[grp.id] || []).filter(
+                (s) => !deletedSongs.has(s.id)
+              );
+              if (extraSongs.length === 0) return grp;
+
+              const existingMap = new Map(grp.songs.map((s) => [s.id, s]));
+              let changed = false;
+              const nextSongs = [...grp.songs];
+
+              for (const extSong of extraSongs) {
+                const existing = existingMap.get(extSong.id);
+                if (!existing) {
+                  nextSongs.unshift(extSong);
+                  changed = true;
+                } else if (
+                  !existing.chordSheetImageUrl &&
+                  extSong.chordSheetImageUrl
+                ) {
+                  const idx = nextSongs.findIndex((x) => x.id === extSong.id);
+                  if (idx !== -1) {
+                    nextSongs[idx] = {
+                      ...existing,
+                      chordSheetImageUrl: extSong.chordSheetImageUrl,
+                    };
+                    changed = true;
+                  }
+                }
+              }
+
+              return changed ? { ...grp, songs: nextSongs } : grp;
+            })
+          );
+        },
+        onMessagesSnapshot: (groupId, cloudMessages) => {
+          const deletedMsgs = new Set<string>(
+            loadFromStorage<string[]>(STORAGE_KEYS.DELETED_MSG_IDS, [])
+          );
+          setGroups((prevGroups) =>
+            prevGroups.map((grp) => {
+              if (grp.id !== groupId) return grp;
+              const validCloud = cloudMessages.filter(
+                (m) => !deletedMsgs.has(m.id)
+              );
+              if (validCloud.length === 0) return grp;
+
+              const cloudMap = new Map(validCloud.map((m) => [m.id, m]));
+              const combined: ChatMessage[] = [...validCloud];
+
+              for (const localMsg of grp.chatMessages || []) {
+                if (deletedMsgs.has(localMsg.id)) continue;
+                if (!cloudMap.has(localMsg.id)) {
+                  combined.push(localMsg);
+                  syncChatMessageToFirestore(groupId, localMsg);
+                }
+              }
+
+              return {
+                ...grp,
+                chatMessages: combined,
+              };
+            })
+          );
+        },
+        onNotificationsSnapshot: (cloudNotifs) => setNotifications(cloudNotifs),
+        onSyncStatusChange: (status) => setCloudStatus(status),
+      }
+    );
     return () => unsub();
-  }, []);
+  }, [currentUserId, activeGroupId]);
 
   useEffect(() => {
     safeSaveToStorage(STORAGE_KEYS.USERS, users);
@@ -461,9 +525,10 @@ export default function App() {
   };
 
   // ============================================================================
-  // HANDLERS DE AUTENTICACIÓN ESTÁNDAR (CORREO, @USUARIO Y CONTRASEÑA)
+  // HANDLERS DE AUTENTICACIÓN ESTÁNDAR + FIREBASE AUTH OFICIAL
   // ============================================================================
   const handleRegisterStandardUser = (data: {
+    id?: string;
     name: string;
     username: string;
     email: string;
@@ -498,7 +563,7 @@ export default function App() {
         : data.name.slice(0, 2).toUpperCase();
 
     const newUser: AppUser = {
-      id: `u-${Date.now()}`,
+      id: data.id || `u-${Date.now()}`,
       name: data.name,
       username: data.username,
       email: data.email,
@@ -511,8 +576,38 @@ export default function App() {
 
     setUsers((prev) => [...prev, newUser]);
     syncUserToFirestore(newUser);
+    syncFirebaseEmailAuth(data.email, data.password, true);
     setCurrentUserId(newUser.id);
     return { ok: true };
+  };
+
+  const handleResetLocalPassword = (
+    emailOrUsername: string,
+    newPassword: string
+  ): { ok: boolean; message: string } => {
+    const clean = emailOrUsername.trim().toLowerCase().replace(/^@/, '');
+    const targetUser = users.find(
+      (u) =>
+        u.email.toLowerCase() === clean || u.username.toLowerCase() === clean
+    );
+    if (!targetUser) {
+      return {
+        ok: false,
+        message: 'No se encontró un usuario registrado con ese correo o @usuario.',
+      };
+    }
+    const updatedUser: AppUser = {
+      ...targetUser,
+      password: newPassword,
+    };
+    setUsers((prev) =>
+      prev.map((u) => (u.id === targetUser.id ? updatedUser : u))
+    );
+    syncUserToFirestore(updatedUser);
+    return {
+      ok: true,
+      message: `¡Contraseña actualizada para @${targetUser.username}! Ya puedes ingresar.`,
+    };
   };
 
   const handleUpdateUserAvatar = (avatarUrl: string | undefined) => {
@@ -569,6 +664,10 @@ export default function App() {
   };
 
   const handleLoginUser = (userId: string) => {
+    const matched = users.find((u) => u.id === userId);
+    if (matched) {
+      syncFirebaseEmailAuth(matched.email, matched.password, false);
+    }
     setCurrentUserId(userId);
     const userGroups = groups.filter((g) =>
       g.members.some((m) => m.id === userId)
@@ -579,6 +678,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    signOutFirebaseOfficial();
     setCurrentUserId('');
     setActiveGroupId('');
     setIsAuthModalOpen(false);
@@ -625,7 +725,7 @@ export default function App() {
       joinedAt: 'Creador / Líder del Grupo',
     };
 
-    const newGroup: WorshipGroup = {
+    const newGroup: WorshipGroup = enrichGroupIndexes({
       id: `grp-${Date.now()}`,
       leaderUserId: currentUser.id,
       identity: {
@@ -655,7 +755,7 @@ export default function App() {
           targetTab: 'inicio',
         },
       ],
-    };
+    });
 
     setGroups((prev) => [newGroup, ...prev]);
     syncGroupToFirestore(newGroup);
@@ -664,9 +764,9 @@ export default function App() {
     return { ok: true };
   };
 
-  const handleJoinGroupByCodeOrInvite = (
+  const handleJoinGroupByCodeOrInvite = async (
     codeOrGroupId: string
-  ): { ok: boolean; error?: string } => {
+  ): Promise<{ ok: boolean; error?: string }> => {
     if (!currentUser) {
       return { ok: false, error: 'Debes iniciar sesión primero.' };
     }
@@ -678,10 +778,19 @@ export default function App() {
     }
 
     const clean = codeOrGroupId.trim().toUpperCase();
-    const targetGroup = groups.find(
+    let targetGroup = groups.find(
       (g) =>
         g.id === codeOrGroupId || g.identity.inviteCode.toUpperCase() === clean
     );
+
+    // Si el grupo pertenece a otra banda que aún no estaba descargada localmente,
+    // lo consultamos directamente en Firestore por su código de invitación
+    if (!targetGroup) {
+      const cloudMatch = await findGroupByInviteCodeInCloud(codeOrGroupId);
+      if (cloudMatch) {
+        targetGroup = cloudMatch;
+      }
+    }
 
     if (!targetGroup) {
       return {
@@ -726,37 +835,40 @@ export default function App() {
       joinedAt: 'Miembro del Grupo',
     };
 
-    setGroups((prev) =>
-      prev.map((g) => {
-        if (g.id !== targetGroup.id) return g;
-        const updatedGroup: WorshipGroup = {
-          ...g,
-          members: [...g.members, newMember],
-          invitations: g.invitations.map((inv) =>
-            matchedInvite && inv.id === matchedInvite.id
-              ? { ...inv, status: 'accepted' }
-              : inv
-          ),
-          activityFeed: [
-            {
-              id: `feed-${Date.now()}`,
-              type: 'member_joined' as const,
-              actorName: currentUser.name,
-              actorRole: 'member' as const,
-              title: 'Nuevo Miembro en el Grupo',
-              description: `@${currentUser.username} se unió a «${g.identity.ministryName}».`,
-              timestamp: 'Justo ahora',
-              targetTab: 'inicio' as NavigationTab,
-            },
-            ...g.activityFeed,
-          ].slice(0, 5),
-        };
-        syncGroupToFirestore(updatedGroup);
-        return updatedGroup;
-      })
-    );
+    const resolvedTarget = targetGroup;
+    const updatedGroup: WorshipGroup = enrichGroupIndexes({
+      ...resolvedTarget,
+      members: [...resolvedTarget.members, newMember],
+      invitations: resolvedTarget.invitations.map((inv) =>
+        matchedInvite && inv.id === matchedInvite.id
+          ? { ...inv, status: 'accepted' }
+          : inv
+      ),
+      activityFeed: [
+        {
+          id: `feed-${Date.now()}`,
+          type: 'member_joined' as const,
+          actorName: currentUser.name,
+          actorRole: 'member' as const,
+          title: 'Nuevo Miembro en el Grupo',
+          description: `@${currentUser.username} se unió a «${resolvedTarget.identity.ministryName}».`,
+          timestamp: 'Justo ahora',
+          targetTab: 'inicio' as NavigationTab,
+        },
+        ...resolvedTarget.activityFeed,
+      ].slice(0, 5),
+    });
 
-    setActiveGroupId(targetGroup.id);
+    setGroups((prev) => {
+      const existsLocally = prev.some((g) => g.id === updatedGroup.id);
+      if (existsLocally) {
+        return prev.map((g) => (g.id === updatedGroup.id ? updatedGroup : g));
+      }
+      return [updatedGroup, ...prev];
+    });
+    syncGroupToFirestore(updatedGroup);
+
+    setActiveGroupId(updatedGroup.id);
     setActiveTab('inicio');
     return { ok: true };
   };
@@ -778,6 +890,7 @@ export default function App() {
           activeGroupId={activeGroupId}
           onLoginUser={handleLoginUser}
           onRegisterStandardUser={handleRegisterStandardUser}
+          onResetLocalPassword={handleResetLocalPassword}
           onUpdateUserAvatar={handleUpdateUserAvatar}
           onUpdateUserInstruments={handleUpdateUserInstruments}
           onLogout={handleLogout}
@@ -1582,7 +1695,8 @@ export default function App() {
     const mentionedHandles = extractMentionedUsernames(text);
 
     const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      groupId: activeGroup.id,
       channel,
       senderId: activeMember.id,
       senderName: activeMember.name,
@@ -1591,6 +1705,7 @@ export default function App() {
       senderInstrument: activeMember.instruments[0] || 'Banda',
       text,
       timestamp: timeStr,
+      createdAtMs: Date.now(),
       attachedSongId,
       mentionedUsernames: mentionedHandles,
       voiceClipUrl,
@@ -1598,6 +1713,7 @@ export default function App() {
       prayerCount: channel === 'oracion' ? 1 : undefined,
       prayedByMemberIds: channel === 'oracion' ? [activeMember.id] : undefined,
     };
+    syncChatMessageToFirestore(activeGroup.id, newMsg);
     updateActiveGroup((g) => ({
       ...g,
       chatMessages: [...g.chatMessages, newMsg],
@@ -1645,16 +1761,20 @@ export default function App() {
         const updatedList = hasPrayed
           ? list.filter((id) => id !== activeMember.id)
           : [...list, activeMember.id];
-        return {
+        const updatedMsg: ChatMessage = {
           ...m,
           prayedByMemberIds: updatedList,
           prayerCount: updatedList.length,
         };
+        syncChatMessageToFirestore(g.id, updatedMsg);
+        return updatedMsg;
       }),
     }));
   };
 
   const handleDeleteChatMessage = (messageId: string) => {
+    recordDeletedId(STORAGE_KEYS.DELETED_MSG_IDS, messageId);
+    deleteChatMessageFromFirestore(messageId);
     updateActiveGroup((g) => ({
       ...g,
       chatMessages: g.chatMessages.filter((m) => m.id !== messageId),
@@ -2065,6 +2185,7 @@ export default function App() {
           activeGroupId={activeGroup.id}
           onLoginUser={handleLoginUser}
           onRegisterStandardUser={handleRegisterStandardUser}
+          onResetLocalPassword={handleResetLocalPassword}
           onUpdateUserAvatar={handleUpdateUserAvatar}
           onUpdateUserInstruments={handleUpdateUserInstruments}
           onLogout={handleLogout}

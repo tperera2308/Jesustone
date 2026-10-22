@@ -8,6 +8,7 @@ import {
   Song,
 } from '../types';
 import { generateDemoVoiceClipDataUrl } from '../utils/audioEngine';
+import { uploadMediaBlobToStorage } from '../firebase';
 import { BrandIconDisplay, getAccentClasses } from './IdentityModal';
 import {
   ArrowLeft,
@@ -189,12 +190,18 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
         if (audioChunksRef.current.length > 0) {
           const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           const reader = new FileReader();
-          reader.onloadend = () => {
-            if (typeof reader.result === 'string') {
-              finalizeClip(reader.result);
-            } else {
-              finalizeClip(generateDemoVoiceClipDataUrl(finalSec));
-            }
+          reader.onloadend = async () => {
+            const fallbackUrl =
+              typeof reader.result === 'string'
+                ? reader.result
+                : generateDemoVoiceClipDataUrl(finalSec);
+            const cloudUrl = await uploadMediaBlobToStorage(
+              'chat_audio',
+              `chat_${Date.now()}.webm`,
+              blob,
+              fallbackUrl
+            );
+            finalizeClip(cloudUrl);
           };
           reader.readAsDataURL(blob);
         } else {

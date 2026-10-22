@@ -18,6 +18,11 @@ import {
   getAccentClasses,
 } from './IdentityModal';
 import {
+  sendOfficialPasswordReset,
+  signInWithGoogleOfficial,
+  uploadMediaDataUrlToStorage,
+} from '../firebase';
+import {
   ArrowRight,
   AtSign,
   Camera,
@@ -50,6 +55,7 @@ interface AuthOnboardingModalProps {
   activeGroupId: string;
   onLoginUser: (userId: string) => void;
   onRegisterStandardUser: (data: {
+    id?: string;
     name: string;
     username: string;
     email: string;
@@ -57,6 +63,10 @@ interface AuthOnboardingModalProps {
     instruments: InstrumentRole[];
     avatarUrl?: string;
   }) => { ok: boolean; error?: string };
+  onResetLocalPassword?: (emailOrUsername: string, newPassword: string) => {
+    ok: boolean;
+    message: string;
+  };
   onUpdateUserAvatar?: (avatarUrl: string | undefined) => void;
   onUpdateUserInstruments?: (instruments: InstrumentRole[]) => void;
   onLogout: () => void;
@@ -66,10 +76,9 @@ interface AuthOnboardingModalProps {
     customImageUrl?: string;
     accentColor: AccentColorId;
   }) => { ok: boolean; error?: string };
-  onJoinGroupByCodeOrInvite: (codeOrGroupId: string) => {
-    ok: boolean;
-    error?: string;
-  };
+  onJoinGroupByCodeOrInvite: (codeOrGroupId: string) =>
+    | { ok: boolean; error?: string }
+    | Promise<{ ok: boolean; error?: string }>;
   onSelectGroup: (groupId: string) => void;
 }
 
@@ -84,6 +93,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
   activeGroupId,
   onLoginUser,
   onRegisterStandardUser,
+  onResetLocalPassword,
   onUpdateUserAvatar,
   onUpdateUserInstruments,
   onLogout,
@@ -106,6 +116,9 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [showResetBox, setShowResetBox] = useState(false);
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetFeedback, setResetFeedback] = useState<string | null>(null);
 
   // Standard Registration State
   const [regName, setRegName] = useState('');
@@ -146,8 +159,13 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const dataUrl = await compressImageFileToDataUrl(file, 180);
-      setRegAvatarUrl(dataUrl);
+      const dataUrl = await compressImageFileToDataUrl(file, 220);
+      const uploadedUrl = await uploadMediaDataUrlToStorage(
+        'avatars',
+        file.name,
+        dataUrl
+      );
+      setRegAvatarUrl(uploadedUrl);
     } catch {
       // ignore invalid file
     }
@@ -159,8 +177,13 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
     const file = e.target.files?.[0];
     if (!file || !onUpdateUserAvatar) return;
     try {
-      const dataUrl = await compressImageFileToDataUrl(file, 180);
-      onUpdateUserAvatar(dataUrl);
+      const dataUrl = await compressImageFileToDataUrl(file, 220);
+      const uploadedUrl = await uploadMediaDataUrlToStorage(
+        'avatars',
+        file.name,
+        dataUrl
+      );
+      onUpdateUserAvatar(uploadedUrl);
     } catch {
       // ignore invalid file
     }
@@ -172,11 +195,81 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const dataUrl = await compressImageFileToDataUrl(file, 180);
-      setNewGroupImageUrl(dataUrl);
+      const dataUrl = await compressImageFileToDataUrl(file, 220);
+      const uploadedUrl = await uploadMediaDataUrlToStorage(
+        'groups',
+        file.name,
+        dataUrl
+      );
+      setNewGroupImageUrl(uploadedUrl);
     } catch {
       // ignore invalid file
     }
+  };
+
+  const handleGoogleAccess = async () => {
+    setLoginError(null);
+    setRegError(null);
+    const res = await signInWithGoogleOfficial();
+    if (!res.ok || !res.email) {
+      const errMsg = res.error || 'No se pudo completar el acceso con Google.';
+      if (authTab === 'login') setLoginError(errMsg);
+      else setRegError(errMsg);
+      return;
+    }
+
+    const existing = users.find(
+      (u) => u.email.toLowerCase() === res.email!.toLowerCase()
+    );
+    if (existing) {
+      onLoginUser(existing.id);
+      return;
+    }
+
+    const baseHandle = res.email
+      .split('@')[0]
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '_');
+    const uniqueHandle = users.some((u) => u.username === baseHandle)
+      ? `${baseHandle}_${Math.floor(100 + Math.random() * 900)}`
+      : baseHandle;
+
+    onRegisterStandardUser({
+      id: res.uid ? `u-${res.uid}` : undefined,
+      name: res.name || baseHandle,
+      username: uniqueHandle,
+      email: res.email.toLowerCase(),
+      password: `google_${res.uid || Date.now()}`,
+      instruments:
+        selectedInstruments.length > 0
+          ? selectedInstruments
+          : ['Vocalista líder'],
+      avatarUrl: res.photoURL,
+    });
+  };
+
+  const handlePasswordRecoverySubmit = async () => {
+    const cleanId = loginIdentifier.trim();
+    if (!cleanId) {
+      setResetFeedback(
+        'Escribe arriba tu correo electrónico o @usuario para restablecer tu contraseña.'
+      );
+      return;
+    }
+    if (resetNewPassword.trim().length >= 4 && onResetLocalPassword) {
+      const localRes = onResetLocalPassword(cleanId, resetNewPassword.trim());
+      if (localRes.ok) {
+        await sendOfficialPasswordReset(cleanId);
+        setResetFeedback(localRes.message);
+        setLoginPassword(resetNewPassword.trim());
+        setResetNewPassword('');
+        return;
+      }
+      setResetFeedback(localRes.message);
+      return;
+    }
+    const cloudRes = await sendOfficialPasswordReset(cleanId);
+    setResetFeedback(cloudRes.message);
   };
 
   // ============================================================================
@@ -372,16 +465,68 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 <span>Ingresar a mi Cuenta</span>
               </button>
 
-              <p className="text-center text-xs text-slate-500 dark:text-slate-400 pt-1">
-                ¿Aún no tienes cuenta?{' '}
-                <button
-                  type="button"
-                  onClick={() => setAuthTab('register')}
-                  className={`font-bold hover:underline ${accent.textClass}`}
-                >
-                  Regístrate aquí
-                </button>
-              </p>
+              {/* Acceso oficial con Google (Firebase Auth) */}
+              <button
+                type="button"
+                onClick={handleGoogleAccess}
+                className="w-full min-h-[48px] py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2.5 transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <span>Continuar con Google (Firebase Auth)</span>
+              </button>
+
+              {/* Recuperación de contraseña */}
+              <div className="pt-1 border-t border-slate-200/70 dark:border-slate-800/70 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowResetBox(!showResetBox);
+                      setResetFeedback(null);
+                    }}
+                    className="font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthTab('register')}
+                    className={`font-bold hover:underline ${accent.textClass}`}
+                  >
+                    Crear cuenta nueva
+                  </button>
+                </div>
+
+                {showResetBox && (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2.5">
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Ingresa tu correo o <code>@usuario</code> arriba y define una nueva
+                      contraseña (o envía correo de recuperación de Firebase Auth):
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="password"
+                        value={resetNewPassword}
+                        onChange={(e) => setResetNewPassword(e.target.value)}
+                        placeholder="Nueva contraseña (mín. 4 caracteres)"
+                        className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={handlePasswordRecoverySubmit}
+                        className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 ${accent.bgClass}`}
+                      >
+                        Restablecer Clave
+                      </button>
+                    </div>
+                    {resetFeedback && (
+                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                        {resetFeedback}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </form>
           ) : (
             /* FORMULARIO 2: REGISTRARSE (CON FOTO DE PERFIL OPCIONAL) */
@@ -579,6 +724,15 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 <UserPlus className="w-4 h-4" />
                 <span>Crear Cuenta y Entrar</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleGoogleAccess}
+                className="w-full min-h-[46px] py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2.5 transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <span>Registrarme rápido con Google</span>
+              </button>
             </form>
           )}
         </div>
@@ -629,10 +783,10 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
     onClose();
   };
 
-  const handleJoinByCodeSubmit = (e: React.FormEvent) => {
+  const handleJoinByCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinCodeInput.trim()) return;
-    const res = onJoinGroupByCodeOrInvite(joinCodeInput.trim());
+    const res = await onJoinGroupByCodeOrInvite(joinCodeInput.trim());
     if (!res.ok) {
       setGroupActionError(res.error || 'No se encontró un grupo con ese código.');
       return;
@@ -917,8 +1071,8 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                     <button
                       type="button"
                       disabled={hasReachedLimit}
-                      onClick={() => {
-                        const res = onJoinGroupByCodeOrInvite(group.id);
+                      onClick={async () => {
+                        const res = await onJoinGroupByCodeOrInvite(group.id);
                         if (!res.ok) {
                           setGroupActionError(res.error || null);
                         } else {
@@ -1264,8 +1418,8 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                       <button
                         type="button"
                         disabled={hasReachedLimit}
-                        onClick={() => {
-                          const res = onJoinGroupByCodeOrInvite(group.id);
+                        onClick={async () => {
+                          const res = await onJoinGroupByCodeOrInvite(group.id);
                           if (!res.ok) {
                             setGroupActionError(res.error || null);
                           } else {
