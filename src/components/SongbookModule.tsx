@@ -33,6 +33,7 @@ import {
   ExternalLink,
   FileText,
   FolderKanban,
+  Headphones,
   Image as ImageIcon,
   ListMusic,
   Lock,
@@ -71,6 +72,7 @@ interface SongbookModuleProps {
   onUpdateSong: (song: Song) => void;
   onDeleteSong?: (songId: string) => void;
   onUpdateEventPlaylist: (eventId: string, updatedSongs: EventSongItem[]) => void;
+  onUpdateEvent?: (event: WorshipEvent) => void;
   onOpenMetronomeWithSong: (bpm: number, timeSignature: TimeSignature) => void;
 }
 
@@ -183,6 +185,7 @@ function getBeatsCountFromTimeSignature(ts: TimeSignature): number {
 export const SongbookModule: React.FC<SongbookModuleProps> = ({
   songs,
   events,
+  members,
   activeMember,
   accentColor,
   initialSongId,
@@ -191,6 +194,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   onUpdateSong,
   onDeleteSong,
   onUpdateEventPlaylist,
+  onUpdateEvent,
   onOpenMetronomeWithSong,
 }) => {
   const accent = getAccentClasses(accentColor);
@@ -287,7 +291,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   ]);
   const [newCustomSection, setNewCustomSection] = useState('');
   const [newGroupNotes, setNewGroupNotes] = useState('');
-  const [newSpotifyUrl, setNewSpotifyUrl] = useState('https://open.spotify.com');
+  const [newSpotifyUrl, setNewSpotifyUrl] = useState('');
   const [newLyrics, setNewLyrics] = useState(
     `[Intro]\nG   D/F#   Em7   Cadd9\n\n[Verso 1]\nG                      D/F#\nEscribe aquí la letra con acordes arriba\nEm7                    Cadd9\nTodos en el grupo podrán ver esta canción y su archivo`
   );
@@ -298,6 +302,20 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     activeSubView === 'setlists'
       ? events.find((ev) => ev.id === selectedEventId) || events[0]
       : undefined;
+
+  // Spotify Playlist Draft for Event Setlist
+  const [eventSpotifyDraft, setEventSpotifyDraft] = useState<string>(
+    activeEventList?.spotifyPlaylistUrl || ''
+  );
+  const [isEditingEventSpotify, setIsEditingEventSpotify] = useState<boolean>(false);
+  const [eventSpotifySavedNotice, setEventSpotifySavedNotice] = useState<string>('');
+
+  useEffect(() => {
+    if (activeEventList) {
+      setEventSpotifyDraft(activeEventList.spotifyPlaylistUrl || '');
+      setIsEditingEventSpotify(false);
+    }
+  }, [activeEventList?.id, activeEventList?.spotifyPlaylistUrl]);
 
   // Songs displayed according to current screen: Base Repertoire vs Event Setlist
   const songsInSelectedList = (() => {
@@ -759,7 +777,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       style: newStyle,
       characteristics: chars.length > 0 ? chars : ['Congregacional'],
       structure: finalStructure,
-      spotifyUrl: newSpotifyUrl.trim() || 'https://open.spotify.com',
+      spotifyUrl: newSpotifyUrl.trim() || undefined,
       spotifyTrackId: `SP-${Date.now().toString().slice(-4)}`,
       referenceDuration: '04:30',
       chordProgPreview: defaultChords,
@@ -783,10 +801,24 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
     setNewTitle('');
     setNewArtist('');
+    setNewSpotifyUrl('');
     setNewGroupNotes('');
     setNewImageDataUrl('');
     setNewFileName('');
     setShowAddModal(false);
+  };
+
+  const handleSaveActiveEventSpotifyPlaylist = (urlToSave?: string) => {
+    if (!activeEventList || !onUpdateEvent) return;
+    const finalUrl = (urlToSave !== undefined ? urlToSave : eventSpotifyDraft).trim();
+    onUpdateEvent({
+      ...activeEventList,
+      spotifyPlaylistUrl: finalUrl || undefined,
+    });
+    setEventSpotifyDraft(finalUrl);
+    setIsEditingEventSpotify(false);
+    setEventSpotifySavedNotice('Playlist de Spotify vinculada a este culto');
+    window.setTimeout(() => setEventSpotifySavedNotice(''), 3000);
   };
 
   const toggleSongInActiveEventPlaylist = (song: Song) => {
@@ -2520,7 +2552,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 )}
               </div>
 
-              {/* Selector de Eventos */}
+              {/* Selector simple y limpio de Eventos (Pills horizontales) */}
               {events.length === 0 ? (
                 <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
                   <Calendar className="w-10 h-10 text-slate-400 mx-auto" />
@@ -2532,7 +2564,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full min-w-0 max-w-full">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none w-full min-w-0">
                   {events.map((ev) => {
                     const isSelected = activeEventList?.id === ev.id;
                     return (
@@ -2540,26 +2572,18 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         key={ev.id}
                         type="button"
                         onClick={() => setSelectedEventId(ev.id)}
-                        className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all min-h-[76px] w-full min-w-0 ${
+                        className={`px-4 py-2.5 rounded-2xl text-xs font-bold shrink-0 flex items-center gap-2 transition-all border min-h-[44px] ${
                           isSelected
-                            ? `${accent.borderClass} ${accent.softBgClass} ring-2 ring-current shadow-sm`
+                            ? `${accent.borderClass} ${accent.bgClass} shadow-sm`
                             : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
                         }`}
                       >
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-mono font-bold opacity-80">{ev.date} · {ev.time}</span>
-                          <span className="font-mono font-bold px-2 py-0.5 rounded-lg bg-black/10 dark:bg-white/10 text-[11px]">
-                            {ev.songs.length} {ev.songs.length === 1 ? 'canción' : 'canciones'}
-                          </span>
-                        </div>
-                        <p className="text-sm font-bold truncate mt-1 text-slate-900 dark:text-white">
-                          {ev.title}
-                        </p>
-                        {ev.preacherOrTheme && (
-                          <p className="text-xs text-slate-500 truncate mt-0.5">
-                            {ev.preacherOrTheme}
-                          </p>
-                        )}
+                        <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate max-w-[200px]">{ev.title}</span>
+                        <span className="font-mono text-[11px] opacity-75">({ev.date})</span>
+                        <span className="ml-0.5 px-2 py-0.5 rounded-full text-[10px] font-mono bg-black/15 dark:bg-white/15">
+                          {ev.songs.length} {ev.songs.length === 1 ? 'canción' : 'canciones'}
+                        </span>
                       </button>
                     );
                   })}
@@ -2568,8 +2592,8 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
               {/* Detalle del Setlist Activo */}
               {activeEventList && (
-                <div className="space-y-4 pt-2">
-                  {/* Banner de información y atril */}
+                <div className="space-y-4 pt-1">
+                  {/* Banner de información, Spotify y atril */}
                   <div className="p-4 sm:p-5 rounded-3xl bg-slate-900 text-white border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-400 font-mono font-bold">
@@ -2587,6 +2611,20 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {/* Botón Escuchar Playlist en Spotify */}
+                      {activeEventList.spotifyPlaylistUrl && (
+                        <a
+                          href={activeEventList.spotifyPlaylistUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="min-h-[44px] px-4 py-2 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md transition-colors"
+                          title="Abrir playlist en Spotify"
+                        >
+                          <Headphones className="w-4 h-4 text-black" />
+                          <span>Escuchar en Spotify</span>
+                        </a>
+                      )}
+
                       {activeEventList.songs.length > 0 && (
                         <button
                           type="button"
@@ -2601,7 +2639,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                           className="min-h-[44px] px-4 py-2 rounded-xl bg-white text-slate-950 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md hover:bg-slate-100 transition-colors"
                         >
                           <Maximize2 className="w-4 h-4" />
-                          <span>Abrir Setlist en Modo Atril</span>
+                          <span>Modo Atril</span>
                         </button>
                       )}
 
@@ -2617,6 +2655,73 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       )}
                     </div>
                   </div>
+
+                  {/* Vinculación rápida de Spotify Playlist para el Líder */}
+                  {isLeader && (
+                    <div className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Headphones className="w-4 h-4 text-[#1DB954] shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {activeEventList.spotifyPlaylistUrl
+                              ? 'Playlist de Spotify Vinculada al Evento'
+                              : 'Vincular Playlist de Spotify a este Evento'}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {activeEventList.spotifyPlaylistUrl ||
+                              'Añade el enlace de Spotify para que la banda escuche la setlist completa'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isEditingEventSpotify ? (
+                          <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                            <input
+                              type="url"
+                              value={eventSpotifyDraft}
+                              onChange={(e) => setEventSpotifyDraft(e.target.value)}
+                              placeholder="https://open.spotify.com/playlist/..."
+                              className="min-h-[38px] px-3 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white w-52 sm:w-64"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSaveActiveEventSpotifyPlaylist()}
+                              className="min-h-[38px] px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0"
+                            >
+                              Guardar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingEventSpotify(false)}
+                              className="min-h-[38px] px-2.5 py-1 rounded-xl text-xs font-bold text-slate-500"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingEventSpotify(true)}
+                            className="min-h-[38px] px-3 py-1.5 rounded-xl border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>
+                              {activeEventList.spotifyPlaylistUrl
+                                ? 'Cambiar Link Spotify'
+                                : '+ Vincular Playlist'}
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {eventSpotifySavedNotice && (
+                    <div className="px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      ✓ {eventSpotifySavedNotice}
+                    </div>
+                  )}
 
                   {/* Listado ordenado de canciones del setlist */}
                   {activeEventList.songs.length === 0 ? (
@@ -2923,6 +3028,20 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                  <Headphones className="w-3.5 h-3.5 text-emerald-500" />
+                  Enlace de Referencia de Spotify (Opcional)
+                </label>
+                <input
+                  type="url"
+                  value={newSpotifyUrl}
+                  onChange={(e) => setNewSpotifyUrl(e.target.value)}
+                  placeholder="https://open.spotify.com/track/... o link a la canción en Spotify"
+                  className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Notas Grupales de la Canción (Opcional — para toda la banda)
                 </label>
@@ -2999,6 +3118,32 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Vinculación de Playlist de Spotify del Evento */}
+            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+              <label className="text-xs font-bold text-slate-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <Headphones className="w-3.5 h-3.5 text-emerald-500" />
+                Playlist de Spotify de este Culto/Evento (para el grupo)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={eventSpotifyDraft}
+                  onChange={(e) => setEventSpotifyDraft(e.target.value)}
+                  placeholder="https://open.spotify.com/playlist/... (para escuchar la setlist completa)"
+                  className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                />
+                {onUpdateEvent && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveActiveEventSpotifyPlaylist()}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0"
+                  >
+                    Guardar Link
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2.5 max-h-[55vh] overflow-y-auto">
@@ -3126,7 +3271,16 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
             <button
               type="button"
-              onClick={() => setShowManagePlaylistModal(false)}
+              onClick={() => {
+                if (
+                  activeEventList &&
+                  onUpdateEvent &&
+                  eventSpotifyDraft !== (activeEventList.spotifyPlaylistUrl || '')
+                ) {
+                  handleSaveActiveEventSpotifyPlaylist();
+                }
+                setShowManagePlaylistModal(false);
+              }}
               className={`w-full min-h-[48px] rounded-2xl text-sm font-bold ${accent.bgClass}`}
             >
               Listo · Guardar Playlist y Tonos Semanales

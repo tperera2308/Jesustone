@@ -130,6 +130,7 @@ export interface WorshipEvent {
   personalNotes?: Record<string, string>; // keyed by memberId / userId
   songs: EventSongItem[];
   assignments: ServiceAssignment[];
+  spotifyPlaylistUrl?: string;
 }
 
 export type TimeSignature = '2/4' | '3/4' | '4/4' | '6/8';
@@ -155,7 +156,7 @@ export interface Song {
   style: 'Adoración' | 'Alabanza / Júbilo' | 'Intimidad' | 'Congregacional';
   characteristics: string[];
   structure?: string[]; // Ordered song sections, e.g. ['Intro', 'Verso 1', 'Coro', 'Puente x2', 'Final']
-  spotifyUrl: string;
+  spotifyUrl?: string;
   spotifyTrackId?: string;
   referenceDuration: string;
   chordProgPreview: string[];

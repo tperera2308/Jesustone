@@ -30,6 +30,7 @@ import {
   Copy,
   Edit3,
   FileText,
+  Headphones,
   HelpCircle,
   ListMusic,
   Lock,
@@ -659,6 +660,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [editLocation, setEditLocation] = useState('');
   const [editTheme, setEditTheme] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editSpotifyPlaylistUrl, setEditSpotifyPlaylistUrl] = useState('');
 
   // Event Group Notes & Personal Notes State
   const [eventGroupNotesDraft, setEventGroupNotesDraft] = useState<string>('');
@@ -680,6 +682,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [newTheme, setNewTheme] = useState('');
   const [newAlertReminder, setNewAlertReminder] = useState('');
   const [newNotes, setNewNotes] = useState('');
+  const [newSpotifyPlaylistUrl, setNewSpotifyPlaylistUrl] = useState('');
   const [recurrenceWeeks, setRecurrenceWeeks] = useState<number>(1); // 1, 2, or 4 weeks
   const [selectedSongItems, setSelectedSongItems] = useState<EventSongItem[]>(() =>
     songs.slice(0, 3).map((s) => ({
@@ -856,6 +859,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     setEditLocation(ev.location);
     setEditTheme(ev.preacherOrTheme);
     setEditNotes(ev.notes);
+    setEditSpotifyPlaylistUrl(ev.spotifyPlaylistUrl || '');
     setShowEditEventModal(true);
   };
 
@@ -872,6 +876,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       location: editLocation.trim() || 'Auditorio Principal',
       preacherOrTheme: editTheme.trim() || 'Servicio General de Alabanza',
       notes: editNotes.trim(),
+      spotifyPlaylistUrl: editSpotifyPlaylistUrl.trim() || undefined,
     });
     setShowEditEventModal(false);
     setEventNotesSavedNotice('Datos del evento actualizados correctamente');
@@ -974,6 +979,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       preacherOrTheme: ev.preacherOrTheme,
       alertReminder: ev.alertReminder,
       notes: ev.notes,
+      spotifyPlaylistUrl: ev.spotifyPlaylistUrl,
       songs: ev.songs.map((s) => ({ ...s })),
       assignments,
     });
@@ -1014,6 +1020,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         preacherOrTheme: newTheme.trim() || 'Servicio General de Alabanza',
         alertReminder: newAlertReminder.trim() || undefined,
         notes: newNotes.trim() || 'Llegar puntuales para prueba de sonido y oración.',
+        spotifyPlaylistUrl: newSpotifyPlaylistUrl.trim() || undefined,
         songs: selectedSongItems.map((item) => ({ ...item })),
         assignments,
       });
@@ -1022,6 +1029,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     setNewTitle('');
     setNewTheme('');
     setNewAlertReminder('');
+    setNewSpotifyPlaylistUrl('');
     setRecurrenceWeeks(1);
     setShowCreateModal(false);
   };
@@ -1438,6 +1446,21 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   <MapPin className="w-3.5 h-3.5" />
                   {activeEvent.location}
                 </p>
+
+                {activeEvent.spotifyPlaylistUrl && (
+                  <div className="pt-1.5">
+                    <a
+                      href={activeEvent.spotifyPlaylistUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 min-h-[40px] px-3.5 py-2 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs shadow-sm transition-colors"
+                      title="Escuchar playlist del evento en Spotify"
+                    >
+                      <Headphones className="w-4 h-4 text-black" />
+                      <span>Escuchar Playlist en Spotify</span>
+                    </a>
+                  </div>
+                )}
               </div>
 
               {isLeader && (
@@ -1602,21 +1625,36 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   </p>
                 </div>
 
-                {isLeader ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowPlaylistEditor(true)}
-                    className={`min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 ${accent.bgClass}`}
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    Editar Playlist, Orden y Voces
-                  </button>
-                ) : (
-                  <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5" />
-                    Playlist gestionada por el Líder
-                  </span>
-                )}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {activeEvent.spotifyPlaylistUrl && (
+                    <a
+                      href={activeEvent.spotifyPlaylistUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-h-[44px] px-3.5 py-2 rounded-2xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs flex items-center gap-2 shadow-sm transition-colors"
+                      title="Abrir playlist en Spotify"
+                    >
+                      <Headphones className="w-4 h-4 text-black" />
+                      <span>Playlist Spotify</span>
+                    </a>
+                  )}
+
+                  {isLeader ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowPlaylistEditor(true)}
+                      className={`min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      Editar Playlist, Orden y Voces
+                    </button>
+                  ) : (
+                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5" />
+                      Playlist gestionada por el Líder
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2202,6 +2240,20 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                  <Headphones className="w-3.5 h-3.5 text-emerald-500" />
+                  Enlace de Playlist de Spotify del Evento (Opcional)
+                </label>
+                <input
+                  type="url"
+                  value={editSpotifyPlaylistUrl}
+                  onChange={(e) => setEditSpotifyPlaylistUrl(e.target.value)}
+                  placeholder="https://open.spotify.com/playlist/... (para que el equipo escuche los temas)"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
+                />
+              </div>
+
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
@@ -2414,6 +2466,26 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Vinculación de Playlist de Spotify del Evento */}
+            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
+              <label className="text-xs font-bold text-slate-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <Headphones className="w-3.5 h-3.5 text-emerald-500" />
+                Playlist de Spotify de este Evento (para escuchar la setlist)
+              </label>
+              <input
+                type="url"
+                defaultValue={activeEvent.spotifyPlaylistUrl || ''}
+                onBlur={(e) => {
+                  onUpdateEvent({
+                    ...activeEvent,
+                    spotifyPlaylistUrl: e.target.value.trim() || undefined,
+                  });
+                }}
+                placeholder="https://open.spotify.com/playlist/... (se guarda al salir del campo)"
+                className="w-full min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+              />
             </div>
 
             {/* 1. Orden actual de la Playlist y Asignación de Voces por Canción */}
@@ -2825,6 +2897,20 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   onChange={(e) => setNewNotes(e.target.value)}
                   placeholder="Ej. Prueba de sonido puntual, vestimenta tonos neutros, llegar 15 min antes..."
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                  <Headphones className="w-3.5 h-3.5 text-emerald-500" />
+                  Enlace de Playlist de Spotify del Evento (Opcional)
+                </label>
+                <input
+                  type="url"
+                  value={newSpotifyPlaylistUrl}
+                  onChange={(e) => setNewSpotifyPlaylistUrl(e.target.value)}
+                  placeholder="https://open.spotify.com/playlist/... (para que el equipo escuche los temas)"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
                 />
               </div>
 

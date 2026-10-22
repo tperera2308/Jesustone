@@ -1763,6 +1763,7 @@ export default function App() {
               onUpdateSong={handleUpdateSong}
               onDeleteSong={handleDeleteSong}
               onUpdateEventPlaylist={handleUpdateEventPlaylist}
+              onUpdateEvent={handleUpdateEvent}
               onOpenMetronomeWithSong={handleOpenMetronomeWithSong}
             />
           )}
