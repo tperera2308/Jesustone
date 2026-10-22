@@ -25,6 +25,8 @@ import {
   ArrowLeft,
   BookOpen,
   BookmarkCheck,
+  Calendar,
+  CalendarCheck,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -194,8 +196,12 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const accent = getAccentClasses(accentColor);
   const isLeader = activeMember.role === 'leader';
 
-  // List Grouping State: 'repertorio_base' or an Event ID
-  const [selectedListId, setSelectedListId] = useState<string>('repertorio_base');
+  // Dedicated Screen Sub-view inside Songbook:
+  // 'repertorio': Pantalla única de Repertorio Base
+  // 'setlists': Pantalla única de Setlists de Eventos
+  const [activeSubView, setActiveSubView] = useState<'repertorio' | 'setlists'>('repertorio');
+  const [selectedEventId, setSelectedEventId] = useState<string>(events[0]?.id || '');
+  const [selectedStyleFilter, setSelectedStyleFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSongId, setSelectedSongId] = useState<string>(
     initialSongId || songs[0]?.id || ''
@@ -289,25 +295,27 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const [newFileName, setNewFileName] = useState<string>('');
 
   const activeEventList =
-    selectedListId !== 'repertorio_base'
-      ? events.find((ev) => ev.id === selectedListId)
+    activeSubView === 'setlists'
+      ? events.find((ev) => ev.id === selectedEventId) || events[0]
       : undefined;
 
-  // Songs displayed according to the selected list (Repertorio Base vs Event Playlist)
+  // Songs displayed according to current screen: Base Repertoire vs Event Setlist
   const songsInSelectedList = (() => {
-    if (!activeEventList) return songs;
+    if (activeSubView === 'repertorio' || !activeEventList) return songs;
     return activeEventList.songs
       .map((item) => songs.find((s) => s.id === item.songId))
       .filter(Boolean) as Song[];
   })();
 
   const filteredSongs = songsInSelectedList.filter((s) => {
-    return (
+    const matchesSearch =
       s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.addedByName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.originalKey.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+      s.originalKey.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStyle =
+      selectedStyleFilter === 'all' || s.style === selectedStyleFilter;
+    return matchesSearch && matchesStyle;
   });
 
   const activeSong =
@@ -484,7 +492,10 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
           filteredSongs.length;
     const nextSong = filteredSongs[nextIdx];
     if (nextSong) {
-      selectSongWithContextKey(nextSong);
+      selectSongWithContextKey(nextSong, activeEventList);
+      if (openedSongId) {
+        setOpenedSongId(nextSong.id);
+      }
       if (stageScrollContainerRef.current) {
         stageScrollContainerRef.current.scrollTop = 0;
       }
@@ -1233,411 +1244,26 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         </div>
       )}
 
-      {/* =====================================================================
-          SECCIÓN 1: AGRUPACIÓN POR LISTAS (REPERTORIO BASE VS PLAYLISTS DE EVENTO)
-         ===================================================================== */}
-      <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <FolderKanban className={`w-5 h-5 ${accent.textClass}`} />
-              Listas del Cancionero y Playlists por Semana
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Cada canción mantiene su <strong>Tono Normal</strong> en el Repertorio Base, pero puede tener una <strong>Tonalidad por Semana/Evento</strong> distinta sin alterar el original.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className={`min-h-[52px] px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md transition-transform active:scale-[0.98] whitespace-nowrap shrink-0 ${accent.bgClass}`}
-          >
-            <Plus className="w-5 h-5" />
-            Subir Canción al Repertorio ({activeMember.name})
-          </button>
-        </div>
-
-        {/* Selector de Repertorio Base vs Playlists de Eventos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedListId('repertorio_base');
-              setSemitones(0);
-            }}
-            className={`min-h-[68px] p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all ${
-              selectedListId === 'repertorio_base'
-                ? `${accent.borderClass} ${accent.softBgClass} ring-2 ring-current shadow-sm`
-                : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider opacity-80">
-                Base General
-              </span>
-              <span className="font-mono text-xs font-bold">
-                {songs.length} canciones
-              </span>
-            </div>
-            <p className="text-sm font-bold truncate mt-1">
-              Repertorio de Todo el Grupo
-            </p>
-          </button>
-
-          {events.map((ev) => {
-            const isSelected = selectedListId === ev.id;
-            return (
-              <button
-                key={ev.id}
-                type="button"
-                onClick={() => {
-                  setSelectedListId(ev.id);
-                  if (ev.songs[0]) {
-                    const firstSong = songs.find(
-                      (s) => s.id === ev.songs[0].songId
-                    );
-                    if (firstSong) {
-                      selectSongWithContextKey(firstSong, ev);
-                    }
-                  }
-                }}
-                className={`min-h-[68px] p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all ${
-                  isSelected
-                    ? `${accent.borderClass} ${accent.softBgClass} ring-2 ring-current shadow-sm`
-                    : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono opacity-80">{ev.date}</span>
-                  <span className="font-mono font-bold">
-                    {ev.songs.length} en lista
-                  </span>
-                </div>
-                <p className="text-sm font-bold truncate mt-1">
-                  Playlist: {ev.title}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Barra de Navegación Fluida del Setlist cuando hay un Evento seleccionado */}
-        {activeEventList && (
-          <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <ListMusic className={`w-4 h-4 ${accent.textClass}`} />
-                  Setlist de la Semana: «{activeEventList.title}» ({activeEventList.date})
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Navega de canción en canción con un toque. Cada canción carga automáticamente su <strong>Tonalidad asignada para esta semana</strong>.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {activeSong && (
-                  <button
-                    type="button"
-                    onClick={() => setIsStageMode(true)}
-                    className="min-h-[42px] px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-950 text-xs font-bold flex items-center gap-2 shadow-sm"
-                  >
-                    <Maximize2 className="w-4 h-4" />
-                    <span>Abrir Setlist en Modo Atril</span>
-                  </button>
-                )}
-
-                {isLeader ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowManagePlaylistModal(true)}
-                    className={`min-h-[42px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 ${accent.bgClass}`}
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    Editar Playlist y Tonos Semanales
-                  </button>
-                ) : (
-                  <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5 shrink-0">
-                    <Lock className="w-3.5 h-3.5" />
-                    Playlist del Líder
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Riel de Navegación Fluida por las Canciones de la Playlist */}
-            {filteredSongs.length > 0 && (
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700/80 overflow-x-auto no-scrollbar">
-                <button
-                  type="button"
-                  disabled={filteredSongs.length <= 1}
-                  onClick={() => handleNavigatePlaylist('prev')}
-                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 shrink-0 disabled:opacity-40"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Anterior
-                </button>
-
-                <div className="flex items-center gap-2 flex-1 overflow-x-auto no-scrollbar">
-                  {filteredSongs.map((s, idx) => {
-                    const evItem = activeEventList.songs.find(
-                      (i) => i.songId === s.id
-                    );
-                    const weeklyKey = evItem?.customKey || s.originalKey;
-                    const isCurrent = activeSong?.id === s.id;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          selectSongWithContextKey(s);
-                          setOpenedSongId(s.id);
-                        }}
-                        className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-                          isCurrent
-                            ? `${accent.bgClass} shadow-xs`
-                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
-                        }`}
-                      >
-                        <span className="font-mono opacity-75">0{idx + 1}.</span>
-                        <span>{s.title}</span>
-                        <span className="px-1.5 py-0.5 rounded bg-black/15 dark:bg-white/10 font-mono text-[11px]">
-                          Tono Semanal: {weeklyKey}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  disabled={filteredSongs.length <= 1}
-                  onClick={() => handleNavigatePlaylist('next')}
-                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1 shrink-0 disabled:opacity-40"
-                >
-                  Siguiente
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Buscador Rápido */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Buscar canción por título, autor, tonalidad o miembro que la agregó..."
-          className="w-full min-h-[50px] pl-11 pr-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none"
-        />
-      </div>
-
-      {/* Layout Principal: Lista de Canciones (Izquierda) + Visor Completo (Derecha) */}
-      {!activeSong ? (
-        <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 sm:p-12 text-center space-y-4">
-          <div
-            className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto ${accent.softBgClass}`}
-          >
-            <Music2 className="w-8 h-8" />
-          </div>
-          <div className="max-w-md mx-auto space-y-1.5">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
-              El repertorio del grupo está vacío
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              Tanto el Líder como los Miembros pueden agregar canciones con letra, acordes, notas de voz o imagen de partitura.
-            </p>
-          </div>
-          <div className="pt-2">
+      {/* =======================================================================
+          PANTALLA DE LA CANCIÓN EN MODO DE VISTA GRANDE DEDICADA
+         ======================================================================= */}
+      {openedSongId && activeSong ? (
+        <div className="space-y-4 w-full max-w-full min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
             <button
               type="button"
-              onClick={() => setShowAddModal(true)}
-              className={`min-h-[52px] px-6 py-3 rounded-2xl text-sm font-bold inline-flex items-center gap-2 shadow-lg ${accent.bgClass}`}
-            >
-              <Plus className="w-5 h-5" />
-              <span>Subir Primera Canción al Repertorio</span>
-            </button>
-          </div>
-        </div>
-      ) : !openedSongId ? (
-        /* =====================================================================
-           VISTA LISTA DE CANCIONES (TARJETAS RESUMIDAS, LIMPIAS Y RESPONSIVAS)
-           ===================================================================== */
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <ListMusic className={`w-4 h-4 ${accent.textClass}`} />
-                <span>
-                  {activeEventList
-                    ? `Setlist de «${activeEventList.title}»`
-                    : 'Canciones en Repertorio Base'}
-                </span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Toca cualquier canción para abrirla, ver letra y acordes, transponer o editarla.
-              </p>
-            </div>
-            <span className="text-xs font-mono font-bold text-slate-500 shrink-0">
-              {filteredSongs.length}{' '}
-              {filteredSongs.length === 1 ? 'canción' : 'canciones'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {filteredSongs.map((song, idx) => {
-              const eventItem = activeEventList?.songs.find(
-                (i) => i.songId === song.id
-              );
-              const weeklyKey = eventItem?.customKey;
-              const canManageSong =
-                isLeader || song.addedByUserId === activeMember.id;
-
-              return (
-                <div
-                  key={song.id}
-                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-xs"
-                >
-                  {/* Bloque principal clicable para abrir la canción */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      selectSongWithContextKey(song);
-                      setOpenedSongId(song.id);
-                    }}
-                    className="w-full text-left flex items-start justify-between gap-3"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <h4 className="text-base font-bold text-slate-900 dark:text-white truncate">
-                        {activeEventList ? `${idx + 1}. ` : ''}
-                        {song.title}
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                        {song.artist}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 pt-0.5">
-                        <span className={`font-semibold ${accent.textClass}`}>
-                          {song.style}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono">{song.bpm} BPM</span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono">{song.timeSignature}</span>
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      {weeklyKey && weeklyKey !== song.originalKey ? (
-                        <div className="flex flex-col items-end gap-0.5">
-                          <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-500">
-                            {weeklyKey}
-                          </span>
-                          <span className="font-mono text-[10px] text-slate-400">
-                            Base: {song.originalKey}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 inline-block">
-                          {song.originalKey}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-
-                  {/* Botones de acción compactos */}
-                  <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        selectSongWithContextKey(song);
-                        setOpenedSongId(song.id);
-                      }}
-                      className={`flex-1 min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs ${accent.bgClass}`}
-                    >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      <span>Abrir</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        selectSongWithContextKey(song);
-                        setOpenedSongId(song.id);
-                        setIsStageMode(true);
-                      }}
-                      className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-white hover:bg-slate-900 dark:hover:bg-slate-700 text-xs font-bold flex items-center justify-center"
-                      title="Abrir directo en Modo Atril"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                    </button>
-
-                    {canManageSong && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditSongModal(song)}
-                        className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-amber-500 text-xs font-bold flex items-center justify-center"
-                        title="Editar datos de la canción"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-
-                    {canManageSong && onDeleteSong && (
-                      confirmDeleteSongId === song.id ? (
-                        <div className="flex items-center gap-1 bg-rose-500/15 border border-rose-500/40 px-2 py-1 rounded-xl">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onDeleteSong(song.id);
-                              setConfirmDeleteSongId(null);
-                            }}
-                            className="text-[11px] font-bold text-rose-500 hover:underline"
-                          >
-                            Sí
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteSongId(null)}
-                            className="text-slate-400 text-xs font-bold ml-1"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteSongId(song.id)}
-                          className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-rose-500 text-xs font-bold flex items-center justify-center"
-                          title="Eliminar canción"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        /* =====================================================================
-           VISTA DETALLE COMPLETO DE LA CANCIÓN ABIERTA (CON BOTÓN DE REGRESO)
-           ===================================================================== */
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => setOpenedSongId(null)}
-              className="min-h-[42px] px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs"
+              onClick={() => {
+                setOpenedSongId(null);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 transition-colors shadow-xs"
             >
               <ArrowLeft className="w-4 h-4 text-amber-500" />
-              <span>Volver a la Lista de Canciones</span>
+              <span>
+                {activeSubView === 'setlists' && activeEventList
+                  ? `Volver a Setlists («${activeEventList.title}»)`
+                  : 'Volver al Repertorio Base'}
+              </span>
             </button>
 
             <div className="flex items-center gap-2">
@@ -2519,6 +2145,578 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               )}
             </div>
           </div>
+
+          {/* Barra Inferior para Volver Cómodamente desde la Vista Grande */}
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => {
+                setOpenedSongId(null);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="w-full sm:w-auto min-h-[46px] px-5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center justify-center gap-2 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4 text-amber-500" />
+              <span>
+                {activeSubView === 'setlists' && activeEventList
+                  ? `Volver a Setlists («${activeEventList.title}»)`
+                  : 'Volver al Repertorio Base'}
+              </span>
+            </button>
+
+            {filteredSongs.length > 1 && (
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleNavigatePlaylist('prev');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="flex-1 sm:flex-initial min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-200"
+                >
+                  ← Anterior
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleNavigatePlaylist('next');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`flex-1 sm:flex-initial min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                >
+                  Siguiente →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* =======================================================================
+            PANTALLAS PRINCIPALES DEL CANCIONERO (REPERTORIO BASE Y SETLISTS)
+           ======================================================================= */
+        <div className="space-y-5 w-full max-w-full min-w-0">
+          {/* Cabecera con Pestañas Dedicadas: Repertorio Base vs Setlists */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Music2 className={`w-5 h-5 ${accent.textClass}`} />
+                  <span>Cancionero del Grupo</span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Accede a la biblioteca central de alabanzas o revisa los setlists programados por culto y semana.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAddModal(true)}
+                className={`min-h-[46px] px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md transition-transform active:scale-[0.98] whitespace-nowrap shrink-0 ${accent.bgClass}`}
+              >
+                <Plus className="w-4 h-4" />
+                <span>Subir Canción al Repertorio</span>
+              </button>
+            </div>
+
+            {/* Selector de Pantallas Independientes */}
+            <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSubView('repertorio');
+                  setSemitones(0);
+                }}
+                className={`min-h-[50px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                  activeSubView === 'repertorio'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Music2 className="w-4 h-4 text-amber-500" />
+                <span>Repertorio Base</span>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  {songs.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSubView('setlists');
+                  if (events[0]) {
+                    setSelectedEventId(events[0].id);
+                  }
+                }}
+                className={`min-h-[50px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                  activeSubView === 'setlists'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <FolderKanban className="w-4 h-4 text-emerald-500" />
+                <span>Setlists de Eventos</span>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  {events.length}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* =======================================================================
+              SUB-PANTALLA 1: REPERTORIO BASE
+             ======================================================================= */}
+          {activeSubView === 'repertorio' && (
+            <div className="space-y-4">
+              {/* Buscador y Filtros de Estilo */}
+              <div className="p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar por título, autor, tono base o quién la agregó..."
+                    className="w-full min-h-[46px] pl-11 pr-10 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Chips de filtro por Estilo */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 shrink-0 mr-1">
+                    Estilo:
+                  </span>
+                  {[
+                    { id: 'all', label: 'Todos' },
+                    { id: 'Adoración', label: 'Adoración' },
+                    { id: 'Alabanza', label: 'Alabanza' },
+                    { id: 'Especial', label: 'Especial' },
+                    { id: 'Congregacional', label: 'Congregacional' },
+                    { id: 'Júbilo', label: 'Júbilo' },
+                  ].map((cat) => {
+                    const active = selectedStyleFilter === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSelectedStyleFilter(cat.id)}
+                        className={`min-h-[34px] px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                          active
+                            ? `${accent.bgClass} shadow-xs`
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Contador */}
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
+                <span>
+                  Mostrando <strong>{filteredSongs.length}</strong> de {songs.length} canciones en la biblioteca base
+                </span>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="text-amber-500 hover:underline font-bold"
+                  >
+                    Limpiar búsqueda
+                  </button>
+                )}
+              </div>
+
+              {/* Grid de Canciones del Repertorio Base */}
+              {filteredSongs.length === 0 ? (
+                <div className="p-8 sm:p-12 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+                  <Music2 className="w-10 h-10 text-slate-400 mx-auto" />
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                    No se encontraron canciones
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    {searchQuery
+                      ? `No hay coincidencias con «${searchQuery}». Intenta buscar con otro término.`
+                      : 'El repertorio está vacío. Puedes subir la primera canción ahora.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedStyleFilter('all');
+                    }}
+                    className="min-h-[42px] px-4 py-2 rounded-xl text-xs font-bold text-amber-500 hover:underline"
+                  >
+                    Restablecer filtros
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 w-full min-w-0 max-w-full">
+                  {filteredSongs.map((song) => {
+                    const canManageSong =
+                      isLeader || song.addedByUserId === activeMember.id;
+
+                    return (
+                      <div
+                        key={song.id}
+                        className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-xs w-full min-w-0 overflow-hidden"
+                      >
+                        {/* Bloque principal clicable para abrir directamente la canción grande */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            selectSongWithContextKey(song);
+                            setOpenedSongId(song.id);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="w-full text-left flex items-start justify-between gap-3 min-w-0 group"
+                        >
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <h4 className="text-base font-bold text-slate-900 dark:text-white truncate group-hover:text-amber-500 transition-colors">
+                              {song.title}
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                              {song.artist}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 pt-0.5">
+                              <span className={`font-semibold ${accent.textClass}`}>
+                                {song.style}
+                              </span>
+                              <span aria-hidden="true">·</span>
+                              <span className="font-mono">{song.bpm} BPM</span>
+                              <span aria-hidden="true">·</span>
+                              <span className="font-mono">{song.timeSignature}</span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 inline-block">
+                              {song.originalKey}
+                            </span>
+                          </div>
+                        </button>
+
+                        {/* Confirmación de eliminación o Botones de acción inmunes a desbordes en tablet */}
+                        {confirmDeleteSongId === song.id ? (
+                          <div className="w-full p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 truncate">
+                              ¿Eliminar «{song.title}»?
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onDeleteSong?.(song.id);
+                                  setConfirmDeleteSongId(null);
+                                }}
+                                className="min-h-[34px] px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
+                              >
+                                Sí, borrar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteSongId(null)}
+                                className="min-h-[34px] px-2.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold"
+                              >
+                                No
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center gap-1.5 w-full min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                selectSongWithContextKey(song);
+                                setOpenedSongId(song.id);
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              className={`flex-1 min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs min-w-0 truncate ${accent.bgClass}`}
+                              title="Abrir vista grande de la canción"
+                            >
+                              <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">Ver Canción</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                selectSongWithContextKey(song);
+                                setOpenedSongId(song.id);
+                                setIsStageMode(true);
+                              }}
+                              className="min-h-[42px] w-[42px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-white hover:bg-slate-900 dark:hover:bg-slate-700 text-xs font-bold flex items-center justify-center shrink-0"
+                              title="Abrir directo en Modo Atril"
+                            >
+                              <Maximize2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {canManageSong && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditSongModal(song)}
+                                className="min-h-[42px] w-[42px] rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-amber-500 text-xs font-bold flex items-center justify-center shrink-0"
+                                title="Editar datos de la canción"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {canManageSong && onDeleteSong && (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteSongId(song.id)}
+                                className="min-h-[42px] w-[42px] rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-xs font-bold flex items-center justify-center shrink-0"
+                                title="Eliminar canción"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =======================================================================
+              SUB-PANTALLA 2: SETLISTS DE EVENTOS
+             ======================================================================= */}
+          {activeSubView === 'setlists' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <FolderKanban className={`w-4 h-4 ${accent.textClass}`} />
+                    <span>Setlists Programados por Evento</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Cada evento tiene su playlist organizada y su propia tonalidad semanal asignada para los ensayos y cultos.
+                  </p>
+                </div>
+
+                {isLeader && activeEventList && (
+                  <button
+                    type="button"
+                    onClick={() => setShowManagePlaylistModal(true)}
+                    className={`min-h-[42px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Editar Playlist y Tonos Semanales</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Selector de Eventos */}
+              {events.length === 0 ? (
+                <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
+                  <Calendar className="w-10 h-10 text-slate-400 mx-auto" />
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                    No hay eventos programados
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Crea un evento en la sección de Eventos para poder armarle su playlist de alabanzas.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full min-w-0 max-w-full">
+                  {events.map((ev) => {
+                    const isSelected = activeEventList?.id === ev.id;
+                    return (
+                      <button
+                        key={ev.id}
+                        type="button"
+                        onClick={() => setSelectedEventId(ev.id)}
+                        className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all min-h-[76px] w-full min-w-0 ${
+                          isSelected
+                            ? `${accent.borderClass} ${accent.softBgClass} ring-2 ring-current shadow-sm`
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-mono font-bold opacity-80">{ev.date} · {ev.time}</span>
+                          <span className="font-mono font-bold px-2 py-0.5 rounded-lg bg-black/10 dark:bg-white/10 text-[11px]">
+                            {ev.songs.length} {ev.songs.length === 1 ? 'canción' : 'canciones'}
+                          </span>
+                        </div>
+                        <p className="text-sm font-bold truncate mt-1 text-slate-900 dark:text-white">
+                          {ev.title}
+                        </p>
+                        {ev.preacherOrTheme && (
+                          <p className="text-xs text-slate-500 truncate mt-0.5">
+                            {ev.preacherOrTheme}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Detalle del Setlist Activo */}
+              {activeEventList && (
+                <div className="space-y-4 pt-2">
+                  {/* Banner de información y atril */}
+                  <div className="p-4 sm:p-5 rounded-3xl bg-slate-900 text-white border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-emerald-400 font-mono font-bold">
+                        <CalendarCheck className="w-4 h-4" />
+                        <span>{activeEventList.date} · {activeEventList.time}</span>
+                        <span>·</span>
+                        <span>{activeEventList.location}</span>
+                      </div>
+                      <h3 className="text-lg sm:text-xl font-bold truncate text-white">
+                        Setlist: {activeEventList.title}
+                      </h3>
+                      <p className="text-xs text-slate-300">
+                        {activeEventList.songs.length} {activeEventList.songs.length === 1 ? 'canción' : 'canciones'} preparadas para este culto con su tonalidad semanal.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {activeEventList.songs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const firstSong = songs.find(s => s.id === activeEventList.songs[0]?.songId);
+                            if (firstSong) {
+                              selectSongWithContextKey(firstSong, activeEventList);
+                              setOpenedSongId(firstSong.id);
+                              setIsStageMode(true);
+                            }
+                          }}
+                          className="min-h-[44px] px-4 py-2 rounded-xl bg-white text-slate-950 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md hover:bg-slate-100 transition-colors"
+                        >
+                          <Maximize2 className="w-4 h-4" />
+                          <span>Abrir Setlist en Modo Atril</span>
+                        </button>
+                      )}
+
+                      {isLeader && (
+                        <button
+                          type="button"
+                          onClick={() => setShowManagePlaylistModal(true)}
+                          className={`min-h-[44px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md ${accent.bgClass}`}
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>Gestionar Playlist</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Listado ordenado de canciones del setlist */}
+                  {activeEventList.songs.length === 0 ? (
+                    <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+                      <FolderKanban className="w-10 h-10 text-slate-400 mx-auto" />
+                      <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                        Aún no hay canciones en este setlist
+                      </h4>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        {isLeader
+                          ? 'Como líder puedes agregar canciones del repertorio base y ajustar la tonalidad para cada una.'
+                          : 'El líder aún no ha agregado alabanzas a este evento. Puedes revisar el Repertorio Base.'}
+                      </p>
+                      {isLeader && (
+                        <button
+                          type="button"
+                          onClick={() => setShowManagePlaylistModal(true)}
+                          className={`min-h-[44px] px-5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-2 ${accent.bgClass}`}
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Armar Playlist de este Evento</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 w-full min-w-0 max-w-full">
+                      {activeEventList.songs.map((item, idx) => {
+                        const song = songs.find((s) => s.id === item.songId);
+                        if (!song) return null;
+                        const weeklyKey = item.customKey || song.originalKey;
+
+                        return (
+                          <div
+                            key={`${item.songId}-${idx}`}
+                            className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-xs w-full min-w-0"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-mono font-bold text-sm shrink-0 ${accent.softBgClass} ${accent.textClass}`}>
+                                {idx < 9 ? `0${idx + 1}` : idx + 1}
+                              </div>
+
+                              <div className="min-w-0 space-y-0.5">
+                                <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+                                  {song.title}
+                                </h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                  {song.artist} · <span className="font-mono">{song.bpm} BPM</span> · <span className="font-mono">{song.timeSignature}</span> · {song.style}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0">
+                              {/* Tono Semanal destacado */}
+                              <div className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 font-mono text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                                <span>Tono: <strong>{weeklyKey}</strong></span>
+                                {weeklyKey !== song.originalKey && (
+                                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
+                                    (Base: {song.originalKey})
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Abrir Canción directamente a la pantalla grande */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  selectSongWithContextKey(song, activeEventList);
+                                  setOpenedSongId(song.id);
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                              >
+                                <BookOpen className="w-3.5 h-3.5" />
+                                <span>Abrir Canción</span>
+                              </button>
+
+                              {/* Abrir directo en Atril */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  selectSongWithContextKey(song, activeEventList);
+                                  setOpenedSongId(song.id);
+                                  setIsStageMode(true);
+                                }}
+                                className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 hover:bg-slate-900 hover:text-white"
+                                title="Abrir directo en Modo Atril"
+                              >
+                                <Maximize2 className="w-3.5 h-3.5" />
+                                <span className="hidden md:inline">Atril</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2904,11 +3102,20 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                           }
                           className="min-h-[38px] px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs font-bold text-slate-900 dark:text-white"
                         >
-                          {ALL_KEYS.map((k) => (
-                            <option key={k} value={k}>
-                              {k} {k === song.originalKey ? '(Base)' : ''}
-                            </option>
-                          ))}
+                          <optgroup label="Tonalidades Mayores">
+                            {MAJOR_KEYS.map((k) => (
+                              <option key={k} value={k}>
+                                {k} Mayor {k === song.originalKey ? '(Base)' : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Tonalidades Menores">
+                            {MINOR_KEYS.map((k) => (
+                              <option key={k} value={k}>
+                                {k} ({k.replace(/m$/, '')}m) {k === song.originalKey ? '(Base)' : ''}
+                              </option>
+                            ))}
+                          </optgroup>
                         </select>
                       </div>
                     )}
