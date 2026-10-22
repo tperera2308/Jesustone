@@ -29,6 +29,7 @@ import {
   ServiceAssignment,
   Song,
   TimeSignature,
+  UserRole,
   WorshipEvent,
   WorshipGroup,
 } from './types';
@@ -83,6 +84,7 @@ import {
   testFirestoreConnection,
 } from './firebase';
 import {
+  ArrowLeft,
   Bell,
   BellRing,
   BookOpen,
@@ -2534,8 +2536,22 @@ export default function App() {
     text: string,
     attachedSongId?: string,
     voiceClipUrl?: string,
-    voiceClipDurationSec?: number
+    voiceClipDurationSec?: number,
+    targetGroupId?: string
   ) => {
+    const resolvedGroupId = targetGroupId || activeGroup.id;
+    const targetGroup =
+      groups.find((g) => g.id === resolvedGroupId) || activeGroup;
+    const targetActiveMember =
+      targetGroup.members.find(
+        (m) =>
+          m.id === currentUser?.id ||
+          m.email === currentUser?.email ||
+          m.username === currentUser?.username
+      ) || activeMember;
+    const targetRole =
+      (targetActiveMember.role as UserRole) || userRole || 'member';
+
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], {
       hour: '2-digit',
@@ -2545,13 +2561,13 @@ export default function App() {
 
     const newMsg: ChatMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      groupId: activeGroup.id,
+      groupId: resolvedGroupId,
       channel,
-      senderId: activeMember.id,
-      senderName: activeMember.name,
-      senderUsername: currentUser.username,
-      senderRole: userRole,
-      senderInstrument: activeMember.instruments[0] || 'Banda',
+      senderId: targetActiveMember.id,
+      senderName: targetActiveMember.name,
+      senderUsername: currentUser?.username,
+      senderRole: targetRole,
+      senderInstrument: targetActiveMember.instruments[0] || 'Banda',
       text,
       timestamp: timeStr,
       createdAtMs: Date.now(),
@@ -2560,25 +2576,29 @@ export default function App() {
       voiceClipUrl,
       voiceClipDurationSec,
       prayerCount: channel === 'oracion' ? 1 : undefined,
-      prayedByMemberIds: channel === 'oracion' ? [activeMember.id] : undefined,
+      prayedByMemberIds:
+        channel === 'oracion' ? [targetActiveMember.id] : undefined,
     };
-    syncChatMessageToFirestore(activeGroup.id, newMsg);
-    updateActiveGroup((g) => {
-      const allMsgs = [...g.chatMessages, newMsg];
-      if (allMsgs.length > MAX_CHAT_MESSAGES_PER_GROUP) {
-        const overflow = allMsgs.slice(
-          0,
-          allMsgs.length - MAX_CHAT_MESSAGES_PER_GROUP
-        );
-        overflow.forEach((oldMsg) => {
-          deleteChatMessageFromFirestore(oldMsg.id);
-        });
-      }
-      return {
-        ...g,
-        chatMessages: allMsgs.slice(-MAX_CHAT_MESSAGES_PER_GROUP),
-      };
-    });
+    syncChatMessageToFirestore(resolvedGroupId, newMsg);
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== resolvedGroupId) return g;
+        const allMsgs = [...(g.chatMessages || []), newMsg];
+        if (allMsgs.length > MAX_CHAT_MESSAGES_PER_GROUP) {
+          const overflow = allMsgs.slice(
+            0,
+            allMsgs.length - MAX_CHAT_MESSAGES_PER_GROUP
+          );
+          overflow.forEach((oldMsg) => {
+            deleteChatMessageFromFirestore(oldMsg.id);
+          });
+        }
+        return {
+          ...g,
+          chatMessages: allMsgs.slice(-MAX_CHAT_MESSAGES_PER_GROUP),
+        };
+      })
+    );
 
     // Notify any user tagged with @username in the chat message
     if (mentionedHandles.length > 0) {
@@ -2588,7 +2608,7 @@ export default function App() {
       >[] = [];
 
       mentionedHandles.forEach((handle) => {
-        const matchedMember = activeGroup.members.find(
+        const matchedMember = targetGroup.members.find(
           (m) =>
             m.username?.toLowerCase() === handle ||
             m.name.toLowerCase().replace(/\s+/g, '_') === handle
@@ -2596,8 +2616,8 @@ export default function App() {
         if (matchedMember) {
           mentionNotifs.push({
             recipientUserId: matchedMember.id,
-            groupId: activeGroup.id,
-            groupName: activeGroup.identity.ministryName,
+            groupId: targetGroup.id,
+            groupName: targetGroup.identity.ministryName,
             category: 'mention',
             title: `@${currentUser.username} te etiquetó en #${channel}`,
             message: text,
@@ -2612,34 +2632,52 @@ export default function App() {
     }
   };
 
-  const handleTogglePrayerReaction = (messageId: string) => {
-    updateActiveGroup((g) => ({
-      ...g,
-      chatMessages: g.chatMessages.map((m) => {
-        if (m.id !== messageId) return m;
-        const list = m.prayedByMemberIds || [];
-        const hasPrayed = list.includes(activeMember.id);
-        const updatedList = hasPrayed
-          ? list.filter((id) => id !== activeMember.id)
-          : [...list, activeMember.id];
-        const updatedMsg: ChatMessage = {
-          ...m,
-          prayedByMemberIds: updatedList,
-          prayerCount: updatedList.length,
+  const handleTogglePrayerReaction = (
+    messageId: string,
+    targetGroupId?: string
+  ) => {
+    const resolvedGroupId = targetGroupId || activeGroup.id;
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== resolvedGroupId) return g;
+        return {
+          ...g,
+          chatMessages: (g.chatMessages || []).map((m) => {
+            if (m.id !== messageId) return m;
+            const list = m.prayedByMemberIds || [];
+            const hasPrayed = list.includes(activeMember.id);
+            const updatedList = hasPrayed
+              ? list.filter((id) => id !== activeMember.id)
+              : [...list, activeMember.id];
+            const updatedMsg: ChatMessage = {
+              ...m,
+              prayedByMemberIds: updatedList,
+              prayerCount: updatedList.length,
+            };
+            syncChatMessageToFirestore(g.id, updatedMsg);
+            return updatedMsg;
+          }),
         };
-        syncChatMessageToFirestore(g.id, updatedMsg);
-        return updatedMsg;
-      }),
-    }));
+      })
+    );
   };
 
-  const handleDeleteChatMessage = (messageId: string) => {
+  const handleDeleteChatMessage = (
+    messageId: string,
+    targetGroupId?: string
+  ) => {
     recordDeletedId(STORAGE_KEYS.DELETED_MSG_IDS, messageId);
     deleteChatMessageFromFirestore(messageId);
-    updateActiveGroup((g) => ({
-      ...g,
-      chatMessages: g.chatMessages.filter((m) => m.id !== messageId),
-    }));
+    const resolvedGroupId = targetGroupId || activeGroup.id;
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== resolvedGroupId) return g;
+        return {
+          ...g,
+          chatMessages: (g.chatMessages || []).filter((m) => m.id !== messageId),
+        };
+      })
+    );
   };
 
   const handleToggleMemberRole = (memberId: string) => {
@@ -2685,7 +2723,6 @@ export default function App() {
   }[] = [
     { id: 'inicio', label: 'Inicio', shortLabel: 'Inicio', icon: Home },
     { id: 'eventos', label: 'Eventos', shortLabel: 'Eventos', icon: Calendar },
-    { id: 'devocionales', label: 'Estudio', shortLabel: 'Estudio', icon: BookOpen },
     { id: 'chat', label: 'Chat', shortLabel: 'Chat', icon: MessageSquare },
     { id: 'herramientas', label: 'Herramientas', shortLabel: 'Herramientas', icon: Sliders },
   ];
@@ -3048,18 +3085,39 @@ export default function App() {
           )}
 
           {activeTab === 'devocionales' && (
-            <DevotionalsModule
-              devotionals={activeGroup.devotionals}
-              members={activeGroup.members}
-              activeMemberId={activeMember.id}
-              userRole={userRole}
-              accentColor={identity.accentColor}
-              onToggleCompleteDevotional={handleToggleCompleteDevotional}
-              onToggleCompleteSession={handleToggleCompleteSession}
-              onAddComment={handleAddDevotionalComment}
-              onCreateDevotional={handleCreateDevotional}
-              onDeleteDevotional={handleDeleteDevotional}
-            />
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReturnToGroupScreen(true);
+                    setActiveTab('inicio');
+                  }}
+                  className="min-h-[40px] px-3.5 py-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 shadow-2xs transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>Volver a {activeGroup.identity.ministryName}</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                    Estudios de {activeGroup.identity.ministryName}
+                  </span>
+                </div>
+              </div>
+
+              <DevotionalsModule
+                devotionals={activeGroup.devotionals}
+                members={activeGroup.members}
+                activeMemberId={activeMember.id}
+                userRole={userRole}
+                accentColor={identity.accentColor}
+                onToggleCompleteDevotional={handleToggleCompleteDevotional}
+                onToggleCompleteSession={handleToggleCompleteSession}
+                onAddComment={handleAddDevotionalComment}
+                onCreateDevotional={handleCreateDevotional}
+                onDeleteDevotional={handleDeleteDevotional}
+              />
+            </div>
           )}
 
           {activeTab === 'chat' && (
@@ -3076,6 +3134,9 @@ export default function App() {
               friendRequests={friendRequests}
               directMessages={directMessages}
               accentColor={identity.accentColor}
+              userGroups={myGroups}
+              activeGroupId={activeGroupId}
+              onSelectGroup={(gid) => setActiveGroupId(gid)}
               initialDmUserId={initialDmUserId}
               onOpenMusicianProfile={(uid) =>
                 handleOpenMusicianProfile(uid, 'perfil')
@@ -3109,7 +3170,7 @@ export default function App() {
         {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL CON BOTONES GRANDES TÁCTILES */}
         <nav
           aria-label="Navegación móvil jesustone"
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-5 items-center h-16 pb-safe px-1"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-4 items-center h-16 pb-safe px-1"
         >
           {navItems.map((item) => {
             const Icon = item.icon;

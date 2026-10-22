@@ -12,6 +12,7 @@ import {
   InstrumentRole,
   Song,
   WorshipEvent,
+  WorshipGroup,
 } from '../types';
 import { generateDemoVoiceClipDataUrl } from '../utils/audioEngine';
 import { uploadMediaBlobToStorage } from '../firebase';
@@ -22,6 +23,7 @@ import {
   Calendar,
   Check,
   ChevronDown,
+  ChevronRight,
   Copy,
   Download,
   Hash,
@@ -58,15 +60,19 @@ interface ChatModuleProps {
   friendRequests?: FriendRequest[];
   directMessages?: DirectMessage[];
   accentColor: AccentColorId;
+  userGroups?: WorshipGroup[];
+  activeGroupId?: string;
+  onSelectGroup?: (groupId: string) => void;
   onSendMessage: (
     channel: ChatChannelId,
     text: string,
     attachedSongId?: string,
     voiceClipUrl?: string,
-    voiceClipDurationSec?: number
+    voiceClipDurationSec?: number,
+    targetGroupId?: string
   ) => void;
-  onDeleteMessage?: (messageId: string) => void;
-  onTogglePrayerReaction: (messageId: string) => void;
+  onDeleteMessage?: (messageId: string, targetGroupId?: string) => void;
+  onTogglePrayerReaction: (messageId: string, targetGroupId?: string) => void;
   onOpenSongFromChat: (songId: string) => void;
   onSendFriendRequest?: (targetUser: AppUser) => { ok: boolean; message: string };
   onRespondFriendRequest?: (requestId: string, accept: boolean) => void;
@@ -152,6 +158,9 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
   friendRequests = [],
   directMessages = [],
   accentColor,
+  userGroups = [],
+  activeGroupId,
+  onSelectGroup,
   onSendMessage,
   onDeleteMessage,
   onTogglePrayerReaction,
@@ -165,8 +174,54 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
   onOpenMusicianProfile,
   onExitFullScreenChat,
 }) => {
-  const accent = getAccentClasses(accentColor);
-  const isGuestInActiveGroup = Boolean(activeMember.isGuest);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(
+    activeGroupId || (userGroups && userGroups[0]?.id) || ''
+  );
+
+  useEffect(() => {
+    if (activeGroupId) {
+      setSelectedGroupId(activeGroupId);
+    }
+  }, [activeGroupId]);
+
+  const resolvedGroups: WorshipGroup[] =
+    userGroups && userGroups.length > 0
+      ? userGroups
+      : [
+          {
+            id: activeGroupId || 'default-group',
+            identity,
+            members,
+            chatMessages: messages,
+            songs,
+            events,
+            devotionals: [],
+            alerts: [],
+            activityFeed: [],
+            invitations: [],
+            leaderUserId: activeMember.id,
+          },
+        ];
+
+  const currentGroup =
+    resolvedGroups.find((g) => g.id === selectedGroupId) ||
+    resolvedGroups[0];
+
+  const currentGroupMessages = currentGroup.chatMessages || [];
+  const currentGroupMembers = currentGroup.members || [];
+  const currentGroupSongs = currentGroup.songs || [];
+  const currentGroupIdentity = currentGroup.identity || identity;
+  const currentGroupAccent = getAccentClasses(currentGroupIdentity.accentColor);
+  const currentGroupActiveMember =
+    currentGroup.members?.find(
+      (m) =>
+        m.id === currentUser?.id ||
+        m.email === currentUser?.email ||
+        m.username === currentUser?.username
+    ) || activeMember;
+
+  const isGuestInActiveGroup = Boolean(currentGroupActiveMember.isGuest);
+  const accent = currentGroupAccent;
 
   // Mode: 'group' (internal group channels) vs 'social' (Friends Network & 1-on-1 DM)
   const [chatMode, setChatMode] = useState<'group' | 'social'>(
@@ -227,7 +282,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
   const allChannels = CHANNEL_CATEGORIES.flatMap((c) => c.channels);
   const channelMeta =
     allChannels.find((c) => c.id === activeChannel) || allChannels[0];
-  const channelMessages = messages
+  const channelMessages = currentGroupMessages
     .filter((m) => m.channel === activeChannel)
     .slice(-100);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -266,11 +321,13 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
     activeDmMessages.length,
   ]);
 
-  const leaders = members.filter((m) => m.role === 'leader' && !m.isGuest);
-  const regularMembers = members.filter(
+  const leaders = currentGroupMembers.filter(
+    (m) => m.role === 'leader' && !m.isGuest
+  );
+  const regularMembers = currentGroupMembers.filter(
     (m) => m.role !== 'leader' && !m.isGuest
   );
-  const guestMembers = members.filter((m) => Boolean(m.isGuest));
+  const guestMembers = currentGroupMembers.filter((m) => Boolean(m.isGuest));
 
   const incomingFriendRequests = friendRequests.filter(
     (r) => r.toUserId === currentUser?.id && r.status === 'pending'
@@ -400,7 +457,8 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
         `🎤 Nota de voz enviada (${pendingVoiceClip?.durationSec || 3}s)`,
       attachedSongId || undefined,
       pendingVoiceClip?.url,
-      pendingVoiceClip?.durationSec
+      pendingVoiceClip?.durationSec,
+      currentGroup.id
     );
     setMessageText('');
     setAttachedSongId('');
@@ -587,45 +645,118 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
             </div>
 
             {chatMode === 'group' ? (
-              /* LISTA DE CANALES DEL GRUPO */
-              <div className="p-2.5 space-y-5 overflow-y-auto flex-1">
-                {CHANNEL_CATEGORIES.map((cat) => (
-                  <div key={cat.category} className="space-y-1">
-                    <div className="flex items-center gap-1 px-2 text-[11px] font-bold tracking-wider text-slate-400">
-                      <ChevronDown className="w-3 h-3" />
-                      <span>{cat.category}</span>
-                    </div>
-                    {cat.channels.map((ch) => {
-                      const isSelected = ch.id === activeChannel;
-                      const msgCount = messages.filter(
-                        (m) => m.channel === ch.id
-                      ).length;
-                      return (
-                        <button
-                          key={ch.id}
-                          type="button"
-                          onClick={() => {
-                            setActiveChannel(ch.id);
-                            setMobileDrawerOpen(false);
-                          }}
-                          className={`w-full min-h-[40px] px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-2 text-sm font-medium transition-colors ${
-                            isSelected
-                              ? 'bg-[#404249] text-white font-semibold'
-                              : 'text-slate-400 hover:bg-[#35373c] hover:text-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Hash className="w-4 h-4 text-slate-400 shrink-0" />
-                            <span className="truncate">{ch.name}</span>
+              /* LISTA DE TODOS LOS GRUPOS DEL USUARIO Y SUS CANALES RESPECTIVOS */
+              <div className="p-2.5 space-y-3.5 overflow-y-auto flex-1">
+                <div className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Tus Grupos y Canales
+                </div>
+
+                {resolvedGroups.map((grp) => {
+                  const isCurrentGrp = grp.id === currentGroup.id;
+                  const grpAccent = getAccentClasses(grp.identity.accentColor);
+                  const grpMessages = grp.chatMessages || [];
+                  const grpMember = grp.members?.find((m) => m.id === currentUser?.id);
+                  const isGrpGuest = Boolean(grpMember?.isGuest);
+
+                  return (
+                    <div
+                      key={grp.id}
+                      className={`rounded-2xl border transition-all ${
+                        isCurrentGrp
+                          ? 'bg-[#1e1f22] border-white/10 shadow-xs'
+                          : 'bg-[#232428]/50 border-white/5 hover:border-white/10'
+                      } p-2 space-y-1.5`}
+                    >
+                      {/* Cabecera del Grupo */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedGroupId(grp.id);
+                          if (onSelectGroup) onSelectGroup(grp.id);
+                        }}
+                        className="w-full flex items-center justify-between gap-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors text-left"
+                        title={`Cambiar a ${grp.identity.ministryName}`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 overflow-hidden text-xs font-bold ${grpAccent.bgClass}`}
+                          >
+                            <BrandIconDisplay
+                              iconId={grp.identity.iconId}
+                              customImageUrl={grp.identity.customImageUrl}
+                              className="w-4 h-4"
+                            />
                           </div>
-                          <span className="font-mono text-[11px] text-slate-400">
-                            {msgCount}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate">
+                              {grp.identity.ministryName}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {grpMember?.role === 'leader'
+                                ? 'Líder / Admin'
+                                : isGrpGuest
+                                ? 'Suplente'
+                                : 'Miembro'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {isCurrentGrp ? (
+                          <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold">
+                            Activo
                           </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        )}
+                      </button>
+
+                      {/* Canales correspondientes a este grupo */}
+                      <div className="space-y-0.5 pl-2 border-l border-white/10 ml-3">
+                        {CHANNEL_CATEGORIES.flatMap((c) => c.channels).map((ch) => {
+                          const isSelected =
+                            isCurrentGrp && ch.id === activeChannel;
+                          const msgCount = grpMessages.filter(
+                            (m) => m.channel === ch.id
+                          ).length;
+
+                          return (
+                            <button
+                              key={`${grp.id}-${ch.id}`}
+                              type="button"
+                              onClick={() => {
+                                setSelectedGroupId(grp.id);
+                                if (onSelectGroup) onSelectGroup(grp.id);
+                                setActiveChannel(ch.id);
+                                setMobileDrawerOpen(false);
+                              }}
+                              className={`w-full min-h-[34px] px-2 py-1 rounded-lg flex items-center justify-between gap-1.5 text-xs font-medium transition-colors ${
+                                isSelected
+                                  ? 'bg-[#404249] text-white font-semibold'
+                                  : 'text-slate-400 hover:bg-[#35373c] hover:text-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <Hash
+                                  className={`w-3.5 h-3.5 shrink-0 ${
+                                    isSelected
+                                      ? 'text-amber-400'
+                                      : 'text-slate-500'
+                                  }`}
+                                />
+                                <span className="truncate">{ch.name}</span>
+                              </div>
+                              {msgCount > 0 && (
+                                <span className="font-mono text-[10px] text-slate-400">
+                                  {msgCount}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               /* PANEL LATERAL DE RED DE AMIGOS, TU PERFIL ID Y CONVERSACIONES DM */
@@ -1584,14 +1715,31 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                   <Menu className="w-5 h-5" />
                 </button>
 
-                <Hash className="w-5 h-5 text-slate-400 shrink-0" />
-                <div className="min-w-0">
-                  <h2 className="text-sm sm:text-base font-bold text-white truncate">
-                    {channelMeta.name}
-                  </h2>
-                  <p className="text-[11px] text-slate-400 truncate hidden sm:block">
-                    {channelMeta.description}
-                  </p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${currentGroupAccent.bgClass}`}
+                  >
+                    <BrandIconDisplay
+                      iconId={currentGroupIdentity.iconId}
+                      customImageUrl={currentGroupIdentity.customImageUrl}
+                      className="w-4 h-4"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs text-amber-400 font-bold">
+                      <span className="truncate max-w-[120px] sm:max-w-none">
+                        {currentGroupIdentity.ministryName}
+                      </span>
+                      <ChevronRight className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span className="text-white flex items-center gap-0.5">
+                        <Hash className="w-3 h-3 text-slate-400 inline" />
+                        {channelMeta.name}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 truncate hidden sm:block">
+                      {channelMeta.description} · Grupo: {currentGroupIdentity.ministryName}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1616,7 +1764,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                   className="lg:hidden min-h-[36px] px-2.5 py-1.5 rounded-xl bg-[#2b2d31] text-xs font-bold text-slate-200 flex items-center gap-1.5"
                 >
                   <Users className="w-4 h-4 text-amber-400" />
-                  <span>{members.length}</span>
+                  <span>{currentGroupMembers.length}</span>
                 </button>
 
                 <button
@@ -1709,7 +1857,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                                 activeMember.role === 'leader') && (
                                 <button
                                   type="button"
-                                  onClick={() => onDeleteMessage(msg.id)}
+                                  onClick={() => onDeleteMessage(msg.id, currentGroup.id)}
                                   className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                                   title="Eliminar mensaje"
                                 >
@@ -1787,7 +1935,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                             <div className="mt-2.5">
                               <button
                                 type="button"
-                                onClick={() => onTogglePrayerReaction(msg.id)}
+                                onClick={() => onTogglePrayerReaction(msg.id, currentGroup.id)}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
                                   prayedByMe
                                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
@@ -1848,7 +1996,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                         <option value="">
                           Selecciona una canción del Repertorio para adjuntar...
                         </option>
-                        {songs.map((s) => (
+                        {currentGroupSongs.map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.title} ({s.originalKey}) — Subida por{' '}
                             {s.addedByName}
@@ -1884,7 +2032,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {members.map((m) => {
+                        {currentGroupMembers.map((m) => {
                           const handle =
                             m.username ||
                             m.name.toLowerCase().replace(/\s+/g, '_');

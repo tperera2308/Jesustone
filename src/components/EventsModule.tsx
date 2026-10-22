@@ -963,42 +963,19 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
     window.setTimeout(() => setEventNotesSavedNotice(''), 3000);
   };
 
-  const handleAddRehearsalToActiveEvent = (preset?: 'thursday' | 'saturday') => {
+  const handleAddRehearsalToActiveEvent = () => {
     if (!activeEvent || !isLeader) return;
     const baseDate = activeEvent.date;
-    const newReh: EventRehearsal =
-      preset === 'thursday'
-        ? {
-            id: `reh-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-            title: 'Ensayo General (Jueves previo)',
-            date: addDaysToDateStr(baseDate, -3),
-            callTime: '19:00',
-            time: '19:30',
-            location: 'Salón de Ensayo / Auditorio',
-            notes: 'Mismo equipo convocado y setlist del evento.',
-            rsvpByMemberId: {},
-          }
-        : preset === 'saturday'
-        ? {
-            id: `reh-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-            title: 'Ensayo General (Sábado previo)',
-            date: addDaysToDateStr(baseDate, -1),
-            callTime: '16:30',
-            time: '17:00',
-            location: 'Auditorio Principal',
-            notes: 'Pasada general con sonido y voces.',
-            rsvpByMemberId: {},
-          }
-        : {
-            id: `reh-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-            title: rehTitleDraft.trim() || 'Ensayo del Evento',
-            date: rehDateDraft || addDaysToDateStr(baseDate, -3),
-            callTime: rehCallTimeDraft || '19:00',
-            time: rehTimeDraft || '19:30',
-            location: rehLocationDraft.trim() || activeEvent.location,
-            notes: rehNotesDraft.trim() || undefined,
-            rsvpByMemberId: {},
-          };
+    const newReh: EventRehearsal = {
+      id: `reh-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      title: rehTitleDraft.trim() || `Ensayo ${(activeEvent.rehearsals?.length || 0) + 1}`,
+      date: rehDateDraft || baseDate,
+      callTime: rehCallTimeDraft || '19:00',
+      time: rehTimeDraft || '19:30',
+      location: rehLocationDraft.trim() || activeEvent.location,
+      notes: rehNotesDraft.trim() || undefined,
+      rsvpByMemberId: {},
+    };
 
     const nextRehearsals = [...(activeEvent.rehearsals || []), newReh].sort(
       (a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)
@@ -1898,36 +1875,18 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
 
                 {isLeader && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleAddRehearsalToActiveEvent('thursday')}
-                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 text-xs font-bold"
-                      title="Agregar ensayo automático el jueves previo a las 19:30"
-                    >
-                      + Jueves Previo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleAddRehearsalToActiveEvent('saturday')}
-                      className="min-h-[34px] px-2.5 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 text-xs font-bold"
-                      title="Agregar ensayo automático el sábado previo a las 17:00"
-                    >
-                      + Sábado Previo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddRehearsalInDetail((prev) => !prev)}
-                      className={`min-h-[34px] px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1 ${accent.bgClass}`}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>
-                        {showAddRehearsalInDetail
-                          ? 'Cerrar'
-                          : 'Otra Fecha de Ensayo'}
-                      </span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRehearsalInDetail((prev) => !prev)}
+                    className={`min-h-[34px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>
+                      {showAddRehearsalInDetail
+                        ? 'Cerrar'
+                        : 'Programar Ensayo'}
+                    </span>
+                  </button>
                 )}
               </div>
 
@@ -2000,7 +1959,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 <p className="text-xs text-slate-500 dark:text-slate-400 py-1">
                   Aún no se han programado fechas de ensayo para este evento.
                   {isLeader
-                    ? ' Usa los botones "+ Jueves Previo" o "+ Sábado Previo" arriba para agregar uno en 1 toque.'
+                    ? ' Haz clic en "Programar Ensayo" arriba para definir la fecha y hora.'
                     : ''}
                 </p>
               ) : (
@@ -3640,9 +3599,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         setDraftRehearsals((prev) => [
                           ...prev,
                           {
-                            id: `reh-draft-${Date.now()}-thu`,
-                            title: 'Ensayo General (Jueves previo)',
-                            date: addDaysToDateStr(newDate, -3),
+                            id: `reh-draft-${Date.now()}-${prev.length + 1}`,
+                            title: `Ensayo ${prev.length + 1}`,
+                            date: newDate || todayStr,
                             callTime: '19:00',
                             time: '19:30',
                             location: newLocation || 'Salón de Ensayo',
@@ -3650,29 +3609,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           },
                         ])
                       }
-                      className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 text-[11px] font-bold"
+                      className="min-h-[34px] px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs"
                     >
-                      + Ensayo Jueves Previo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDraftRehearsals((prev) => [
-                          ...prev,
-                          {
-                            id: `reh-draft-${Date.now()}-sat`,
-                            title: 'Ensayo General (Sábado previo)',
-                            date: addDaysToDateStr(newDate, -1),
-                            callTime: '16:30',
-                            time: '17:00',
-                            location: newLocation || 'Auditorio Principal',
-                            rsvpByMemberId: {},
-                          },
-                        ])
-                      }
-                      className="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-600 dark:text-indigo-300 text-[11px] font-bold"
-                    >
-                      + Ensayo Sábado Previo
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Agregar Fecha de Ensayo</span>
                     </button>
                   </div>
                 </div>
