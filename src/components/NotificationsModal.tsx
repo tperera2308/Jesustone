@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AccentColorId,
   AppNotification,
@@ -7,13 +7,20 @@ import {
 } from '../types';
 import { getAccentClasses } from './IdentityModal';
 import {
+  getPushSubscriptionState,
+  subscribeDeviceToWebPush,
+  unsubscribeDeviceFromWebPush,
+} from '../utils/pushNotifications';
+import {
   AtSign,
   Bell,
+  BellOff,
   BellRing,
   BookOpen,
   Calendar,
   CheckCheck,
   Music,
+  Smartphone,
   Trash2,
   UserCheck,
   UserPlus,
@@ -24,6 +31,7 @@ interface NotificationsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: AppUser;
+  userGroupIds?: string[];
   notifications: AppNotification[];
   accentColor: AccentColorId;
   onSelectNotification: (notification: AppNotification) => void;
@@ -34,16 +42,20 @@ interface NotificationsModalProps {
 export function getNotificationIcon(category: NotificationCategory) {
   switch (category) {
     case 'new_event':
+    case 'guest_event_invite':
       return Calendar;
     case 'new_song':
       return Music;
     case 'mention':
+    case 'direct_message':
       return AtSign;
     case 'role_assigned':
+    case 'friend_accepted':
       return UserCheck;
     case 'study_published':
       return BookOpen;
     case 'group_invite':
+    case 'friend_request':
       return UserPlus;
     default:
       return Bell;
@@ -53,17 +65,23 @@ export function getNotificationIcon(category: NotificationCategory) {
 export function getNotificationBadgeStyle(category: NotificationCategory) {
   switch (category) {
     case 'mention':
+    case 'direct_message':
       return 'bg-amber-500/15 text-amber-500 border-amber-500/30';
     case 'role_assigned':
+    case 'friend_accepted':
       return 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30';
     case 'new_event':
+    case 'guest_event_invite':
       return 'bg-indigo-500/15 text-indigo-500 border-indigo-500/30';
     case 'new_song':
       return 'bg-sky-500/15 text-sky-500 border-sky-500/30';
     case 'study_published':
       return 'bg-violet-500/15 text-violet-500 border-violet-500/30';
     case 'group_invite':
+    case 'friend_request':
       return 'bg-rose-500/15 text-rose-500 border-rose-500/30';
+    default:
+      return 'bg-amber-500/15 text-amber-500 border-amber-500/30';
   }
 }
 
@@ -81,6 +99,16 @@ export function getNotificationCategoryLabel(category: NotificationCategory) {
       return 'Nuevo Estudio';
     case 'group_invite':
       return 'Invitación a Grupo';
+    case 'friend_request':
+      return 'Solicitud de Amistad';
+    case 'friend_accepted':
+      return 'Nuevo Amigo Músico';
+    case 'direct_message':
+      return 'Mensaje Directo (DM)';
+    case 'guest_event_invite':
+      return 'Pase de Músico Invitado';
+    default:
+      return 'Notificación';
   }
 }
 
@@ -88,6 +116,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   isOpen,
   onClose,
   currentUser,
+  userGroupIds = [],
   notifications,
   accentColor,
   onSelectNotification,
@@ -98,9 +127,24 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   const [filter, setFilter] = useState<
     'all' | 'unread' | 'mentions' | 'events' | 'songs'
   >('all');
-  const [browserPermStatus, setBrowserPermStatus] = useState<string>(() =>
-    typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
-  );
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushFeedback, setPushFeedback] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    getPushSubscriptionState().then((state) => {
+      if (!active) return;
+      setPushSubscribed(state.subscribed);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -112,21 +156,43 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
     const isUnread = !n.readByUserIds.includes(currentUser.id);
     if (filter === 'unread') return isUnread;
     if (filter === 'mentions')
-      return n.category === 'mention' || n.category === 'role_assigned';
+      return (
+        n.category === 'mention' ||
+        n.category === 'role_assigned' ||
+        n.category === 'direct_message'
+      );
     if (filter === 'events')
-      return n.category === 'new_event' || n.category === 'role_assigned';
+      return (
+        n.category === 'new_event' ||
+        n.category === 'role_assigned' ||
+        n.category === 'guest_event_invite'
+      );
     if (filter === 'songs') return n.category === 'new_song';
     return true;
   });
 
-  const handleRequestBrowserPermission = async () => {
-    if (typeof Notification === 'undefined') return;
-    try {
-      const perm = await Notification.requestPermission();
-      setBrowserPermStatus(perm);
-    } catch {
-      // ignore if blocked in iframe
-    }
+  const handleEnableNativePush = async () => {
+    setPushLoading(true);
+    setPushFeedback(null);
+    const res = await subscribeDeviceToWebPush({
+      userId: currentUser.id,
+      username: currentUser.username,
+      groupIds: userGroupIds,
+    });
+    const updatedState = await getPushSubscriptionState();
+    setPushSubscribed(updatedState.subscribed);
+    setPushFeedback({ ok: res.ok, message: res.message });
+    setPushLoading(false);
+  };
+
+  const handleDisableNativePush = async () => {
+    setPushLoading(true);
+    setPushFeedback(null);
+    const res = await unsubscribeDeviceFromWebPush(currentUser.id);
+    const updatedState = await getPushSubscriptionState();
+    setPushSubscribed(updatedState.subscribed);
+    setPushFeedback({ ok: res.ok, message: res.message });
+    setPushLoading(false);
   };
 
   return (
@@ -150,7 +216,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-400">
-                Avisos de nuevos eventos, canciones y etiquetas para @{currentUser.username}
+                Avisos de eventos, suplencias, canciones y mensajes para @{currentUser.username}
               </p>
             </div>
           </div>
@@ -165,14 +231,97 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           </button>
         </div>
 
+        {/* Barra simple para activar o desactivar notificaciones en el dispositivo */}
+        <div className="px-4 py-3 bg-slate-900/95 border-t border-slate-800 text-white flex flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                  pushSubscribed
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                }`}
+              >
+                <Smartphone className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-white">
+                    Notificaciones en este dispositivo
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                      pushSubscribed
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {pushSubscribed ? 'Activadas' : 'Desactivadas'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 truncate">
+                  Recibe avisos de eventos y mensajes aunque no tengas la app abierta.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              {!pushSubscribed ? (
+                <button
+                  type="button"
+                  disabled={pushLoading}
+                  onClick={handleEnableNativePush}
+                  className={`min-h-[34px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${accent.bgClass} disabled:opacity-50`}
+                >
+                  <BellRing className="w-3.5 h-3.5" />
+                  <span>
+                    {pushLoading ? 'Activando...' : 'Activar notificaciones'}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={pushLoading}
+                  onClick={handleDisableNativePush}
+                  className="min-h-[34px] px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/70 text-slate-300 hover:text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
+                >
+                  <BellOff className="w-3.5 h-3.5" />
+                  <span>
+                    {pushLoading ? 'Desactivando...' : 'Desactivar notificaciones'}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {pushFeedback && (
+            <div
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-medium flex items-center justify-between gap-2 ${
+                pushFeedback.ok
+                  ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+              }`}
+            >
+              <span>{pushFeedback.message}</span>
+              <button
+                type="button"
+                onClick={() => setPushFeedback(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Barra de Filtros y Acciones Rápidas */}
         <div className="p-3.5 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3">
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             {[
               { id: 'all', label: `Todas (${notifications.length})` },
               { id: 'unread', label: `No leídas (${unreadCount})` },
-              { id: 'mentions', label: 'Etiquetas (@) y Roles' },
-              { id: 'events', label: 'Eventos' },
+              { id: 'mentions', label: 'Etiquetas (@), DM y Roles' },
+              { id: 'events', label: 'Eventos y Suplencias' },
               { id: 'songs', label: 'Canciones' },
             ].map((tab) => (
               <button
@@ -191,17 +340,6 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            {browserPermStatus === 'default' && (
-              <button
-                type="button"
-                onClick={handleRequestBrowserPermission}
-                className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5 hover:underline"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                Activar alertas del navegador
-              </button>
-            )}
-
             <div className="flex items-center gap-3 ml-auto">
               {unreadCount > 0 && (
                 <button

@@ -50,6 +50,7 @@ export const MAX_GROUPS_PER_USER = 6;
 
 export interface AppUser {
   id: string;
+  musicianCode?: string; // e.g. JST-4821
   name: string;
   username: string;
   email: string;
@@ -57,7 +58,44 @@ export interface AppUser {
   instruments: InstrumentRole[];
   avatarInitials: string;
   avatarUrl?: string;
+  bio?: string;
+  cityOrChurch?: string;
+  availableForSub?: boolean;
+  friendIds?: string[];
   createdAt: string;
+}
+
+export interface FriendRequest {
+  id: string;
+  fromUserId: string;
+  fromName: string;
+  fromUsername: string;
+  fromMusicianCode?: string;
+  fromInstruments: InstrumentRole[];
+  fromAvatarInitials?: string;
+  fromAvatarUrl?: string;
+  toUserId: string;
+  toName: string;
+  toUsername: string;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
+}
+
+export interface DirectMessage {
+  id: string;
+  conversationId: string; // sorted [uid1, uid2].join('__')
+  participants: string[];
+  participantIds?: string[];
+  senderId: string;
+  senderName: string;
+  senderUsername?: string;
+  recipientId: string;
+  text: string;
+  timestamp: string;
+  createdAtMs: number;
+  voiceClipUrl?: string;
+  voiceClipDurationSec?: number;
+  sharedSongSnapshot?: Song;
 }
 
 export interface AppIdentity {
@@ -73,11 +111,14 @@ export interface BandMember {
   id: string;
   name: string;
   username?: string;
+  musicianCode?: string;
   email: string;
   role: UserRole;
   instruments: InstrumentRole[];
   phone: string;
   isLeader?: boolean;
+  isGuest?: boolean; // Temporary / Substitute musician
+  guestEventIds?: string[]; // Specific event IDs this guest is invited to
   avatarInitials: string;
   avatarUrl?: string;
   joinedAt?: string;
@@ -93,6 +134,8 @@ export interface GmailInvitation {
   invitedName: string;
   suggestedInstrument: InstrumentRole;
   inviteCode: string;
+  isGuest?: boolean;
+  guestEventIds?: string[];
   status: 'sent' | 'accepted';
   sentByLeaderName: string;
   sentAt: string;
@@ -107,6 +150,8 @@ export interface ServiceAssignment {
   memberId: string;
   memberName: string;
   rsvpStatus: RSVPStatus;
+  isGuest?: boolean;
+  isGuestAssignment?: boolean;
 }
 
 export interface EventSongItem {
@@ -285,7 +330,11 @@ export type NotificationCategory =
   | 'mention'
   | 'role_assigned'
   | 'study_published'
-  | 'group_invite';
+  | 'group_invite'
+  | 'friend_request'
+  | 'friend_accepted'
+  | 'direct_message'
+  | 'guest_event_invite';
 
 export interface AppNotification {
   id: string;

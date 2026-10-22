@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ALL_INSTRUMENT_ROLES,
   AccentColorId,
+  AppUser,
   BandMember,
   EventSongItem,
   InstrumentRole,
@@ -93,6 +94,8 @@ interface EventsModuleProps {
   }) => void;
   onRemoveAvailability: (recordId: string) => void;
   onOpenSongInSongbook: (songId: string, customKey?: string) => void;
+  friends?: AppUser[];
+  onConvokeFriendAsGuest?: (friendUser: AppUser) => BandMember;
 }
 
 const MAJOR_KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -638,6 +641,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   onSaveAvailability,
   onRemoveAvailability,
   onOpenSongInSongbook,
+  friends = [],
+  onConvokeFriendAsGuest,
 }) => {
   const accent = getAccentClasses(accentColor);
   const isLeader = activeMember.role === 'leader';
@@ -653,6 +658,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
   const [songSearchCreate, setSongSearchCreate] = useState('');
   const [songSearchEditor, setSongSearchEditor] = useState('');
+  const [expandedDraftMemberId, setExpandedDraftMemberId] = useState<string | null>(null);
+  const [showExtraEventFields, setShowExtraEventFields] = useState(false);
+  const [showAddMemberInDetail, setShowAddMemberInDetail] = useState(false);
 
   // Edit Existing Event Form State
   const [editTitle, setEditTitle] = useState('');
@@ -709,10 +717,11 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const buildSmartAssignmentsForDate = (
     dateStr: string
   ): ServiceAssignment[] => {
-    const availableMembers = members.filter(
+    const regularPool = members.filter((m) => !m.isGuest);
+    const availableRegular = regularPool.filter(
       (m) => getMemberAvailabilityForDate(m.id, dateStr)?.status !== 'unavailable'
     );
-    const pool = availableMembers.length > 0 ? availableMembers : members;
+    const pool = availableRegular.length > 0 ? availableRegular : regularPool;
 
     return pool.map((m, idx) => {
       const memberRoles =
@@ -724,6 +733,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         role: memberRoles[0],
         roles: memberRoles,
         rsvpStatus: 'pending' as RSVPStatus,
+        isGuest: Boolean(m.isGuest),
       };
     });
   };
@@ -1008,7 +1018,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       const eventDate = addDaysToDateStr(newDate, weekIdx * 7);
 
       const assignments: ServiceAssignment[] = draftAssignments.map((item, idx) => {
-        const memberObj = members.find((m) => m.id === item.memberId) || members[0];
+        const memberObj = members.find((m) => m.id === item.memberId);
         const resolvedRoles =
           item.roles && item.roles.length > 0 ? item.roles : [item.role];
         return {
@@ -1018,6 +1028,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           memberId: memberObj?.id || item.memberId,
           memberName: memberObj?.name || item.memberName,
           rsvpStatus: 'pending' as RSVPStatus,
+          isGuest: Boolean(item.isGuest || memberObj?.isGuest),
         };
       });
 
@@ -1768,22 +1779,39 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                    + CONTROLES DEL LÍDER PARA AGREGAR/ELIMINAR Y ASIGNAR MÚLTIPLES INSTRUMENTOS
                =============================================================== */}
             <div className="space-y-3 pt-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <Users className="w-5 h-5 text-emerald-500" />
                     Miembros en este Evento ({activeEvent.assignments.length})
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Lista del equipo convocado y el estado de su invitación.{' '}
-                    {isLeader &&
-                      'Como Líder/Admin puedes agregar o quitar miembros y asignarles más de un instrumento o voz.'}
+                    Equipo convocado y estado de confirmación.
                   </p>
                 </div>
+
+                {isLeader && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMemberInDetail((prev) => !prev)}
+                    className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                      showAddMemberInDetail
+                        ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+                        : accent.bgClass
+                    }`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>
+                      {showAddMemberInDetail
+                        ? 'Cerrar panel'
+                        : 'Agregar Miembro / Invitado'}
+                    </span>
+                  </button>
+                )}
               </div>
 
-              {/* Panel exclusivo del Líder/Admin para agregar un miembro con uno o varios instrumentos/voces */}
-              {isLeader && (
+              {/* Panel desplegable del Líder/Admin para agregar un miembro o amigo invitado al evento */}
+              {isLeader && showAddMemberInDetail && (
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div className="flex items-center gap-2 flex-1">
@@ -1812,7 +1840,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           return (
                             <option key={m.id} value={m.id}>
                               {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
-                              {m.name} ({m.instruments.join(', ') || 'Miembro'})
+                              {m.name} {m.isGuest ? '(Suplente) ' : ''}(
+                              {m.instruments.join(', ') || 'Miembro'})
                             </option>
                           );
                         })}
@@ -1835,23 +1864,25 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           role: finalRoles[0],
                           roles: finalRoles,
                           rsvpStatus: 'pending',
+                          isGuest: Boolean(targetM.isGuest),
                         };
                         onUpdateEventAssignments(activeEvent.id, [
                           ...activeEvent.assignments,
                           newRow,
                         ]);
+                        setShowAddMemberInDetail(false);
                       }}
-                      className={`min-h-[42px] px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
+                      className={`min-h-[40px] px-4 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
                     >
                       <Plus className="w-4 h-4" />
-                      <span>Agregar Miembro al Evento</span>
+                      <span>Asignar al Evento</span>
                     </button>
                   </div>
 
-                  {/* Selección múltiple de instrumentos/voces para este miembro + rol personalizado */}
+                  {/* Selección múltiple de instrumentos/voces */}
                   <div className="space-y-2">
                     <span className="text-[11px] font-bold text-slate-500 block">
-                      Selecciona uno o más instrumentos / voces para asignarle en este evento:
+                      Instrumentos / voces en este evento:
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {allAvailableRoles.map((r) => {
@@ -1887,7 +1918,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         type="text"
                         value={customInstrumentInput}
                         onChange={(e) => setCustomInstrumentInput(e.target.value)}
-                        placeholder="Otro instrumento o rol personalizado (ej. Saxofón, Chelo, Audio)..."
+                        placeholder="Otro instrumento o rol personalizado..."
                         className="flex-1 min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                       />
                       <button
@@ -1902,10 +1933,85 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         }}
                         className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 shrink-0"
                       >
-                        + Añadir Rol
+                        + Rol
                       </button>
                     </div>
                   </div>
+
+                  {/* Convocar Amigo Suplente directamente a este evento */}
+                  {friends.filter(
+                    (f) =>
+                      !activeEvent.assignments.some((a) => a.memberId === f.id)
+                  ).length > 0 && (
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1.5">
+                      <span className="text-[11px] font-bold text-indigo-500 block">
+                        O convoca a un Amigo como Músico Invitado solo para esta fecha:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {friends
+                          .filter(
+                            (f) =>
+                              !activeEvent.assignments.some(
+                                (a) => a.memberId === f.id
+                              )
+                          )
+                          .map((friend) => (
+                            <button
+                              key={friend.id}
+                              type="button"
+                              onClick={() => {
+                                const existingM = members.find(
+                                  (m) => m.id === friend.id
+                                );
+                                const guestM =
+                                  existingM ||
+                                  (onConvokeFriendAsGuest
+                                    ? onConvokeFriendAsGuest(friend)
+                                    : {
+                                        id: friend.id,
+                                        name: friend.name,
+                                        username: friend.username,
+                                        email: friend.email,
+                                        role: 'member' as const,
+                                        instruments:
+                                          friend.instruments?.length > 0
+                                            ? friend.instruments
+                                            : ['Coros'],
+                                        phone: '',
+                                        isGuest: true,
+                                        avatarInitials: friend.avatarInitials,
+                                        avatarUrl: friend.avatarUrl,
+                                      });
+                                const rolesForGuest =
+                                  guestM.instruments?.length > 0
+                                    ? guestM.instruments
+                                    : ['Guitarra eléctrica'];
+                                onUpdateEventAssignments(activeEvent.id, [
+                                  ...activeEvent.assignments,
+                                  {
+                                    id: `asg-guest-${Date.now()}-${friend.id}`,
+                                    memberId: guestM.id,
+                                    memberName: guestM.name,
+                                    role: rolesForGuest[0],
+                                    roles: rolesForGuest,
+                                    rsvpStatus: 'pending',
+                                    isGuest: true,
+                                  },
+                                ]);
+                                setShowAddMemberInDetail(false);
+                              }}
+                              className="px-2.5 py-1 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-xs font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>{friend.name}</span>
+                              <span className="text-[10px] opacity-75">
+                                ({friend.instruments[0] || 'Invitado'})
+                              </span>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1942,6 +2048,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           <span className="text-sm font-bold text-slate-900 dark:text-white">
                             {assign.memberName}
                           </span>
+                          {(assign.isGuest ||
+                            members.find((m) => m.id === assign.memberId)?.isGuest) && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[10px] font-bold">
+                              Invitado
+                            </span>
+                          )}
                           {isCurrentUser && (
                             <span
                               className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${accent.softBgClass}`}
@@ -2910,303 +3022,321 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
               </div>
 
-              {/* Lugar, Tema/Predicador y Notas Grupales Iniciales */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Ubicación / Lugar
-                  </label>
-                  <input
-                    type="text"
-                    value={newLocation}
-                    onChange={(e) => setNewLocation(e.target.value)}
-                    placeholder="Ej. Auditorio Central / Salón de Ensayo"
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Tema o Descripción Breve (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={newTheme}
-                    onChange={(e) => setNewTheme(e.target.value)}
-                    placeholder="Ej. Servicio Dominical / Ensayo General"
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
+              {/* Opciones Adicionales Colapsables (Ubicación, Tema, Notas, Spotify) para vista limpia */}
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowExtraEventFields((prev) => !prev)}
+                  className="w-full px-3.5 py-2.5 flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-colors"
+                >
+                  <span>
+                    Detalles opcionales (Ubicación, Notas grupales, Link de Spotify)
+                  </span>
+                  <span className="text-[11px] text-amber-500">
+                    {showExtraEventFields ? 'Ocultar ▲' : 'Editar detalles ▼'}
+                  </span>
+                </button>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Notas Grupales para este Evento (Vestimenta, indicaciones, orden...)
-                </label>
-                <textarea
-                  rows={2}
-                  value={newNotes}
-                  onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Ej. Prueba de sonido puntual, vestimenta tonos neutros, llegar 15 min antes..."
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
-                />
-              </div>
+                {showExtraEventFields && (
+                  <div className="p-3.5 pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                          Ubicación / Lugar
+                        </label>
+                        <input
+                          type="text"
+                          value={newLocation}
+                          onChange={(e) => setNewLocation(e.target.value)}
+                          placeholder="Ej. Auditorio Central"
+                          className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                          Tema o Descripción Breve
+                        </label>
+                        <input
+                          type="text"
+                          value={newTheme}
+                          onChange={(e) => setNewTheme(e.target.value)}
+                          placeholder="Ej. Servicio Dominical"
+                          className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
-                  <Headphones className="w-3.5 h-3.5 text-emerald-500" />
-                  Enlace de Playlist de Spotify del Evento (Opcional)
-                </label>
-                <input
-                  type="url"
-                  value={newSpotifyPlaylistUrl}
-                  onChange={(e) => setNewSpotifyPlaylistUrl(e.target.value)}
-                  placeholder="https://open.spotify.com/playlist/... (para que el equipo escuche los temas)"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm text-slate-900 dark:text-white"
-                />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                          Notas Grupales (Vestimenta, indicaciones)
+                        </label>
+                        <input
+                          type="text"
+                          value={newNotes}
+                          onChange={(e) => setNewNotes(e.target.value)}
+                          placeholder="Ej. Vestimenta neutra, llegar 15 min antes..."
+                          className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 flex items-center gap-1">
+                          <Headphones className="w-3 h-3 text-emerald-500" />
+                          Playlist de Spotify (Opcional)
+                        </label>
+                        <input
+                          type="url"
+                          value={newSpotifyPlaylistUrl}
+                          onChange={(e) => setNewSpotifyPlaylistUrl(e.target.value)}
+                          placeholder="https://open.spotify.com/playlist/..."
+                          className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* ===============================================================
-                  PANEL EN VIVO DE DISPONIBILIDAD DE MIEMBROS PARA LA FECHA ELEGIDA
+                  SECCIÓN MINIMALISTA DE MIEMBROS Y SUPLENTES/AMIGOS PARA EL EVENTO
                  =============================================================== */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <CalendarCheck className="w-4 h-4 text-emerald-500" />
-                    Disponibilidad del Equipo para el{' '}
-                    <span className="font-mono underline">{newDate}</span>
-                  </span>
-                  <span className="text-[11px] font-mono text-slate-500">
-                    {membersAvailableOnNewDate.length} disponibles ·{' '}
-                    {membersUnavailableOnNewDate.length} no disponibles
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Columna Disponibles */}
-                  <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-1.5">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <UserCheck className="w-3.5 h-3.5" />
-                      Disponibles ({membersAvailableOnNewDate.length})
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {membersAvailableOnNewDate.map((m) => (
-                        <span
-                          key={m.id}
-                          className="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-emerald-500/30 text-[11px] font-bold text-slate-800 dark:text-slate-200"
-                        >
-                          ✓ {m.name} ({m.instruments.join(', ') || 'Banda'})
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Columna No Disponibles */}
-                  <div className="p-3 rounded-xl bg-rose-500/5 border border-rose-500/20 space-y-1.5">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                      <UserX className="w-3.5 h-3.5" />
-                      No Disponibles / Bloqueados ({membersUnavailableOnNewDate.length})
-                    </p>
-                    {membersUnavailableOnNewDate.length === 0 ? (
-                      <p className="text-xs text-slate-500">
-                        Nadie ha bloqueado esta fecha. ¡Equipo completo disponible!
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {membersUnavailableOnNewDate.map((m) => {
-                          const rec = getMemberAvailabilityForDate(m.id, newDate);
-                          return (
-                            <div
-                              key={m.id}
-                              className="px-2.5 py-1 rounded-lg bg-rose-500/10 text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center justify-between"
-                            >
-                              <span>⚠️ {m.name}</span>
-                              <span className="font-normal opacity-90">
-                                {rec?.reason || 'Fecha bloqueada'}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Asignación Individual e Ilimitada de Miembros e Instrumentos para el nuevo evento */}
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-700/80 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">
-                        Asignación de Instrumentos y Voces para este Evento ({draftAssignments.length} asignados):
-                      </p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Agrega miembros individualmente y asígnales uno o más instrumentos/voces (ej. Guitarra + Voz Principal).
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleAddDraftAssignment()}
-                        className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 ${accent.bgClass}`}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Agregar Fila</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDraftAssignments(buildSmartAssignmentsForDate(newDate))
-                        }
-                        className="min-h-[36px] px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-300"
-                      >
-                        Cargar Disponibles
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Botones rápidos de 1 toque por cada miembro para agregarlo al instante */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Toca un miembro para sumarlo al evento:
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-emerald-500" />
+                      Equipo Convocado ({draftAssignments.length})
                     </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {members.map((m) => {
-                        const isBlocked =
-                          getMemberAvailabilityForDate(m.id, newDate)?.status ===
-                          'unavailable';
-                        const countInDraft = draftAssignments.filter(
-                          (a) => a.memberId === m.id
-                        ).length;
-                        return (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => handleAddDraftAssignment(m)}
-                            className={`px-2.5 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1 transition-all ${
-                              isBlocked
-                                ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                                : countInDraft > 0
-                                ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-amber-500'
-                            }`}
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>{m.name}</span>
-                            {countInDraft > 0 && (
-                              <span className="px-1.5 py-0.2 rounded-full bg-emerald-600 text-white text-[10px] font-mono">
-                                {countInDraft}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Marca quiénes participan el <span className="font-mono">{newDate}</span> ({membersAvailableOnNewDate.length} disp. / {membersUnavailableOnNewDate.length} no disp.)
+                    </p>
                   </div>
 
-                  {/* Lista dinámica de miembros asignados y sus múltiples instrumentos */}
-                  {draftAssignments.length === 0 ? (
-                    <div className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-xs text-slate-500">
-                      No hay miembros asignados todavía. Toca «+ Agregar Fila» o toca el nombre de cada miembro arriba.
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                      {draftAssignments.map((item, idx) => {
-                        const selAvail = getMemberAvailabilityForDate(
-                          item.memberId,
-                          newDate
-                        );
-                        const isBlocked = selAvail?.status === 'unavailable';
-                        const currentRoles =
-                          item.roles && item.roles.length > 0
-                            ? item.roles
-                            : [item.role];
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDraftAssignments(buildSmartAssignmentsForDate(newDate))
+                      }
+                      className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+                    >
+                      Solo disponibles
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDraftAssignments([])}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-rose-500"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
 
-                        return (
-                          <div
-                            key={item.id || `draft-${idx}`}
-                            className={`p-3 rounded-xl border space-y-2 ${
-                              isBlocked
-                                ? 'border-rose-500/50 bg-rose-500/10'
-                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
-                            }`}
+                {/* Lista compacta de 1 fila por miembro (Titulares y Suplentes en el grupo) */}
+                <div className="divide-y divide-slate-200/80 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-h-60 overflow-y-auto">
+                  {members.map((m) => {
+                    const draftIndex = draftAssignments.findIndex(
+                      (a) => a.memberId === m.id
+                    );
+                    const isSelected = draftIndex !== -1;
+                    const draftItem = isSelected ? draftAssignments[draftIndex] : null;
+                    const avail = getMemberAvailabilityForDate(m.id, newDate);
+                    const isUnavailable = avail?.status === 'unavailable';
+                    const isExpanded = expandedDraftMemberId === m.id;
+                    const currentRoles =
+                      draftItem?.roles && draftItem.roles.length > 0
+                        ? draftItem.roles
+                        : draftItem
+                        ? [draftItem.role]
+                        : m.instruments?.length
+                        ? m.instruments
+                        : ['Coros'];
+
+                    const toggleMemberSelection = () => {
+                      if (isSelected) {
+                        handleRemoveDraftAssignment(draftIndex);
+                        if (isExpanded) setExpandedDraftMemberId(null);
+                      } else {
+                        handleAddDraftAssignment(m);
+                      }
+                    };
+
+                    return (
+                      <div key={m.id} className="px-3 py-2 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={toggleMemberSelection}
+                            className="flex items-center gap-2.5 min-w-0 flex-1 text-left"
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-[11px] font-bold text-slate-500 flex items-center justify-center shrink-0">
-                                  {idx + 1}
-                                </span>
+                            <div
+                              className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors shrink-0 ${
+                                isSelected
+                                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                                  : 'border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-transparent'
+                              }`}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </div>
 
-                                <select
-                                  value={item.memberId}
-                                  onChange={(e) =>
-                                    handleUpdateDraftAssignmentMember(
-                                      idx,
-                                      e.target.value
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className={`text-xs font-bold truncate ${
+                                    isSelected
+                                      ? 'text-slate-900 dark:text-white'
+                                      : 'text-slate-500 dark:text-slate-400'
+                                  }`}
+                                >
+                                  {m.name}
+                                </span>
+                                {m.isGuest && (
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-300 text-[9px] font-bold">
+                                    Suplente
+                                  </span>
+                                )}
+                                {isUnavailable ? (
+                                  <span
+                                    className="px-1.5 py-0.2 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-semibold truncate"
+                                    title={avail?.reason || 'Fecha bloqueada'}
+                                  >
+                                    ⚠️ No disp.
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                    · Disp.
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+
+                          {isSelected ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedDraftMemberId(isExpanded ? null : m.id)
+                              }
+                              className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 text-[11px] font-bold flex items-center gap-1 shrink-0 max-w-[170px]"
+                              title="Cambiar o agregar instrumentos para este evento"
+                            >
+                              <span className="truncate">
+                                {currentRoles.join(' + ')}
+                              </span>
+                              <span className="text-[9px] opacity-75">
+                                {isExpanded ? '▲' : '▾'}
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 truncate max-w-[120px]">
+                              {m.instruments[0] || 'Músico'}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Selector desplegable de instrumentos solo cuando el líder toca el rol del miembro */}
+                        {isSelected && isExpanded && (
+                          <div className="pt-1.5 pl-7 flex flex-wrap gap-1">
+                            {allAvailableRoles.map((roleOpt) => {
+                              const activeRole = currentRoles.includes(roleOpt);
+                              return (
+                                <button
+                                  key={roleOpt}
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleDraftAssignmentRole(
+                                      draftIndex,
+                                      roleOpt
                                     )
                                   }
-                                  className="min-h-[38px] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white flex-1 min-w-0"
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all ${
+                                    activeRole
+                                      ? 'bg-amber-500 text-slate-950 border-transparent'
+                                      : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+                                  }`}
                                 >
-                                  {members.map((m) => {
-                                    const av = getMemberAvailabilityForDate(
-                                      m.id,
-                                      newDate
-                                    );
-                                    return (
-                                      <option key={m.id} value={m.id}>
-                                        {av?.status === 'unavailable' ? '⚠️ ' : '✓ '}
-                                        {m.name}
-                                        {av?.status === 'unavailable'
-                                          ? ' (No disp.)'
-                                          : ''}
-                                      </option>
-                                    );
-                                  })}
-                                </select>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveDraftAssignment(idx)}
-                                title="Quitar miembro del evento"
-                                className="min-h-[36px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-
-                            {/* Chips de instrumentos/voces asignados a este miembro en el borrador */}
-                            <div className="flex flex-wrap items-center gap-1.5 pl-8">
-                              {allAvailableRoles.map((roleOpt) => {
-                                const isSelectedRole =
-                                  currentRoles.includes(roleOpt);
-                                return (
-                                  <button
-                                    key={roleOpt}
-                                    type="button"
-                                    onClick={() =>
-                                      handleToggleDraftAssignmentRole(
-                                        idx,
-                                        roleOpt
-                                      )
-                                    }
-                                    className={`px-2 py-0.5 rounded-lg text-[11px] font-bold border transition-all ${
-                                      isSelectedRole
-                                        ? 'bg-amber-500 text-slate-950 border-transparent'
-                                        : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
-                                    }`}
-                                  >
-                                    {isSelectedRole ? '✓ ' : '+ '}
-                                    {roleOpt}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                                  {activeRole ? '✓ ' : '+ '}
+                                  {roleOpt}
+                                </button>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+
+                {/* Convocar Amigo Músico como Invitado / Suplente desde la Red de Amigos */}
+                {friends.filter(
+                  (f) => !draftAssignments.some((a) => a.memberId === f.id)
+                ).length > 0 && (
+                  <div className="pt-1 space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 dark:text-indigo-400 block">
+                      + Convocar Amigo Suplente (Solo verá este evento y sus canciones):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {friends
+                        .filter(
+                          (f) =>
+                            !draftAssignments.some((a) => a.memberId === f.id)
+                        )
+                        .map((friend) => (
+                          <button
+                            key={friend.id}
+                            type="button"
+                            onClick={() => {
+                              const existingMember = members.find(
+                                (m) => m.id === friend.id
+                              );
+                              const guestMember =
+                                existingMember ||
+                                (onConvokeFriendAsGuest
+                                  ? onConvokeFriendAsGuest(friend)
+                                  : {
+                                      id: friend.id,
+                                      name: friend.name,
+                                      username: friend.username,
+                                      email: friend.email,
+                                      role: 'member' as const,
+                                      instruments:
+                                        friend.instruments?.length > 0
+                                          ? friend.instruments
+                                          : ['Coros'],
+                                      phone: '',
+                                      isGuest: true,
+                                      avatarInitials: friend.avatarInitials,
+                                      avatarUrl: friend.avatarUrl,
+                                    });
+                              setDraftAssignments((prev) => [
+                                ...prev,
+                                {
+                                  id: `asg-guest-${Date.now()}-${friend.id}`,
+                                  memberId: guestMember.id,
+                                  memberName: guestMember.name,
+                                  role:
+                                    guestMember.instruments[0] || 'Guitarra eléctrica',
+                                  roles:
+                                    guestMember.instruments.length > 0
+                                      ? guestMember.instruments
+                                      : ['Guitarra eléctrica'],
+                                  rsvpStatus: 'pending',
+                                  isGuest: true,
+                                },
+                              ]);
+                            }}
+                            className="px-2.5 py-1 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-[11px] font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>{friend.name}</span>
+                            <span className="text-[10px] opacity-75">
+                              ({friend.instruments[0] || 'Suplente'})
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Buscador interactivo de Canciones + Tono por Semana para el nuevo evento */}

@@ -271,7 +271,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const [editSongTitle, setEditSongTitle] = useState('');
   const [editSongArtist, setEditSongArtist] = useState('');
   const [editSongKey, setEditSongKey] = useState('G');
-  const [editSongBpm, setEditSongBpm] = useState(76);
+  const [editSongBpm, setEditSongBpm] = useState<string>('76');
   const [editSongTimeSig, setEditSongTimeSig] = useState<TimeSignature>('4/4');
   const [editSongStyle, setEditSongStyle] = useState<Song['style']>('Adoración');
   const [editSongSpotifyUrl, setEditSongSpotifyUrl] = useState('');
@@ -317,7 +317,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const [newTitle, setNewTitle] = useState('');
   const [newArtist, setNewArtist] = useState('');
   const [newKey, setNewKey] = useState('G');
-  const [newBpm, setNewBpm] = useState(76);
+  const [newBpm, setNewBpm] = useState<string>('76');
   const [newTimeSig, setNewTimeSig] = useState<TimeSignature>('4/4');
   const [newStyle, setNewStyle] = useState<Song['style']>('Adoración');
   const [newCharacteristics, setNewCharacteristics] = useState(
@@ -947,7 +947,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     setEditSongTitle(s.title);
     setEditSongArtist(s.artist);
     setEditSongKey(s.originalKey);
-    setEditSongBpm(s.bpm);
+    setEditSongBpm(String(s.bpm || 76));
     setEditSongTimeSig(s.timeSignature);
     setEditSongStyle(normalizeSongStyle(s.style));
     setEditSongSpotifyUrl(hasValidSpotifyUrl(s.spotifyUrl) ? s.spotifyUrl! : '');
@@ -2947,11 +2947,16 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     BPM
                   </label>
                   <input
-                    type="number"
-                    min={30}
-                    max={250}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="120"
                     value={newBpm}
-                    onChange={(e) => setNewBpm(Number(e.target.value))}
+                    onChange={(e) => {
+                      const cleaned = e.target.value
+                        .replace(/\D/g, '')
+                        .replace(/^0+/, '');
+                      setNewBpm(cleaned);
+                    }}
                     className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
                   />
                 </div>
@@ -3410,11 +3415,16 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     BPM
                   </label>
                   <input
-                    type="number"
-                    min={30}
-                    max={250}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="120"
                     value={editSongBpm}
-                    onChange={(e) => setEditSongBpm(Number(e.target.value))}
+                    onChange={(e) => {
+                      const cleaned = e.target.value
+                        .replace(/\D/g, '')
+                        .replace(/^0+/, '');
+                      setEditSongBpm(cleaned);
+                    }}
                     className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
                   />
                 </div>

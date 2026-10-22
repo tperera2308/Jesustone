@@ -851,6 +851,15 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 <span className="text-xs font-mono text-amber-400">
                   @{currentUser.username}
                 </span>
+                <span className="px-2 py-0.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-[11px] font-mono font-bold text-indigo-300">
+                  ID:{' '}
+                  {currentUser.musicianCode ||
+                    `JST-${currentUser.id
+                      .replace(/[^a-zA-Z0-9]/g, '')
+                      .slice(-4)
+                      .toUpperCase()
+                      .padStart(4, '0')}`}
+                </span>
               </div>
               <p className="text-xs text-slate-400">
                 {currentUser.email} ·{' '}

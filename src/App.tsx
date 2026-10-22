@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AccentColorId,
   ActivityFeedItem,
@@ -15,7 +15,9 @@ import {
   ChatChannelId,
   ChatMessage,
   Devotional,
+  DirectMessage,
   EventSongItem,
+  FriendRequest,
   GmailInvitation,
   InstrumentRole,
   MAX_GROUPS_PER_USER,
@@ -48,19 +50,32 @@ import { SongbookModule } from './components/SongbookModule';
 import { DevotionalsModule } from './components/DevotionalsModule';
 import { ChatModule } from './components/ChatModule';
 import { ToolsModule } from './components/ToolsModule';
+import { MusicianProfileModal } from './components/MusicianProfileModal';
 import { useOnlineStatus, usePWAInstall } from './hooks/usePWAInstall';
+import {
+  ensurePushServiceWorker,
+  PushNavigationPayload,
+  sendWebPushToRecipients,
+  showNativeNotificationViaSW,
+  syncExistingPushSubscription,
+} from './utils/pushNotifications';
 import {
   clearAllCloudData,
   deleteChatMessageFromFirestore,
+  deleteDirectMessageFromFirestore,
   deleteNotificationFromFirestore,
   deleteSongFromFirestore,
   enrichGroupIndexes,
   findGroupByInviteCodeInCloud,
-  firebaseConfig,
+  MAX_CHAT_MESSAGES_PER_GROUP,
+  MAX_DMS_PER_CONVERSATION,
+  MAX_NOTIFICATIONS,
   signOutFirebaseOfficial,
   subscribeToJesustoneCloud,
   syncChatMessageToFirestore,
+  syncDirectMessageToFirestore,
   syncFirebaseEmailAuth,
+  syncFriendRequestToFirestore,
   syncGroupToFirestore,
   syncNotificationToFirestore,
   syncSongToFirestore,
@@ -72,10 +87,11 @@ import {
   BellRing,
   BookOpen,
   Calendar,
-  Cloud,
+  ChevronDown,
   Download,
   FolderPlus,
   Home,
+  LogOut,
   MessageSquare,
   Music,
   Palette,
@@ -84,6 +100,7 @@ import {
   Sliders,
   Smartphone,
   User,
+  Users,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -95,10 +112,29 @@ const STORAGE_KEYS = {
   ACTIVE_GROUP_ID: 'jesustone_active_group_v4',
   THEME_PREF: 'jesustone_theme_pref_v4',
   NOTIFICATIONS: 'jesustone_notifications_v4',
+  FRIEND_REQUESTS: 'jesustone_friend_requests_v4',
+  DIRECT_MESSAGES: 'jesustone_direct_messages_v4',
   DELETED_SONG_IDS: 'jesustone_deleted_songs_v4',
   DELETED_EVENT_IDS: 'jesustone_deleted_events_v4',
   DELETED_MSG_IDS: 'jesustone_deleted_msgs_v4',
 };
+
+function generateMusicianCodeFromSeed(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) & 0x7fffffff;
+  }
+  const num = (hash % 9000) + 1000;
+  return `JST-${num}`;
+}
+
+function ensureUserMusicianCode(u: AppUser): AppUser {
+  if (u.musicianCode) return u;
+  return {
+    ...u,
+    musicianCode: generateMusicianCodeFromSeed(u.id || u.username || u.email),
+  };
+}
 
 function loadFromStorage<T>(key: string, fallback: T): T {
   try {
@@ -144,7 +180,9 @@ function safeSaveToStorage(key: string, value: unknown): void {
 function recordDeletedId(storageKey: string, id: string): void {
   const existing = loadFromStorage<string[]>(storageKey, []);
   if (!existing.includes(id)) {
-    safeSaveToStorage(storageKey, [...existing, id]);
+    // Conservar únicamente los últimos 100 IDs eliminados para no saturar localStorage
+    const next = [...existing, id].slice(-100);
+    safeSaveToStorage(storageKey, next);
   }
 }
 
@@ -157,7 +195,7 @@ function extractMentionedUsernames(text: string): string[] {
 
 export default function App() {
   const [users, setUsers] = useState<AppUser[]>(() =>
-    loadFromStorage(STORAGE_KEYS.USERS, [])
+    loadFromStorage<AppUser[]>(STORAGE_KEYS.USERS, []).map(ensureUserMusicianCode)
   );
   const [currentUserId, setCurrentUserId] = useState<string>(() =>
     loadFromStorage(STORAGE_KEYS.CURRENT_USER_ID, '')
@@ -174,6 +212,12 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     loadFromStorage(STORAGE_KEYS.NOTIFICATIONS, [])
   );
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>(() =>
+    loadFromStorage(STORAGE_KEYS.FRIEND_REQUESTS, [])
+  );
+  const [directMessages, setDirectMessages] = useState<DirectMessage[]>(() =>
+    loadFromStorage(STORAGE_KEYS.DIRECT_MESSAGES, [])
+  );
   const [toastNotification, setToastNotification] =
     useState<AppNotification | null>(null);
 
@@ -186,7 +230,15 @@ export default function App() {
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] =
     useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [copiedShareLink, setCopiedShareLink] = useState(false);
+
+  const [profileModalState, setProfileModalState] = useState<{
+    open: boolean;
+    viewedUserId: string | null;
+    tab: 'perfil' | 'amigos' | 'explorar';
+  }>({ open: false, viewedUserId: null, tab: 'perfil' });
+  const [initialDmUserId, setInitialDmUserId] = useState<string | null>(null);
 
   const [selectedSongNav, setSelectedSongNav] = useState<{
     songId: string | null;
@@ -217,12 +269,14 @@ export default function App() {
       {
         onUsersSnapshot: (cloudUsers) => {
           setUsers((prevLocal) => {
-            const cloudMap = new Map(cloudUsers.map((u) => [u.id, u]));
-            const merged = [...cloudUsers];
+            const normalizedCloud = cloudUsers.map(ensureUserMusicianCode);
+            const cloudMap = new Map(normalizedCloud.map((u) => [u.id, u]));
+            const merged = [...normalizedCloud];
             for (const localU of prevLocal) {
-              if (!cloudMap.has(localU.id)) {
-                merged.push(localU);
-                syncUserToFirestore(localU);
+              const ensuredLocal = ensureUserMusicianCode(localU);
+              if (!cloudMap.has(ensuredLocal.id)) {
+                merged.push(ensuredLocal);
+                syncUserToFirestore(ensuredLocal);
               }
             }
             return merged;
@@ -412,14 +466,91 @@ export default function App() {
                 }
               }
 
+              combined.sort(
+                (a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0)
+              );
+              if (combined.length > MAX_CHAT_MESSAGES_PER_GROUP) {
+                const overflow = combined.slice(
+                  0,
+                  combined.length - MAX_CHAT_MESSAGES_PER_GROUP
+                );
+                overflow.forEach((oldMsg) =>
+                  deleteChatMessageFromFirestore(oldMsg.id)
+                );
+              }
+
               return {
                 ...grp,
-                chatMessages: combined,
+                chatMessages: combined.slice(-MAX_CHAT_MESSAGES_PER_GROUP),
               };
             })
           );
         },
-        onNotificationsSnapshot: (cloudNotifs) => setNotifications(cloudNotifs),
+        onNotificationsSnapshot: (cloudNotifs) => {
+          setNotifications((prevLocal) => {
+            const prevIds = new Set(prevLocal.map((n) => n.id));
+            if (prevLocal.length > 0 && currentUserId) {
+              const incomingNew = cloudNotifs.filter(
+                (n) =>
+                  !prevIds.has(n.id) &&
+                  !n.readByUserIds.includes(currentUserId) &&
+                  (n.recipientUserId === currentUserId ||
+                    n.recipientUserId === 'all')
+              );
+              if (incomingNew.length > 0) {
+                const latest = incomingNew[0];
+                setToastNotification(latest);
+                if (
+                  typeof document !== 'undefined' &&
+                  document.visibilityState === 'hidden'
+                ) {
+                  showNativeNotificationViaSW(latest);
+                }
+              }
+            }
+            return cloudNotifs.slice(0, MAX_NOTIFICATIONS);
+          });
+        },
+        onFriendRequestsSnapshot: (cloudReqs) => {
+          setFriendRequests((prevLocal) => {
+            const cloudMap = new Map(cloudReqs.map((r) => [r.id, r]));
+            const merged = [...cloudReqs];
+            for (const localR of prevLocal) {
+              if (!cloudMap.has(localR.id)) {
+                merged.push(localR);
+                syncFriendRequestToFirestore(localR);
+              }
+            }
+            return merged.slice(0, 80);
+          });
+        },
+        onDirectMessagesSnapshot: (cloudDms) => {
+          setDirectMessages((prevLocal) => {
+            const cloudMap = new Map(cloudDms.map((m) => [m.id, m]));
+            const merged = [...cloudDms];
+            for (const localDm of prevLocal) {
+              if (!cloudMap.has(localDm.id)) {
+                merged.push(localDm);
+                syncDirectMessageToFirestore(localDm);
+              }
+            }
+            merged.sort((a, b) => a.createdAtMs - b.createdAtMs);
+            const byConv = new Map<string, DirectMessage[]>();
+            merged.forEach((dm) => {
+              const key =
+                dm.conversationId ||
+                [dm.senderId, dm.recipientId].sort().join('__');
+              const list = byConv.get(key) || [];
+              list.push(dm);
+              byConv.set(key, list);
+            });
+            const trimmed: DirectMessage[] = [];
+            byConv.forEach((list) => {
+              trimmed.push(...list.slice(-MAX_DMS_PER_CONVERSATION));
+            });
+            return trimmed.sort((a, b) => a.createdAtMs - b.createdAtMs);
+          });
+        },
         onSyncStatusChange: (status) => setCloudStatus(status),
       }
     );
@@ -446,6 +577,14 @@ export default function App() {
     safeSaveToStorage(STORAGE_KEYS.NOTIFICATIONS, notifications);
   }, [notifications]);
 
+  useEffect(() => {
+    safeSaveToStorage(STORAGE_KEYS.FRIEND_REQUESTS, friendRequests);
+  }, [friendRequests]);
+
+  useEffect(() => {
+    safeSaveToStorage(STORAGE_KEYS.DIRECT_MESSAGES, directMessages);
+  }, [directMessages]);
+
   // Auto-hide toast notification after 4.5s
   useEffect(() => {
     if (!toastNotification) return;
@@ -455,7 +594,10 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toastNotification]);
 
-  const currentUser = users.find((u) => u.id === currentUserId) || null;
+  const rawCurrentUser = users.find((u) => u.id === currentUserId) || null;
+  const currentUser = rawCurrentUser
+    ? ensureUserMusicianCode(rawCurrentUser)
+    : null;
 
   // All groups where currentUser is a member (max 6)
   const myGroups = currentUser
@@ -476,7 +618,70 @@ export default function App() {
     }
   }, [identity]);
 
-  // Helper to create notifications and trigger in-app toast / browser notification
+  // Registrar Service Worker de Push Nativas y escuchar clics en notificaciones del sistema
+  const handledUrlParamsRef = useRef(false);
+  useEffect(() => {
+    ensurePushServiceWorker();
+
+    if (!handledUrlParamsRef.current && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab') as NavigationTab | null;
+      const groupIdParam = params.get('groupId');
+      const targetIdParam = params.get('targetId');
+
+      if (tabParam) {
+        handledUrlParamsRef.current = true;
+        if (groupIdParam) {
+          setActiveGroupId(groupIdParam);
+        }
+        if (tabParam === 'cancionero' && targetIdParam) {
+          setSelectedSongNav({ songId: targetIdParam, customKey: null });
+        }
+        setActiveTab(tabParam);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      return;
+    }
+
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_NOTIFICATION_CLICK') {
+        const payload = (event.data.payload || {}) as PushNavigationPayload;
+        if (payload.groupId) {
+          setActiveGroupId(payload.groupId);
+        }
+        if (payload.targetTab === 'cancionero' && payload.targetId) {
+          setSelectedSongNav({ songId: payload.targetId, customKey: null });
+        }
+        if (payload.targetTab) {
+          setActiveTab(payload.targetTab);
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener(
+        'message',
+        handleServiceWorkerMessage
+      );
+    };
+  }, []);
+
+  // Sincronizar suscripción Push activa con los grupos del usuario actual
+  useEffect(() => {
+    if (!currentUser) return;
+    const gIds = myGroups.map((g) => g.id);
+    syncExistingPushSubscription({
+      userId: currentUser.id,
+      username: currentUser.username,
+      groupIds: gIds,
+    });
+  }, [currentUser?.id, myGroups.length]);
+
+  // Helper to create notifications and trigger in-app toast / Service Worker Push notification
   const dispatchNotifications = (
     items: Omit<AppNotification, 'id' | 'createdAt' | 'readByUserIds'>[]
   ) => {
@@ -493,10 +698,22 @@ export default function App() {
       readByUserIds: [],
     }));
 
-    setNotifications((prev) => [...createdList, ...prev]);
+    setNotifications((prev) => {
+      const combined = [...createdList, ...prev];
+      if (combined.length > MAX_NOTIFICATIONS) {
+        const overflow = combined.slice(MAX_NOTIFICATIONS);
+        overflow.forEach((oldNotif) => {
+          deleteNotificationFromFirestore(oldNotif.id);
+        });
+      }
+      return combined.slice(0, MAX_NOTIFICATIONS);
+    });
     createdList.forEach((n) => {
       syncNotificationToFirestore(n);
     });
+
+    // Enviar Web Push real (RFC 8030) a los dispositivos suscritos de los destinatarios
+    sendWebPushToRecipients(createdList, currentUser?.id);
 
     // Show toast for the most relevant notification for currentUser (or the first one created)
     const relevantForMe =
@@ -508,19 +725,7 @@ export default function App() {
 
     if (relevantForMe) {
       setToastNotification(relevantForMe);
-      if (
-        typeof Notification !== 'undefined' &&
-        Notification.permission === 'granted'
-      ) {
-        try {
-          new Notification(`jesustone · ${relevantForMe.title}`, {
-            body: relevantForMe.message,
-            icon: '/pwa-192x192.png',
-          });
-        } catch {
-          // ignore if blocked
-        }
-      }
+      showNativeNotificationViaSW(relevantForMe);
     }
   };
 
@@ -562,15 +767,19 @@ export default function App() {
         ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
         : data.name.slice(0, 2).toUpperCase();
 
+    const userId = data.id || `u-${Date.now()}`;
+    const randomCodeNum = Math.floor(1000 + Math.random() * 9000);
     const newUser: AppUser = {
-      id: data.id || `u-${Date.now()}`,
+      id: userId,
       name: data.name,
       username: data.username,
+      musicianCode: `JST-${randomCodeNum}`,
       email: data.email,
       password: data.password,
       instruments: data.instruments,
       avatarInitials: initials,
       avatarUrl: data.avatarUrl,
+      friendIds: [],
       createdAt: new Date().toISOString(),
     };
 
@@ -821,6 +1030,7 @@ export default function App() {
       username: currentUser.username,
       email: currentUser.email,
       role: 'member',
+      isGuest: matchedInvite?.isGuest || false,
       instruments: matchedInvite
         ? Array.from(
             new Set([
@@ -832,7 +1042,7 @@ export default function App() {
       phone: '',
       avatarInitials: currentUser.avatarInitials,
       avatarUrl: currentUser.avatarUrl,
-      joinedAt: 'Miembro del Grupo',
+      joinedAt: matchedInvite?.isGuest ? 'Músico Suplente / Invitado' : 'Miembro del Grupo',
     };
 
     const resolvedTarget = targetGroup;
@@ -850,7 +1060,9 @@ export default function App() {
           type: 'member_joined' as const,
           actorName: currentUser.name,
           actorRole: 'member' as const,
-          title: 'Nuevo Miembro en el Grupo',
+          title: newMember.isGuest
+            ? 'Músico Invitado en el Grupo'
+            : 'Nuevo Miembro en el Grupo',
           description: `@${currentUser.username} se unió a «${resolvedTarget.identity.ministryName}».`,
           timestamp: 'Justo ahora',
           targetTab: 'inicio' as NavigationTab,
@@ -903,7 +1115,7 @@ export default function App() {
   }
 
   // ============================================================================
-  // DENTRO DE UN GRUPO ACTIVO: DATOS, ROL Y NOTIFICACIONES DEL USUARIO
+  // DENTRO DE UN GRUPO ACTIVO: DATOS, ROL, RED DE AMIGOS Y PASE DE SUPLENTE
   // ============================================================================
   const activeMember =
     activeGroup.members.find((m) => m.id === currentUser.id) ||
@@ -912,12 +1124,52 @@ export default function App() {
     activeGroup.leaderUserId === currentUser.id ? 'leader' : activeMember.role;
   const accent = getAccentClasses(identity.accentColor);
 
+  // Red de Amigos del usuario actual (combinando friendIds y solicitudes aceptadas)
+  const myFriendIdSet = new Set<string>(currentUser.friendIds || []);
+  friendRequests.forEach((req) => {
+    if (req.status === 'accepted') {
+      if (req.fromUserId === currentUser.id) myFriendIdSet.add(req.toUserId);
+      if (req.toUserId === currentUser.id) myFriendIdSet.add(req.fromUserId);
+    }
+  });
+  const myFriends: AppUser[] = users.filter(
+    (u) => u.id !== currentUser.id && myFriendIdSet.has(u.id)
+  );
+
+  // Filtro de vista restringida para Músico Invitado / Suplente
+  const isRestrictedGuest = Boolean(
+    activeMember.isGuest && userRole !== 'leader'
+  );
+  const todayIsoStr = new Date().toISOString().split('T')[0];
+
+  const visibleEvents: WorshipEvent[] = isRestrictedGuest
+    ? activeGroup.events.filter(
+        (ev) =>
+          ev.date >= todayIsoStr &&
+          (ev.assignments.some((a) => a.memberId === activeMember.id) ||
+            (activeMember.guestEventIds || []).includes(ev.id))
+      )
+    : activeGroup.events;
+
+  const visibleEventSongIds = isRestrictedGuest
+    ? new Set(
+        visibleEvents.flatMap((ev) => ev.songs.map((item) => item.songId))
+      )
+    : null;
+
+  const visibleSongs: Song[] =
+    isRestrictedGuest && visibleEventSongIds
+      ? activeGroup.songs.filter((s) => visibleEventSongIds.has(s.id))
+      : activeGroup.songs;
+
   // Filter notifications relevant to currentUser (across their groups or direct mentions/invites)
   const myGroupIds = myGroups.map((g) => g.id);
   const myNotifications = notifications.filter(
     (n) =>
       n.recipientUserId === currentUser.id ||
-      (n.recipientUserId === 'all' && myGroupIds.includes(n.groupId))
+      (n.recipientUserId === 'all' &&
+        myGroupIds.includes(n.groupId) &&
+        !isRestrictedGuest)
   );
   const unreadNotificationsCount = myNotifications.filter(
     (n) => !n.readByUserIds.includes(currentUser.id)
@@ -1016,12 +1268,14 @@ export default function App() {
     identifier: string;
     invitedName: string;
     suggestedInstrument: InstrumentRole;
+    isGuest?: boolean;
   }): { ok: boolean; message: string } => {
     const cleanId = invite.identifier.trim().toLowerCase().replace(/^@/, '');
     const targetUser = users.find(
       (u) =>
         u.username.toLowerCase() === cleanId ||
-        u.email.toLowerCase() === cleanId
+        u.email.toLowerCase() === cleanId ||
+        (u.musicianCode || '').toLowerCase() === cleanId
     );
 
     if (
@@ -1030,7 +1284,7 @@ export default function App() {
     ) {
       return {
         ok: false,
-        message: `@${targetUser.username} ya es miembro de este grupo.`,
+        message: `@${targetUser.username} ya forma parte de este grupo.`,
       };
     }
 
@@ -1052,6 +1306,7 @@ export default function App() {
       status: 'sent',
       sentByLeaderName: activeMember.name,
       sentAt: 'Justo ahora',
+      isGuest: Boolean(invite.isGuest),
     };
 
     const targetUserGroupCount = targetUser
@@ -1066,13 +1321,17 @@ export default function App() {
         username: targetUser.username,
         email: targetUser.email,
         role: 'member',
+        isGuest: Boolean(invite.isGuest),
+        guestEventIds: [],
         instruments: Array.from(
           new Set([invite.suggestedInstrument, ...targetUser.instruments])
         ),
         phone: '',
         avatarInitials: targetUser.avatarInitials,
         avatarUrl: targetUser.avatarUrl,
-        joinedAt: `Invitado por @${currentUser.username}`,
+        joinedAt: invite.isGuest
+          ? `Suplente invitado por @${currentUser.username}`
+          : `Invitado por @${currentUser.username}`,
       };
 
       updateActiveGroup((g) => ({
@@ -1085,8 +1344,12 @@ export default function App() {
             type: 'member_joined' as const,
             actorName: targetUser.name,
             actorRole: 'member' as const,
-            title: `Nuevo Miembro Invitado: @${targetUser.username}`,
-            description: `${activeMember.name} agregó a ${targetUser.name} (@${targetUser.username}) en el rol de ${invite.suggestedInstrument}.`,
+            title: invite.isGuest
+              ? `Músico Suplente Agregado: @${targetUser.username}`
+              : `Nuevo Miembro Invitado: @${targetUser.username}`,
+            description: `${activeMember.name} agregó a ${targetUser.name} (@${targetUser.username}) en ${invite.suggestedInstrument}${
+              invite.isGuest ? ' (Pase de Invitado / Suplente)' : ''
+            }.`,
             timestamp: 'Justo ahora',
             targetTab: 'inicio' as NavigationTab,
           },
@@ -1099,9 +1362,13 @@ export default function App() {
           recipientUserId: targetUser.id,
           groupId: activeGroup.id,
           groupName: activeGroup.identity.ministryName,
-          category: 'group_invite',
-          title: `Te agregaron al grupo «${activeGroup.identity.ministryName}»`,
-          message: `@${currentUser.username} te unió al grupo con el rol sugerido de ${invite.suggestedInstrument}.`,
+          category: invite.isGuest ? 'guest_event_invite' : 'group_invite',
+          title: invite.isGuest
+            ? `Pase de Suplente en «${activeGroup.identity.ministryName}»`
+            : `Te agregaron al grupo «${activeGroup.identity.ministryName}»`,
+          message: invite.isGuest
+            ? `@${currentUser.username} te registró como músico suplente/invitado (${invite.suggestedInstrument}). Solo verás los eventos donde seas convocado.`
+            : `@${currentUser.username} te unió al grupo con el rol sugerido de ${invite.suggestedInstrument}.`,
           actorName: currentUser.name,
           actorUsername: currentUser.username,
           targetTab: 'inicio',
@@ -1110,7 +1377,9 @@ export default function App() {
 
       return {
         ok: true,
-        message: `¡@${targetUser.username} (${targetUser.name}) fue invitado y unido al grupo!`,
+        message: invite.isGuest
+          ? `¡@${targetUser.username} fue agregado como Músico Suplente / Invitado!`
+          : `¡@${targetUser.username} (${targetUser.name}) fue invitado y unido al grupo!`,
       };
     }
 
@@ -1122,6 +1391,573 @@ export default function App() {
     return {
       ok: true,
       message: `Invitación enviada a ${invite.identifier}. Cuando inicie sesión con ese usuario o correo verá la invitación para unirse.`,
+    };
+  };
+
+  // ============================================================================
+  // HANDLERS DE PERFIL SOCIAL, RED DE AMIGOS, MENSAJES DIRECTOS (DM) Y SUPLENTES
+  // ============================================================================
+  const handleOpenMusicianProfile = (
+    userId?: string,
+    tab: 'perfil' | 'amigos' | 'explorar' = 'perfil'
+  ) => {
+    setProfileModalState({
+      open: true,
+      viewedUserId: userId || currentUser.id,
+      tab,
+    });
+  };
+
+  const handleUpdateMySocialProfile = (updates: {
+    bio?: string;
+    cityOrChurch?: string;
+    availableForSub?: boolean;
+    instruments?: InstrumentRole[];
+    avatarUrl?: string;
+  }) => {
+    const updatedUser: AppUser = {
+      ...currentUser,
+      bio: updates.bio !== undefined ? updates.bio : currentUser.bio,
+      cityOrChurch:
+        updates.cityOrChurch !== undefined
+          ? updates.cityOrChurch
+          : currentUser.cityOrChurch,
+      availableForSub:
+        updates.availableForSub !== undefined
+          ? updates.availableForSub
+          : currentUser.availableForSub,
+      instruments:
+        updates.instruments && updates.instruments.length > 0
+          ? updates.instruments
+          : currentUser.instruments,
+      avatarUrl:
+        updates.avatarUrl !== undefined
+          ? updates.avatarUrl
+          : currentUser.avatarUrl,
+    };
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === currentUser.id ? updatedUser : u))
+    );
+    syncUserToFirestore(updatedUser);
+
+    if (updates.instruments || updates.avatarUrl !== undefined) {
+      setGroups((prev) =>
+        prev.map((g) => {
+          if (!g.members.some((m) => m.id === currentUser.id)) return g;
+          const updatedGroup: WorshipGroup = {
+            ...g,
+            members: g.members.map((m) =>
+              m.id === currentUser.id
+                ? {
+                    ...m,
+                    instruments: updatedUser.instruments,
+                    avatarUrl: updatedUser.avatarUrl,
+                  }
+                : m
+            ),
+          };
+          syncGroupToFirestore(updatedGroup);
+          return updatedGroup;
+        })
+      );
+    }
+  };
+
+  const handleOpenDirectMessageWithUser = (targetUser: AppUser) => {
+    setInitialDmUserId(targetUser.id);
+    setActiveTab('chat');
+  };
+
+  const handleSendFriendRequest = (
+    targetIdentifierOrUser: string | AppUser
+  ): { ok: boolean; message: string } => {
+    let targetUser: AppUser | undefined;
+    if (typeof targetIdentifierOrUser === 'string') {
+      const clean = targetIdentifierOrUser
+        .trim()
+        .toLowerCase()
+        .replace(/^@/, '');
+      targetUser = users.find(
+        (u) =>
+          u.id === targetIdentifierOrUser ||
+          u.username.toLowerCase() === clean ||
+          u.email.toLowerCase() === clean ||
+          (u.musicianCode || '').toLowerCase() === clean
+      );
+    } else {
+      targetUser = targetIdentifierOrUser;
+    }
+
+    if (!targetUser) {
+      return {
+        ok: false,
+        message:
+          'No se encontró ningún músico con ese @usuario, ID (JST-XXXX) o correo.',
+      };
+    }
+    if (targetUser.id === currentUser.id) {
+      return {
+        ok: false,
+        message: 'No puedes enviarte una solicitud de amistad a ti mismo.',
+      };
+    }
+    if (myFriendIdSet.has(targetUser.id)) {
+      return {
+        ok: false,
+        message: `@${targetUser.username} ya está en tu Red de Amigos.`,
+      };
+    }
+
+    const existingPending = friendRequests.find(
+      (r) =>
+        r.status === 'pending' &&
+        ((r.fromUserId === currentUser.id && r.toUserId === targetUser.id) ||
+          (r.fromUserId === targetUser.id && r.toUserId === currentUser.id))
+    );
+    if (existingPending) {
+      return {
+        ok: false,
+        message: `Ya existe una solicitud pendiente con @${targetUser.username}.`,
+      };
+    }
+
+    const newReq: FriendRequest = {
+      id: `freq-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      fromUserId: currentUser.id,
+      fromName: currentUser.name,
+      fromUsername: currentUser.username,
+      fromMusicianCode: currentUser.musicianCode,
+      fromInstruments: currentUser.instruments,
+      fromAvatarInitials: currentUser.avatarInitials,
+      fromAvatarUrl: currentUser.avatarUrl,
+      toUserId: targetUser.id,
+      toName: targetUser.name,
+      toUsername: targetUser.username,
+      status: 'pending',
+      createdAt: 'Justo ahora',
+    };
+
+    setFriendRequests((prev) => [newReq, ...prev]);
+    syncFriendRequestToFirestore(newReq);
+
+    dispatchNotifications([
+      {
+        recipientUserId: targetUser.id,
+        groupId: activeGroup.id,
+        groupName: 'Red de Músicos',
+        category: 'friend_request',
+        title: `Solicitud de amistad de @${currentUser.username}`,
+        message: `${currentUser.name} (${
+          currentUser.instruments[0] || 'Músico'
+        }) quiere conectar contigo en la Red de Amigos de jesustone.`,
+        actorName: currentUser.name,
+        actorUsername: currentUser.username,
+        targetTab: 'chat',
+      },
+    ]);
+
+    return {
+      ok: true,
+      message: `¡Solicitud enviada a @${targetUser.username}!`,
+    };
+  };
+
+  const handleRespondFriendRequest = (requestId: string, accept: boolean) => {
+    const targetReq = friendRequests.find((r) => r.id === requestId);
+    if (!targetReq) return;
+
+    const updatedReq: FriendRequest = {
+      ...targetReq,
+      status: accept ? 'accepted' : 'declined',
+    };
+
+    setFriendRequests((prev) =>
+      prev.map((r) => (r.id === requestId ? updatedReq : r))
+    );
+    syncFriendRequestToFirestore(updatedReq);
+
+    if (accept) {
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === targetReq.fromUserId) {
+            const updatedFrom: AppUser = {
+              ...u,
+              friendIds: Array.from(
+                new Set([...(u.friendIds || []), targetReq.toUserId])
+              ),
+            };
+            syncUserToFirestore(updatedFrom);
+            return updatedFrom;
+          }
+          if (u.id === targetReq.toUserId) {
+            const updatedTo: AppUser = {
+              ...u,
+              friendIds: Array.from(
+                new Set([...(u.friendIds || []), targetReq.fromUserId])
+              ),
+            };
+            syncUserToFirestore(updatedTo);
+            return updatedTo;
+          }
+          return u;
+        })
+      );
+
+      dispatchNotifications([
+        {
+          recipientUserId: targetReq.fromUserId,
+          groupId: activeGroup.id,
+          groupName: 'Red de Músicos',
+          category: 'friend_accepted',
+          title: `¡@${currentUser.username} aceptó tu solicitud!`,
+          message: `Ahora tú y ${currentUser.name} son amigos en jesustone y pueden enviarse mensajes directos o convocarse como suplentes.`,
+          actorName: currentUser.name,
+          actorUsername: currentUser.username,
+          targetTab: 'chat',
+        },
+      ]);
+    }
+  };
+
+  const handleSendDirectMessage = (
+    recipientOrUserId: string | AppUser,
+    text: string,
+    voiceClipUrl?: string,
+    voiceClipDurationSec?: number,
+    sharedSongSnapshot?: Song
+  ) => {
+    const recipientUserId =
+      typeof recipientOrUserId === 'string'
+        ? recipientOrUserId
+        : recipientOrUserId.id;
+    const recipient =
+      typeof recipientOrUserId === 'string'
+        ? users.find((u) => u.id === recipientUserId)
+        : recipientOrUserId;
+
+    const nowStr = new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const conversationId = [currentUser.id, recipientUserId].sort().join('__');
+
+    const newDm: DirectMessage = {
+      id: `dm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      conversationId,
+      participants: [currentUser.id, recipientUserId],
+      participantIds: [currentUser.id, recipientUserId],
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderUsername: currentUser.username,
+      recipientId: recipientUserId,
+      text,
+      timestamp: nowStr,
+      createdAtMs: Date.now(),
+      sharedSongSnapshot,
+      voiceClipUrl,
+      voiceClipDurationSec,
+    };
+
+    setDirectMessages((prev) => {
+      const updatedAll = [...prev, newDm];
+      const inSameConv = updatedAll.filter(
+        (m) => m.conversationId === conversationId
+      );
+      if (inSameConv.length > MAX_DMS_PER_CONVERSATION) {
+        const overflow = inSameConv.slice(
+          0,
+          inSameConv.length - MAX_DMS_PER_CONVERSATION
+        );
+        const overflowIds = new Set(overflow.map((o) => o.id));
+        overflow.forEach((oldDm) => {
+          deleteDirectMessageFromFirestore(oldDm.id);
+        });
+        return updatedAll.filter((m) => !overflowIds.has(m.id));
+      }
+      return updatedAll;
+    });
+    syncDirectMessageToFirestore(newDm);
+
+    if (recipient) {
+      dispatchNotifications([
+        {
+          recipientUserId: recipient.id,
+          groupId: activeGroup.id,
+          groupName: 'Mensaje Directo',
+          category: 'direct_message',
+          title: `Mensaje de @${currentUser.username}`,
+          message: sharedSongSnapshot
+            ? `🎵 Te compartió la canción «${sharedSongSnapshot.title}»`
+            : text || '🎤 Nota de voz',
+          actorName: currentUser.name,
+          actorUsername: currentUser.username,
+          targetTab: 'chat',
+        },
+      ]);
+    }
+  };
+
+  const handleImportSharedSongToRepertoire = (sharedSong: Song) => {
+    const copiedSong: Song = {
+      ...sharedSong,
+      id: `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    };
+    syncSongToFirestore(activeGroup.id, copiedSong);
+    updateActiveGroup((g) => ({
+      ...g,
+      songs: [copiedSong, ...g.songs],
+    }));
+
+    dispatchNotifications([
+      {
+        recipientUserId: currentUser.id,
+        groupId: activeGroup.id,
+        groupName: activeGroup.identity.ministryName,
+        category: 'new_song',
+        title: `Canción guardada: «${copiedSong.title}»`,
+        message: `Se copió «${copiedSong.title}» (${copiedSong.originalKey} · ${copiedSong.bpm} BPM) al repertorio de ${activeGroup.identity.ministryName}.`,
+        actorName: currentUser.name,
+        actorUsername: currentUser.username,
+        targetTab: 'cancionero',
+        targetId: copiedSong.id,
+      },
+    ]);
+  };
+
+  const handleAddFriendToGroup = (
+    friendUser: AppUser,
+    asGuest: boolean,
+    suggestedRole?: InstrumentRole
+  ): { ok: boolean; message: string } => {
+    const primaryRole =
+      suggestedRole || friendUser.instruments[0] || 'Guitarra eléctrica';
+    const existingMember = activeGroup.members.find(
+      (m) => m.id === friendUser.id
+    );
+
+    if (existingMember) {
+      updateActiveGroup((g) => ({
+        ...g,
+        members: g.members.map((m) =>
+          m.id === friendUser.id
+            ? {
+                ...m,
+                isGuest: asGuest,
+                joinedAt: asGuest
+                  ? `Suplente invitado por @${currentUser.username}`
+                  : 'Miembro Titular',
+              }
+            : m
+        ),
+      }));
+      return {
+        ok: true,
+        message: `Se actualizó a @${friendUser.username} como ${
+          asGuest ? 'Suplente / Invitado' : 'Miembro Titular'
+        }.`,
+      };
+    }
+
+    const newMember: BandMember = {
+      id: friendUser.id,
+      name: friendUser.name,
+      username: friendUser.username,
+      email: friendUser.email,
+      role: 'member',
+      isGuest: asGuest,
+      guestEventIds: [],
+      instruments: Array.from(
+        new Set([primaryRole, ...friendUser.instruments])
+      ),
+      phone: '',
+      avatarInitials: friendUser.avatarInitials,
+      avatarUrl: friendUser.avatarUrl,
+      joinedAt: asGuest
+        ? `Suplente invitado por @${currentUser.username}`
+        : `Agregado por @${currentUser.username}`,
+    };
+
+    updateActiveGroup((g) => ({
+      ...g,
+      members: [...g.members, newMember],
+    }));
+
+    dispatchNotifications([
+      {
+        recipientUserId: friendUser.id,
+        groupId: activeGroup.id,
+        groupName: activeGroup.identity.ministryName,
+        category: asGuest ? 'guest_event_invite' : 'group_invite',
+        title: asGuest
+          ? `Pase de Suplente en «${activeGroup.identity.ministryName}»`
+          : `Te agregaron a «${activeGroup.identity.ministryName}»`,
+        message: asGuest
+          ? `@${currentUser.username} te habilitó como Músico Suplente (${primaryRole}). Solo verás los eventos y canciones donde participes.`
+          : `@${currentUser.username} te agregó como miembro titular en ${primaryRole}.`,
+        actorName: currentUser.name,
+        actorUsername: currentUser.username,
+        targetTab: 'inicio',
+      },
+    ]);
+
+    return {
+      ok: true,
+      message: asGuest
+        ? `¡@${friendUser.username} agregado como Suplente / Invitado!`
+        : `¡@${friendUser.username} agregado como Miembro Titular!`,
+    };
+  };
+
+  const handleToggleMemberGuestStatus = (memberId: string) => {
+    if (memberId === activeGroup.leaderUserId) return;
+    updateActiveGroup((g) => ({
+      ...g,
+      members: g.members.map((m) => {
+        if (m.id !== memberId) return m;
+        const nextGuest = !m.isGuest;
+        return {
+          ...m,
+          isGuest: nextGuest,
+          role: nextGuest ? 'member' : m.role,
+          isLeader: nextGuest ? false : m.isLeader,
+          joinedAt: nextGuest
+            ? 'Músico Suplente / Invitado'
+            : 'Miembro Titular',
+        };
+      }),
+    }));
+  };
+
+  const handleConvokeFriendAsGuest = (
+    friendUser: AppUser,
+    role: InstrumentRole
+  ): BandMember | null => {
+    const existing = activeGroup.members.find((m) => m.id === friendUser.id);
+    if (existing) {
+      return existing;
+    }
+
+    const guestMember: BandMember = {
+      id: friendUser.id,
+      name: friendUser.name,
+      username: friendUser.username,
+      email: friendUser.email,
+      role: 'member',
+      isGuest: true,
+      guestEventIds: [],
+      instruments: Array.from(new Set([role, ...friendUser.instruments])),
+      phone: '',
+      avatarInitials: friendUser.avatarInitials,
+      avatarUrl: friendUser.avatarUrl,
+      joinedAt: `Suplente convocado por @${currentUser.username}`,
+    };
+
+    updateActiveGroup((g) => ({
+      ...g,
+      members: [...g.members, guestMember],
+    }));
+
+    return guestMember;
+  };
+
+  const handleConvokeFriendToEvent = (
+    friendUser: AppUser,
+    eventId?: string,
+    role?: InstrumentRole
+  ): { ok: boolean; message: string } => {
+    const resolvedRole =
+      role || friendUser.instruments[0] || 'Guitarra eléctrica';
+    if (!eventId) {
+      return handleAddFriendToGroup(friendUser, true, resolvedRole);
+    }
+
+    const targetEv = activeGroup.events.find((e) => e.id === eventId);
+    if (!targetEv) {
+      return { ok: false, message: 'No se encontró el evento seleccionado.' };
+    }
+
+    const newAssignment: ServiceAssignment = {
+      id: `asg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      role: resolvedRole,
+      memberId: friendUser.id,
+      memberName: friendUser.name,
+      rsvpStatus: 'pending',
+      isGuest: true,
+      isGuestAssignment: true,
+    };
+
+    updateActiveGroup((g) => {
+      const existsInMembers = g.members.some((m) => m.id === friendUser.id);
+      const nextMembers: BandMember[] = existsInMembers
+        ? g.members.map((m) =>
+            m.id === friendUser.id
+              ? {
+                  ...m,
+                  guestEventIds: Array.from(
+                    new Set([...(m.guestEventIds || []), eventId])
+                  ),
+                }
+              : m
+          )
+        : [
+            ...g.members,
+            {
+              id: friendUser.id,
+              name: friendUser.name,
+              username: friendUser.username,
+              email: friendUser.email,
+              role: 'member',
+              isGuest: true,
+              guestEventIds: [eventId],
+              instruments: Array.from(
+                new Set([resolvedRole, ...friendUser.instruments])
+              ),
+              phone: '',
+              avatarInitials: friendUser.avatarInitials,
+              avatarUrl: friendUser.avatarUrl,
+              joinedAt: `Suplente en «${targetEv.title}»`,
+            },
+          ];
+
+      const nextEvents = g.events.map((ev) => {
+        if (ev.id !== eventId) return ev;
+        const alreadyAssigned = ev.assignments.some(
+          (a) => a.memberId === friendUser.id && a.role === resolvedRole
+        );
+        if (alreadyAssigned) return ev;
+        return {
+          ...ev,
+          assignments: [...ev.assignments, newAssignment],
+        };
+      });
+
+      return {
+        ...g,
+        members: nextMembers,
+        events: nextEvents,
+      };
+    });
+
+    dispatchNotifications([
+      {
+        recipientUserId: friendUser.id,
+        groupId: activeGroup.id,
+        groupName: activeGroup.identity.ministryName,
+        category: 'guest_event_invite',
+        title: `Convocatoria de Suplente: «${targetEv.title}»`,
+        message: `@${currentUser.username} te invitó a cubrir ${resolvedRole} en «${targetEv.title}» (${targetEv.date} · Citación ${targetEv.callTime}). Solo tendrás acceso a este evento y su repertorio.`,
+        actorName: currentUser.name,
+        actorUsername: currentUser.username,
+        targetTab: 'eventos',
+        targetId: targetEv.id,
+      },
+    ]);
+
+    return {
+      ok: true,
+      message: `¡@${friendUser.username} fue convocado a «${targetEv.title}» en ${resolvedRole}!`,
     };
   };
 
@@ -1714,10 +2550,22 @@ export default function App() {
       prayedByMemberIds: channel === 'oracion' ? [activeMember.id] : undefined,
     };
     syncChatMessageToFirestore(activeGroup.id, newMsg);
-    updateActiveGroup((g) => ({
-      ...g,
-      chatMessages: [...g.chatMessages, newMsg],
-    }));
+    updateActiveGroup((g) => {
+      const allMsgs = [...g.chatMessages, newMsg];
+      if (allMsgs.length > MAX_CHAT_MESSAGES_PER_GROUP) {
+        const overflow = allMsgs.slice(
+          0,
+          allMsgs.length - MAX_CHAT_MESSAGES_PER_GROUP
+        );
+        overflow.forEach((oldMsg) => {
+          deleteChatMessageFromFirestore(oldMsg.id);
+        });
+      }
+      return {
+        ...g,
+        chatMessages: allMsgs.slice(-MAX_CHAT_MESSAGES_PER_GROUP),
+      };
+    });
 
     // Notify any user tagged with @username in the chat message
     if (mentionedHandles.length > 0) {
@@ -1810,6 +2658,8 @@ export default function App() {
     setGroups([]);
     setActiveGroupId('');
     setNotifications([]);
+    setFriendRequests([]);
+    setDirectMessages([]);
     setFallbackIdentity(INITIAL_IDENTITY);
     clearAllCloudData();
   };
@@ -1886,17 +2736,29 @@ export default function App() {
           </div>
         )}
 
-        {/* TOP BAR CONTRACT: 3 Zonas Limpias */}
-        <header className="sticky top-0 z-30 h-14 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3.5 sm:px-6 flex items-center justify-between gap-4">
-          {/* Zona 1: Wordmark jesustone con el icono de Púa de Guitarra + Cruz */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('inicio')}
-            className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0 flex items-center gap-2"
-          >
-            <GuitarPickCrossIcon className={`w-5 h-5 ${accent.textClass}`} />
-            <span>jesustone</span>
-          </button>
+        {/* TOP BAR MINIMALISTA: Wordmark + Navegación Desktop + 3 Controles Limpios */}
+        <header className="sticky top-0 z-30 h-14 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3.5 sm:px-6 flex items-center justify-between gap-3">
+          {/* Zona 1: Wordmark jesustone + Selector rápido de Grupo */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('inicio')}
+              className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0 flex items-center gap-2"
+            >
+              <GuitarPickCrossIcon className={`w-5 h-5 ${accent.textClass}`} />
+              <span>jesustone</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsAuthModalOpen(true)}
+              className="min-h-[32px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 max-w-[145px] sm:max-w-[200px] transition-colors"
+              title="Cambiar o crear grupo musical"
+            >
+              <span className="truncate">{identity.ministryName}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </button>
+          </div>
 
           {/* Zona 2: Navegación Principal en Escritorio */}
           <nav className="hidden md:flex items-center gap-5 text-sm font-medium text-slate-600 dark:text-slate-400">
@@ -1919,16 +2781,19 @@ export default function App() {
             })}
           </nav>
 
-          {/* Zona 3: Acción Principal Compacta (Notificaciones, Temas, Instalar y Cuenta) */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Zona 3: Solo 2 botones limpios a la derecha (Notificaciones + Menú de Perfil) */}
+          <div className="flex items-center gap-2 shrink-0 relative">
             <button
               type="button"
-              onClick={() => setIsNotificationsModalOpen(true)}
-              className="relative min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs font-bold transition-colors"
-              title="Centro de Notificaciones"
+              onClick={() => {
+                setIsUserMenuOpen(false);
+                setIsNotificationsModalOpen(true);
+              }}
+              className="relative min-h-[38px] min-w-[38px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5 text-xs font-bold transition-colors"
+              title="Notificaciones"
+              aria-label="Notificaciones"
             >
               <Bell className="w-4 h-4 text-amber-500" />
-              <span className="hidden lg:inline">Avisos</span>
               {unreadNotificationsCount > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono text-[10px] font-bold">
                   {unreadNotificationsCount}
@@ -1938,31 +2803,9 @@ export default function App() {
 
             <button
               type="button"
-              onClick={() =>
-                setIdentityModalState({ open: true, section: 'temas' })
-              }
-              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-1 text-xs font-bold transition-colors"
-              title="Temas y colores"
-            >
-              <Palette className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="hidden sm:inline">Temas</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowInstallModal(true)}
-              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-1 text-xs font-bold transition-colors"
-              title="Compartir o Instalar App"
-            >
-              <Download className="w-3.5 h-3.5 text-amber-500" />
-              <span className="hidden sm:inline">App</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsAuthModalOpen(true)}
-              className={`min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
-              title="Cuenta y Mis Grupos"
+              onClick={() => setIsUserMenuOpen((prev) => !prev)}
+              className={`min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
+              title="Mi Perfil, Red de Amigos y Ajustes"
             >
               {currentUser.avatarUrl ? (
                 <img
@@ -1975,13 +2818,143 @@ export default function App() {
               ) : (
                 <User className="w-3.5 h-3.5" />
               )}
-              <span className="max-w-[110px] sm:max-w-none truncate">
+              <span className="max-w-[95px] sm:max-w-[140px] truncate">
                 @{currentUser.username}
               </span>
-              <span className="hidden sm:inline opacity-80">
-                · {userRole === 'leader' ? 'Líder' : 'Miembro'}
-              </span>
+              {friendRequests.some(
+                (r) => r.status === 'pending' && r.toUserId === currentUser.id
+              ) && (
+                <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono text-[10px] font-bold">
+                  {
+                    friendRequests.filter(
+                      (r) =>
+                        r.status === 'pending' && r.toUserId === currentUser.id
+                    ).length
+                  }
+                </span>
+              )}
+              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
             </button>
+
+            {/* Menú Desplegable Minimalista de Usuario y Ajustes */}
+            {isUserMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsUserMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2 space-y-1">
+                  <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {currentUser.name}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      @{currentUser.username} ·{' '}
+                      {userRole === 'leader'
+                        ? 'Líder'
+                        : activeMember.isGuest
+                        ? 'Suplente'
+                        : 'Miembro'}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      handleOpenMusicianProfile(currentUser.id, 'perfil');
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Users className="w-4 h-4 text-indigo-500" />
+                      <span>Mi Perfil y Red de Amigos</span>
+                    </span>
+                    {friendRequests.some(
+                      (r) =>
+                        r.status === 'pending' && r.toUserId === currentUser.id
+                    ) && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono text-[10px] font-bold">
+                        {
+                          friendRequests.filter(
+                            (r) =>
+                              r.status === 'pending' &&
+                              r.toUserId === currentUser.id
+                          ).length
+                        }
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      setIsAuthModalOpen(true);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                  >
+                    <FolderPlus className="w-4 h-4 text-sky-500" />
+                    <span>Mis Grupos / Cambiar Grupo</span>
+                  </button>
+
+                  {!isRestrictedGuest && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        setIdentityModalState({
+                          open: true,
+                          section: 'invitaciones',
+                        });
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                    >
+                      <Settings className="w-4 h-4 text-emerald-500" />
+                      <span>Miembros y Datos del Grupo</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      setIdentityModalState({ open: true, section: 'temas' });
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                  >
+                    <Palette className="w-4 h-4 text-amber-500" />
+                    <span>Apariencia y Colores</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      setShowInstallModal(true);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                  >
+                    <Download className="w-4 h-4 text-indigo-400" />
+                    <span>Compartir / Instalar App</span>
+                  </button>
+
+                  <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        handleLogout();
+                      }}
+                      className="w-full px-3 py-2 rounded-xl hover:bg-rose-500/10 flex items-center gap-2.5 text-xs font-semibold text-rose-500 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Cerrar sesión</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </header>
 
@@ -1992,16 +2965,23 @@ export default function App() {
               identity={identity}
               activeMember={{ ...activeMember, role: userRole }}
               members={activeGroup.members}
-              events={activeGroup.events}
-              songs={activeGroup.songs}
+              events={visibleEvents}
+              songs={visibleSongs}
               devotionals={activeGroup.devotionals}
               alerts={activeGroup.alerts}
-              activityFeed={activeGroup.activityFeed}
+              activityFeed={isRestrictedGuest ? [] : activeGroup.activityFeed}
+              friendsCount={myFriends.length}
+              pendingFriendRequestsCount={
+                friendRequests.filter(
+                  (r) => r.status === 'pending' && r.toUserId === currentUser.id
+                ).length
+              }
               onNavigate={setActiveTab}
               onOpenIdentityModal={(section) =>
                 setIdentityModalState({ open: true, section })
               }
               onOpenAuthModal={() => setIsAuthModalOpen(true)}
+              onOpenMusicianProfile={handleOpenMusicianProfile}
               onUpdateRSVP={handleUpdateRSVP}
               onOpenSongInSongbook={handleOpenSongInSongbook}
               onOpenMetronomeWithSong={handleOpenMetronomeWithSong}
@@ -2010,9 +2990,10 @@ export default function App() {
 
           {activeTab === 'eventos' && (
             <EventsModule
-              events={activeGroup.events}
-              songs={activeGroup.songs}
+              events={visibleEvents}
+              songs={visibleSongs}
               members={activeGroup.members}
+              friends={myFriends}
               alerts={activeGroup.alerts}
               availabilityRecords={activeGroup.availabilityRecords || []}
               activeMember={{ ...activeMember, role: userRole }}
@@ -2030,13 +3011,14 @@ export default function App() {
               onSaveAvailability={handleSaveAvailability}
               onRemoveAvailability={handleRemoveAvailability}
               onOpenSongInSongbook={handleOpenSongInSongbook}
+              onConvokeFriendAsGuest={handleConvokeFriendAsGuest}
             />
           )}
 
           {activeTab === 'cancionero' && (
             <SongbookModule
-              songs={activeGroup.songs}
-              events={activeGroup.events}
+              songs={visibleSongs}
+              events={visibleEvents}
               members={activeGroup.members}
               activeMember={{ ...activeMember, role: userRole }}
               accentColor={identity.accentColor}
@@ -2071,21 +3053,39 @@ export default function App() {
               identity={identity}
               messages={activeGroup.chatMessages}
               members={activeGroup.members}
-              songs={activeGroup.songs}
+              songs={visibleSongs}
+              events={visibleEvents}
               activeMember={{ ...activeMember, role: userRole }}
+              currentUser={currentUser}
+              allUsers={users}
+              friends={myFriends}
+              friendRequests={friendRequests}
+              directMessages={directMessages}
               accentColor={identity.accentColor}
+              initialDmUserId={initialDmUserId}
+              onOpenMusicianProfile={(uid) =>
+                handleOpenMusicianProfile(uid, 'perfil')
+              }
               onSendMessage={handleSendChatMessage}
               onDeleteMessage={handleDeleteChatMessage}
               onTogglePrayerReaction={handleTogglePrayerReaction}
               onOpenSongFromChat={(songId) => handleOpenSongInSongbook(songId)}
-              onExitFullScreenChat={() => setActiveTab('inicio')}
+              onExitFullScreenChat={() => {
+                setInitialDmUserId(null);
+                setActiveTab('inicio');
+              }}
+              onSendFriendRequest={handleSendFriendRequest}
+              onRespondFriendRequest={handleRespondFriendRequest}
+              onSendDirectMessage={handleSendDirectMessage}
+              onImportSharedSongToRepertoire={handleImportSharedSongToRepertoire}
+              onConvokeFriendToEvent={handleConvokeFriendToEvent}
             />
           )}
 
           {activeTab === 'herramientas' && (
             <ToolsModule
               accentColor={identity.accentColor}
-              songs={activeGroup.songs}
+              songs={visibleSongs}
               initialBpm={metronomePreset.bpm}
               initialTimeSignature={metronomePreset.timeSignature}
             />
@@ -2127,11 +3127,38 @@ export default function App() {
           </div>
         )}
 
+        {/* MODAL DE PERFIL SOCIAL DE MÚSICO Y RED DE AMIGOS */}
+        <MusicianProfileModal
+          isOpen={profileModalState.open}
+          onClose={() =>
+            setProfileModalState((prev) => ({ ...prev, open: false }))
+          }
+          initialViewedUserId={profileModalState.viewedUserId}
+          initialTab={profileModalState.tab}
+          currentUser={currentUser}
+          allUsers={users}
+          groups={groups}
+          activeGroup={activeGroup}
+          userRoleInActiveGroup={userRole}
+          friends={myFriends}
+          friendRequests={friendRequests}
+          accentColor={identity.accentColor}
+          onUpdateMyProfile={handleUpdateMySocialProfile}
+          onSendFriendRequest={handleSendFriendRequest}
+          onRespondFriendRequest={handleRespondFriendRequest}
+          onOpenDirectMessageWithUser={handleOpenDirectMessageWithUser}
+          onConvokeMusicianToEvent={(targetUser, eventId, role) =>
+            handleConvokeFriendToEvent(targetUser, eventId, role)
+          }
+          onAddMusicianToGroup={handleAddFriendToGroup}
+        />
+
         {/* MODAL DE CENTRO DE NOTIFICACIONES */}
         <NotificationsModal
           isOpen={isNotificationsModalOpen}
           onClose={() => setIsNotificationsModalOpen(false)}
           currentUser={currentUser}
+          userGroupIds={myGroupIds}
           notifications={myNotifications}
           accentColor={identity.accentColor}
           onSelectNotification={handleSelectNotification}
@@ -2160,7 +3187,7 @@ export default function App() {
           onSelectGroup={(gId) => setActiveGroupId(gId)}
         />
 
-        {/* MODAL DE DATOS DEL GRUPO, TEMAS E INVITACIONES POR @USUARIO O CORREO */}
+        {/* MODAL DE DATOS DEL GRUPO, TEMAS Y ADMINISTRACIÓN DE MIEMBROS */}
         <IdentityModal
           isOpen={identityModalState.open}
           initialSection={identityModalState.section}
@@ -2175,11 +3202,17 @@ export default function App() {
           invitations={activeGroup.invitations}
           activeMember={{ ...activeMember, role: userRole }}
           allUsers={users}
+          friends={myFriends}
           onSendInvitationByUsernameOrEmail={
             handleSendInvitationByUsernameOrEmail
           }
+          onAddFriendToGroup={handleAddFriendToGroup}
           onToggleMemberRole={handleToggleMemberRole}
+          onToggleMemberGuestStatus={handleToggleMemberGuestStatus}
           onUpdateUserInstruments={handleUpdateUserInstruments}
+          onOpenMusicianProfile={(uid) =>
+            handleOpenMusicianProfile(uid, 'perfil')
+          }
           onRemoveMember={handleRemoveMember}
           onResetDemoData={handleResetDemoData}
         />

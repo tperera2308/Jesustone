@@ -32,6 +32,8 @@ import {
   AppNotification,
   AppUser,
   ChatMessage,
+  DirectMessage,
+  FriendRequest,
   Song,
   WorshipGroup,
 } from './types';
@@ -304,6 +306,10 @@ export function enrichGroupIndexes(group: WorshipGroup): WorshipGroup {
   };
 }
 
+export const MAX_CHAT_MESSAGES_PER_GROUP = 100;
+export const MAX_DMS_PER_CONVERSATION = 100;
+export const MAX_NOTIFICATIONS = 50;
+
 function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
   const indexedGroup = enrichGroupIndexes(group);
 
@@ -317,10 +323,10 @@ function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
     };
   });
 
-  // Mantener únicamente los últimos 60 mensajes en el documento maestro del grupo
-  // (todos los mensajes viven en la colección independiente `jesustone_messages`)
+  // Mantener únicamente los últimos 40 mensajes ligeros en el documento maestro del grupo
+  // (el historial activo de hasta 100 mensajes vive en la colección independiente `jesustone_messages`)
   const recentChatMessages = (indexedGroup.chatMessages || [])
-    .slice(-60)
+    .slice(-40)
     .map((m) => ({
       ...m,
       voiceClipUrl:
@@ -335,10 +341,12 @@ function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
     ...indexedGroup,
     songs: lightSongs,
     chatMessages: recentChatMessages,
+    activityFeed: (indexedGroup.activityFeed || []).slice(0, 5),
+    invitations: (indexedGroup.invitations || []).slice(0, 30),
   });
 
   const serializedSize = new Blob([JSON.stringify(candidate)]).size;
-  if (serializedSize > 700000) {
+  if (serializedSize > 650000) {
     return stripUndefinedDeep({
       ...candidate,
       songs: candidate.songs.map((s) => ({
@@ -346,13 +354,13 @@ function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
         chordSheetImageUrl:
           s.chordSheetImageUrl &&
           s.chordSheetImageUrl.startsWith('data:') &&
-          s.chordSheetImageUrl.length > 30000
+          s.chordSheetImageUrl.length > 25000
             ? undefined
             : s.chordSheetImageUrl,
         voiceNotes: (s.voiceNotes || []).map((vn) => ({
           ...vn,
           audioDataUrl:
-            vn.audioDataUrl.startsWith('data:') && vn.audioDataUrl.length > 30000
+            vn.audioDataUrl.startsWith('data:') && vn.audioDataUrl.length > 25000
               ? ''
               : vn.audioDataUrl,
         })),
@@ -499,6 +507,56 @@ export async function deleteNotificationFromFirestore(
   }
 }
 
+export async function syncFriendRequestToFirestore(
+  req: FriendRequest
+): Promise<void> {
+  const path = `jesustone_friend_requests/${req.id}`;
+  try {
+    await setDoc(
+      doc(db, 'jesustone_friend_requests', req.id),
+      stripUndefinedDeep(req)
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path, false);
+  }
+}
+
+export async function deleteFriendRequestFromFirestore(
+  reqId: string
+): Promise<void> {
+  const path = `jesustone_friend_requests/${reqId}`;
+  try {
+    await deleteDoc(doc(db, 'jesustone_friend_requests', reqId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path, false);
+  }
+}
+
+export async function syncDirectMessageToFirestore(
+  dm: DirectMessage
+): Promise<void> {
+  const path = `jesustone_direct_messages/${dm.id}`;
+  try {
+    await setDoc(
+      doc(db, 'jesustone_direct_messages', dm.id),
+      stripUndefinedDeep(dm)
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path, false);
+  }
+}
+
+export async function deleteDirectMessageFromFirestore(
+  dmId: string
+): Promise<void> {
+  const path = `jesustone_direct_messages/${dmId}`;
+  try {
+    await deleteDoc(doc(db, 'jesustone_direct_messages', dmId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path, false);
+  }
+}
+
 export async function clearAllCloudData(): Promise<void> {
   const collectionsToClear = [
     'jesustone_users',
@@ -506,6 +564,8 @@ export async function clearAllCloudData(): Promise<void> {
     'jesustone_songs',
     'jesustone_messages',
     'jesustone_notifications',
+    'jesustone_friend_requests',
+    'jesustone_direct_messages',
   ];
   for (const colName of collectionsToClear) {
     try {
@@ -531,6 +591,8 @@ export function subscribeToJesustoneCloud(
     onSongsSnapshot?: (songsByGroup: Record<string, Song[]>) => void;
     onMessagesSnapshot?: (groupId: string, messages: ChatMessage[]) => void;
     onNotificationsSnapshot: (notifs: AppNotification[]) => void;
+    onFriendRequestsSnapshot?: (requests: FriendRequest[]) => void;
+    onDirectMessagesSnapshot?: (dms: DirectMessage[]) => void;
     onSyncStatusChange: (status: 'connected' | 'local_only') => void;
   }
 ): () => void {
@@ -627,15 +689,14 @@ export function subscribeToJesustoneCloud(
     }
   );
 
-  // 3. Suscripción de Mensajes de Chat en su propia colección independiente (`jesustone_messages`)
+  // 3. Suscripción de Mensajes de Chat con auto-purgado a los últimos 100 mensajes
   let unsubMessages = () => {};
   if (options.activeGroupId && callbacks.onMessagesSnapshot) {
     const targetGroupId = options.activeGroupId;
-    const maxMsgs = options.messageLimit || 120;
     const messagesQuery = query(
       collection(db, 'jesustone_messages'),
       where('groupId', '==', targetGroupId),
-      limit(maxMsgs)
+      limit(150)
     );
 
     unsubMessages = onSnapshot(
@@ -649,8 +710,17 @@ export function subscribeToJesustoneCloud(
             if (timeA !== timeB) return timeA - timeB;
             return a.id.localeCompare(b.id);
           });
-        if (msgs.length > 0) {
-          callbacks.onMessagesSnapshot?.(targetGroupId, msgs);
+
+        if (msgs.length > MAX_CHAT_MESSAGES_PER_GROUP) {
+          const overflow = msgs.slice(0, msgs.length - MAX_CHAT_MESSAGES_PER_GROUP);
+          overflow.forEach((oldMsg) => {
+            deleteChatMessageFromFirestore(oldMsg.id);
+          });
+        }
+
+        const trimmed = msgs.slice(-MAX_CHAT_MESSAGES_PER_GROUP);
+        if (trimmed.length > 0) {
+          callbacks.onMessagesSnapshot?.(targetGroupId, trimmed);
         }
       },
       () => {
@@ -659,20 +729,29 @@ export function subscribeToJesustoneCloud(
     );
   }
 
-  // 4. Suscripción de Notificaciones con límite de las 100 más recientes
+  // 4. Suscripción de Notificaciones con auto-purgado a las 50 más recientes
   const notifsQuery = query(
     collection(db, 'jesustone_notifications'),
-    limit(100)
+    limit(80)
   );
   const unsubNotifs = onSnapshot(
     notifsQuery,
     (snapshot) => {
       callbacks.onSyncStatusChange('connected');
-      const cloudNotifs = snapshot.docs
+      const sortedNotifs = snapshot.docs
         .map((d) => d.data() as AppNotification)
         .sort((a, b) => b.id.localeCompare(a.id));
-      if (cloudNotifs.length > 0) {
-        callbacks.onNotificationsSnapshot(cloudNotifs);
+
+      if (sortedNotifs.length > MAX_NOTIFICATIONS) {
+        const overflow = sortedNotifs.slice(MAX_NOTIFICATIONS);
+        overflow.forEach((oldNotif) => {
+          deleteNotificationFromFirestore(oldNotif.id);
+        });
+      }
+
+      const trimmedNotifs = sortedNotifs.slice(0, MAX_NOTIFICATIONS);
+      if (trimmedNotifs.length > 0) {
+        callbacks.onNotificationsSnapshot(trimmedNotifs);
       }
     },
     (error) => {
@@ -686,11 +765,83 @@ export function subscribeToJesustoneCloud(
     }
   );
 
+  // 5. Suscripción de Solicitudes de Amistad
+  const friendReqsQuery = query(
+    collection(db, 'jesustone_friend_requests'),
+    limit(100)
+  );
+  const unsubFriendReqs = onSnapshot(
+    friendReqsQuery,
+    (snapshot) => {
+      if (!callbacks.onFriendRequestsSnapshot) return;
+      const reqs = snapshot.docs.map((d) => d.data() as FriendRequest);
+      if (reqs.length > 0) {
+        callbacks.onFriendRequestsSnapshot(reqs);
+      }
+    },
+    () => {
+      // Optional auxiliary collection
+    }
+  );
+
+  // 6. Suscripción de Mensajes Directos (DM) 1-a-1 con auto-purgado a 100 por conversación
+  const dmsQuery = options.currentUserId
+    ? query(
+        collection(db, 'jesustone_direct_messages'),
+        where('participants', 'array-contains', options.currentUserId),
+        limit(250)
+      )
+    : query(collection(db, 'jesustone_direct_messages'), limit(250));
+
+  const unsubDms = onSnapshot(
+    dmsQuery,
+    (snapshot) => {
+      if (!callbacks.onDirectMessagesSnapshot) return;
+      const allDms = snapshot.docs
+        .map((d) => d.data() as DirectMessage)
+        .sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
+
+      const byConv = new Map<string, DirectMessage[]>();
+      allDms.forEach((dm) => {
+        const convKey =
+          dm.conversationId ||
+          [dm.senderId, dm.recipientId].sort().join('__');
+        const list = byConv.get(convKey) || [];
+        list.push(dm);
+        byConv.set(convKey, list);
+      });
+
+      const keptDms: DirectMessage[] = [];
+      byConv.forEach((convMsgs) => {
+        if (convMsgs.length > MAX_DMS_PER_CONVERSATION) {
+          const overflow = convMsgs.slice(
+            0,
+            convMsgs.length - MAX_DMS_PER_CONVERSATION
+          );
+          overflow.forEach((oldDm) => {
+            deleteDirectMessageFromFirestore(oldDm.id);
+          });
+        }
+        keptDms.push(...convMsgs.slice(-MAX_DMS_PER_CONVERSATION));
+      });
+
+      keptDms.sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
+      if (keptDms.length > 0) {
+        callbacks.onDirectMessagesSnapshot(keptDms);
+      }
+    },
+    () => {
+      // Optional auxiliary collection
+    }
+  );
+
   return () => {
     unsubUsers();
     unsubGroups();
     unsubSongs();
     unsubMessages();
     unsubNotifs();
+    unsubFriendReqs();
+    unsubDms();
   };
 }

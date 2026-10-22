@@ -10,6 +10,7 @@ import {
   InstrumentRole,
   UserRole,
 } from '../types';
+import { uploadMediaDataUrlToStorage } from '../firebase';
 import {
   AtSign,
   Camera,
@@ -48,14 +49,19 @@ interface IdentityModalProps {
   invitations: GmailInvitation[];
   activeMember: BandMember;
   allUsers?: AppUser[];
+  friends?: AppUser[];
   onSendInvitationByUsernameOrEmail: (invite: {
     identifier: string;
     invitedName: string;
     suggestedInstrument: InstrumentRole;
+    isGuest?: boolean;
   }) => { ok: boolean; message: string };
+  onAddFriendToGroup?: (friendUser: AppUser, isGuest: boolean) => { ok: boolean; message: string };
   onRemoveMember: (id: string) => void;
   onToggleMemberRole?: (memberId: string) => void;
+  onToggleMemberGuestStatus?: (memberId: string) => void;
   onUpdateUserInstruments?: (instruments: InstrumentRole[]) => void;
+  onOpenMusicianProfile?: (userId: string) => void;
   onResetDemoData: () => void;
 }
 
@@ -129,18 +135,18 @@ export function getAccentClasses(colorId: AccentColorId) {
 }
 
 /**
- * Comprime y recorta en cuadrado una imagen subida por el usuario para que sea ligera
- * (<15KB) y se sincronice instantáneamente en Firebase Firestore.
+ * Comprime y recorta en cuadrado una imagen subida por el usuario en formato ultra-ligero
+ * (144x144 WebP/JPEG ~5KB) e intenta subirla a Firebase Storage con fallback instantáneo.
  */
 export function compressImageFileToDataUrl(
   file: File,
-  maxSize = 180
+  maxSize = 144
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement('canvas');
         canvas.width = maxSize;
         canvas.height = maxSize;
@@ -154,8 +160,20 @@ export function compressImageFileToDataUrl(
         const sx = (img.width - minSide) / 2;
         const sy = (img.height - minSide) / 2;
         ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, maxSize, maxSize);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-        resolve(dataUrl);
+        let dataUrl = canvas.toDataURL('image/webp', 0.72);
+        if (!dataUrl.startsWith('data:image/webp')) {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.74);
+        }
+        try {
+          const uploadedUrl = await uploadMediaDataUrlToStorage(
+            'avatars',
+            file.name || 'avatar.webp',
+            dataUrl
+          );
+          resolve(uploadedUrl);
+        } catch {
+          resolve(dataUrl);
+        }
       };
       img.onerror = () => reject(new Error('Archivo de imagen inválido'));
       img.src = e.target?.result as string;
@@ -248,10 +266,14 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
   members,
   activeMember,
   allUsers = [],
+  friends = [],
   onSendInvitationByUsernameOrEmail,
+  onAddFriendToGroup,
   onRemoveMember,
   onToggleMemberRole,
+  onToggleMemberGuestStatus,
   onUpdateUserInstruments,
+  onOpenMusicianProfile,
   onResetDemoData,
 }) => {
   const [activeTab, setActiveTab] = useState<'grupo' | 'temas' | 'invitaciones'>(
@@ -273,6 +295,8 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
   const [inviteIdentifier, setInviteIdentifier] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteInstrument, setInviteInstrument] = useState<InstrumentRole>('Coros');
+  const [inviteAsGuest, setInviteAsGuest] = useState<boolean>(false);
+  const [memberListFilter, setMemberListFilter] = useState<'titulares' | 'suplentes'>('titulares');
   const [inviteFeedback, setInviteFeedback] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -336,6 +360,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
       identifier: inviteIdentifier.trim(),
       invitedName: inviteName.trim() || inviteIdentifier.trim(),
       suggestedInstrument: inviteInstrument,
+      isGuest: inviteAsGuest,
     });
     setInviteFeedback(res.message);
     if (res.ok) {
@@ -356,9 +381,18 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
     ? allUsers.find(
         (u) =>
           u.username.toLowerCase() === cleanSearch ||
-          u.email.toLowerCase() === cleanSearch
+          u.email.toLowerCase() === cleanSearch ||
+          (u.musicianCode && u.musicianCode.toLowerCase() === cleanSearch)
       )
     : undefined;
+
+  const regularMembers = members.filter((m) => !m.isGuest);
+  const guestMembers = members.filter((m) => Boolean(m.isGuest));
+  const displayedMembers =
+    memberListFilter === 'titulares' ? regularMembers : guestMembers;
+  const friendsNotInGroup = friends.filter(
+    (f) => !members.some((m) => m.id === f.id)
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
@@ -430,8 +464,8 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                 : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900'
             }`}
           >
-            <UserPlus className="w-4 h-4 shrink-0" />
-            <span className="truncate">Invitar Miembros</span>
+            <Users className="w-4 h-4 shrink-0" />
+            <span className="truncate">Miembros</span>
           </button>
         </div>
 
@@ -716,123 +750,226 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
               </button>
             </div>
 
-            {/* Formulario del Líder para invitar miembros por @usuario o correo */}
+            {/* Formulario del Líder para administrar/invitar miembros titulares o suplentes */}
             {userRole === 'leader' ? (
-              <form
-                onSubmit={handleSendInviteSubmit}
-                className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-4"
-              >
-                <div className="flex items-center gap-2">
-                  <AtSign className={`w-5 h-5 ${accent.textClass}`} />
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Invitar Miembro por Nombre de Usuario (@usuario) o Correo
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                      @Usuario o Correo *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={inviteIdentifier}
-                      onChange={(e) => {
-                        setInviteIdentifier(e.target.value);
-                        setInviteFeedback(null);
-                      }}
-                      placeholder="@usuario o correo@ejemplo.com"
-                      className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                      Nombre (Opcional)
-                    </label>
-                    <input
-                      type="text"
-                      value={
-                        matchedRegisteredUser
-                          ? matchedRegisteredUser.name
-                          : inviteName
-                      }
-                      onChange={(e) => setInviteName(e.target.value)}
-                      placeholder="Nombre del integrante"
-                      className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                      Instrumento Sugerido
-                    </label>
-                    <select
-                      value={inviteInstrument}
-                      onChange={(e) =>
-                        setInviteInstrument(e.target.value as InstrumentRole)
-                      }
-                      className="w-full min-h-[46px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white"
-                    >
-                      {ALL_INSTRUMENT_ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
+              <div className="space-y-4">
+                {friendsNotInGroup.length > 0 && onAddFriendToGroup && (
+                  <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/20 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <UserPlus className="w-4 h-4 text-indigo-500" />
+                        Añadir rápido desde tu Red de Amigos ({friendsNotInGroup.length})
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Como Suplente o Titular
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {friendsNotInGroup.map((friend) => (
+                        <div
+                          key={friend.id}
+                          className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-2.5"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-500 flex items-center justify-center text-[11px] font-bold shrink-0">
+                            {friend.avatarInitials}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                              {friend.name}
+                            </p>
+                            <p className="text-[10px] text-slate-500 truncate">
+                              @{friend.username} · {friend.instruments[0] || 'Músico'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const res = onAddFriendToGroup(friend, true);
+                                setInviteFeedback(res.message);
+                                setMemberListFilter('suplentes');
+                              }}
+                              className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-300 text-[10px] font-bold"
+                              title="Solo verá los eventos donde lo asignes"
+                            >
+                              + Suplente
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const res = onAddFriendToGroup(friend, false);
+                                setInviteFeedback(res.message);
+                                setMemberListFilter('titulares');
+                              }}
+                              className="px-2 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-300 text-[10px] font-bold"
+                              title="Miembro fijo del grupo"
+                            >
+                              + Titular
+                            </button>
+                          </div>
+                        </div>
                       ))}
-                    </select>
-                  </div>
-                </div>
-
-                {matchedRegisteredUser && (
-                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
-                    <span>
-                      Usuario registrado encontrado:{' '}
-                      <strong>{matchedRegisteredUser.name}</strong> (@
-                      {matchedRegisteredUser.username})
-                    </span>
-                    <Check className="w-4 h-4" />
+                    </div>
                   </div>
                 )}
 
-                {inviteFeedback && (
-                  <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    {inviteFeedback}
-                  </p>
-                )}
+                <form
+                  onSubmit={handleSendInviteSubmit}
+                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3.5"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AtSign className={`w-4 h-4 ${accent.textClass}`} />
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                        Agregar por @Usuario, ID Músico o Correo
+                      </h3>
+                    </div>
 
-                <div className="flex flex-col sm:flex-row gap-2.5">
-                  <button
-                    type="submit"
-                    className={`flex-1 min-h-[48px] py-2.5 px-4 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-md ${accent.bgClass}`}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>Enviar Invitación en la App</span>
-                  </button>
-
-                  {inviteIdentifier.includes('@') &&
-                    inviteIdentifier.includes('.') && (
+                    {/* Selector Titular vs Invitado/Suplente */}
+                    <div className="inline-flex p-0.5 rounded-xl bg-slate-200/80 dark:bg-slate-900 border border-slate-300/60 dark:border-slate-700 self-start">
                       <button
                         type="button"
-                        onClick={() => {
-                          const url = buildGmailComposeUrl(
-                            inviteIdentifier.trim(),
-                            inviteName.trim() || inviteIdentifier.trim(),
-                            inviteInstrument
-                          );
-                          window.open(url, '_blank', 'noopener,noreferrer');
-                        }}
-                        className="min-h-[48px] px-4 py-2.5 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2"
+                        onClick={() => setInviteAsGuest(false)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          !inviteAsGuest
+                            ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs'
+                            : 'text-slate-500'
+                        }`}
                       >
-                        <Mail className="w-4 h-4" />
-                        <span>Abrir Correo</span>
-                        <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                        Miembro Titular
                       </button>
-                    )}
-                </div>
-              </form>
+                      <button
+                        type="button"
+                        onClick={() => setInviteAsGuest(true)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          inviteAsGuest
+                            ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        Suplente / Invitado
+                      </button>
+                    </div>
+                  </div>
+
+                  {inviteAsGuest && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl">
+                      Modo <strong>Músico Invitado / Suplente</strong>: Solo verá los eventos específicos donde lo convoques y sus canciones asignadas (no verá todo el grupo ni el chat interno).
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                        @Usuario, ID (JST-...) o Correo *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={inviteIdentifier}
+                        onChange={(e) => {
+                          setInviteIdentifier(e.target.value);
+                          setInviteFeedback(null);
+                        }}
+                        placeholder="@usuario, JST-1234 o correo"
+                        className="w-full min-h-[42px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                        Nombre (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={
+                          matchedRegisteredUser
+                            ? matchedRegisteredUser.name
+                            : inviteName
+                        }
+                        onChange={(e) => setInviteName(e.target.value)}
+                        placeholder="Nombre del músico"
+                        className="w-full min-h-[42px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                        Instrumento Principal
+                      </label>
+                      <select
+                        value={inviteInstrument}
+                        onChange={(e) =>
+                          setInviteInstrument(e.target.value as InstrumentRole)
+                        }
+                        className="w-full min-h-[42px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                      >
+                        {ALL_INSTRUMENT_ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {matchedRegisteredUser && (
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                      <span>
+                        Músico encontrado:{' '}
+                        <strong>{matchedRegisteredUser.name}</strong> (@
+                        {matchedRegisteredUser.username}
+                        {matchedRegisteredUser.musicianCode
+                          ? ` · ${matchedRegisteredUser.musicianCode}`
+                          : ''}
+                        )
+                      </span>
+                      <Check className="w-4 h-4" />
+                    </div>
+                  )}
+
+                  {inviteFeedback && (
+                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      {inviteFeedback}
+                    </p>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="submit"
+                      className={`flex-1 min-h-[42px] py-2 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm ${accent.bgClass}`}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>
+                        {inviteAsGuest
+                          ? 'Añadir como Suplente / Invitado'
+                          : 'Invitar como Miembro Titular'}
+                      </span>
+                    </button>
+
+                    {inviteIdentifier.includes('@') &&
+                      inviteIdentifier.includes('.') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = buildGmailComposeUrl(
+                              inviteIdentifier.trim(),
+                              inviteName.trim() || inviteIdentifier.trim(),
+                              inviteInstrument
+                            );
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                          }}
+                          className="min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Enviar Correo</span>
+                          <ExternalLink className="w-3 h-3 opacity-70" />
+                        </button>
+                      )}
+                  </div>
+                </form>
+              </div>
             ) : (
               <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-400">
-                Solo el <strong>Líder / Admin</strong> de este grupo puede enviar invitaciones
-                o administrar la lista de miembros.
+                Solo el <strong>Líder / Admin</strong> de este grupo puede administrar o invitar miembros.
               </div>
             )}
 
@@ -904,94 +1041,181 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
               </div>
             )}
 
-            {/* Lista de Miembros Actuales del Grupo + Asignar Co-Líder */}
+            {/* Lista de Miembros Actuales del Grupo (Titulares vs Suplentes/Invitados) */}
             <div className="space-y-2.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <Users className="w-4 h-4" />
-                Miembros en {identity.ministryName} ({members.length})
-              </h4>
-              <div className="divide-y divide-slate-200 dark:divide-slate-800 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-                {members.map((m) => {
-                  const isMainFounder = leaderUserId && m.id === leaderUserId;
-                  const isCoLeader = m.role === 'leader' && !isMainFounder;
-                  return (
-                    <div
-                      key={m.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 bg-white dark:bg-slate-900"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden ${
-                            m.role === 'leader'
-                              ? 'bg-amber-500 text-slate-950'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                          }`}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <Users className="w-4 h-4" />
+                  Administración de Miembros ({members.length})
+                </h4>
+
+                <div className="inline-flex p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setMemberListFilter('titulares')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      memberListFilter === 'titulares'
+                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    Titulares ({regularMembers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMemberListFilter('suplentes')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      memberListFilter === 'suplentes'
+                        ? 'bg-amber-500 text-slate-950 shadow-2xs'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    Suplentes / Invitados ({guestMembers.length})
+                  </button>
+                </div>
+              </div>
+
+              {displayedMembers.length === 0 ? (
+                <div className="p-5 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500">
+                  {memberListFilter === 'suplentes'
+                    ? 'No tienes músicos suplentes o invitados temporales registrados aún. Puedes añadir amigos desde arriba o convocarlos al crear un evento.'
+                    : 'No hay miembros titulares en esta lista.'}
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-200 dark:divide-slate-800 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                  {displayedMembers.map((m) => {
+                    const isMainFounder = leaderUserId && m.id === leaderUserId;
+                    const isCoLeader = m.role === 'leader' && !isMainFounder;
+                    return (
+                      <div
+                        key={m.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 bg-white dark:bg-slate-900"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onOpenMusicianProfile) {
+                              onClose();
+                              onOpenMusicianProfile(m.id);
+                            }
+                          }}
+                          className="flex items-center gap-3 min-w-0 text-left group"
+                          title={`Ver Perfil Social de ${m.name}`}
                         >
-                          {m.avatarUrl ? (
-                            <img
-                              src={m.avatarUrl}
-                              alt={m.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            m.avatarInitials
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                            {m.name}{' '}
-                            {m.username && (
-                              <span className="text-xs font-mono text-amber-600 dark:text-amber-400">
-                                @{m.username}
-                              </span>
-                            )}{' '}
-                            <span className="text-xs font-normal text-slate-500">
-                              ·{' '}
-                              {isMainFounder
-                                ? 'Líder Principal / Admin'
-                                : isCoLeader
-                                ? 'Co-Líder / Admin'
-                                : 'Miembro'}
-                            </span>
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                            {m.email} · {m.instruments.join(', ')}
-                          </p>
-                        </div>
-                      </div>
-                      {userRole === 'leader' && !isMainFounder && m.id !== activeMember.id && (
-                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                          {onToggleMemberRole && (
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden ${
+                              m.isGuest
+                                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border border-amber-500/40'
+                                : m.role === 'leader'
+                                ? 'bg-amber-500 text-slate-950'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {m.avatarUrl ? (
+                              <img
+                                src={m.avatarUrl}
+                                alt={m.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              m.avatarInitials
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-amber-500 truncate transition-colors">
+                                {m.name}
+                              </p>
+                              {m.username && (
+                                <span className="text-xs font-mono text-amber-600 dark:text-amber-400">
+                                  @{m.username}
+                                </span>
+                              )}
+                              {m.isGuest ? (
+                                <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
+                                  Suplente / Invitado
+                                </span>
+                              ) : (
+                                <span className="text-xs font-normal text-slate-500">
+                                  ·{' '}
+                                  {isMainFounder
+                                    ? 'Líder Principal'
+                                    : isCoLeader
+                                    ? 'Co-Líder'
+                                    : 'Titular'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                              {m.instruments.join(', ')}
+                              {m.isGuest && m.guestEventIds && m.guestEventIds.length > 0
+                                ? ` · ${m.guestEventIds.length} fecha(s) asignada(s)`
+                                : ''}
+                            </p>
+                          </div>
+                        </button>
+                        <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                          {onOpenMusicianProfile && (
                             <button
                               type="button"
-                              onClick={() => onToggleMemberRole(m.id)}
-                              className={`min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 border transition-colors ${
-                                m.role === 'leader'
-                                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400'
-                                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-500/40'
-                              }`}
-                              title="Asignar o quitar permisos de Co-Líder"
+                              onClick={() => {
+                                onClose();
+                                onOpenMusicianProfile(m.id);
+                              }}
+                              className="min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-500/40"
                             >
-                              <ShieldCheck className="w-3.5 h-3.5" />
-                              <span>
-                                {m.role === 'leader' ? 'Quitar Co-Líder' : 'Hacer Co-Líder'}
-                              </span>
+                              Ver Perfil
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => onRemoveMember(m.id)}
-                            className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
-                            title="Eliminar miembro del grupo"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {userRole === 'leader' && !isMainFounder && m.id !== activeMember.id && (
+                            <>
+                              {onToggleMemberGuestStatus && (
+                                <button
+                                  type="button"
+                                  onClick={() => onToggleMemberGuestStatus(m.id)}
+                                  className="min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-500/40"
+                                  title={
+                                    m.isGuest
+                                      ? 'Convertir en Miembro Titular'
+                                      : 'Cambiar a Suplente / Invitado Temporal'
+                                  }
+                                >
+                                  {m.isGuest ? 'Hacer Titular' : 'Pasar a Suplente'}
+                                </button>
+                              )}
+                              {!m.isGuest && onToggleMemberRole && (
+                                <button
+                                  type="button"
+                                  onClick={() => onToggleMemberRole(m.id)}
+                                  className={`min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 border transition-colors ${
+                                    m.role === 'leader'
+                                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400'
+                                      : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-500/40'
+                                  }`}
+                                  title="Asignar o quitar permisos de Co-Líder"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  <span>
+                                    {m.role === 'leader' ? 'Quitar Co-Líder' : 'Co-Líder'}
+                                  </span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onRemoveMember(m.id)}
+                                className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                                title="Eliminar del grupo"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

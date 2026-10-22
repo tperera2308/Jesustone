@@ -30,6 +30,7 @@ import {
   Settings,
   Sliders,
   UserCheck,
+  Users,
   XCircle,
 } from 'lucide-react';
 
@@ -42,9 +43,15 @@ interface DashboardHomeProps {
   devotionals: Devotional[];
   alerts: NoticeAlert[];
   activityFeed: ActivityFeedItem[];
+  friendsCount?: number;
+  pendingFriendRequestsCount?: number;
   onNavigate: (tab: NavigationTab) => void;
   onOpenIdentityModal: (section: 'grupo' | 'temas' | 'invitaciones') => void;
   onOpenAuthModal: () => void;
+  onOpenMusicianProfile: (
+    userId?: string,
+    tab?: 'perfil' | 'amigos' | 'explorar'
+  ) => void;
   onUpdateRSVP: (
     eventId: string,
     role: InstrumentRole,
@@ -73,9 +80,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   devotionals,
   alerts,
   activityFeed,
+  friendsCount = 0,
+  pendingFriendRequestsCount = 0,
   onNavigate,
   onOpenIdentityModal,
   onOpenAuthModal,
+  onOpenMusicianProfile,
   onUpdateRSVP,
   onOpenSongInSongbook,
 }) => {
@@ -123,16 +133,16 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   return (
     <div className="space-y-4 w-full max-w-full min-w-0">
       {/* 1. CABECERA DEL GRUPO MUSICAL: MINIMALISTA Y COMPACTA */}
-      <div className="rounded-2xl bg-slate-900 text-white border border-slate-800 p-3.5 sm:p-4 shadow-md space-y-3">
-        <div className="flex items-center justify-between gap-3">
+      <div className="rounded-2xl bg-slate-900 text-white border border-slate-800 p-3.5 sm:p-4 shadow-md space-y-2.5">
+        <div className="flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
             <div
-              className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm shrink-0 overflow-hidden ${accent.bgClass}`}
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-sm shrink-0 overflow-hidden ${accent.bgClass}`}
             >
               <BrandIconDisplay
                 iconId={identity.iconId}
                 customImageUrl={identity.customImageUrl}
-                className={identity.customImageUrl ? 'w-full h-full' : 'w-5 h-5'}
+                className={identity.customImageUrl ? 'w-full h-full' : 'w-4 h-4'}
               />
             </div>
             <div className="min-w-0">
@@ -141,88 +151,106 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 <span>·</span>
                 <span className="truncate">{members.length} integrantes</span>
               </div>
-              <h1 className="text-base sm:text-lg font-bold tracking-tight text-white truncate">
+              <h1 className="text-sm sm:text-base font-bold tracking-tight text-white truncate">
                 {identity.ministryName}
               </h1>
             </div>
           </div>
 
-          {/* Botón compacto de perfil de usuario */}
-          <button
-            type="button"
-            onClick={onOpenAuthModal}
-            className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center gap-2 text-left transition-all shrink-0"
-          >
-            <div
-              className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 overflow-hidden ${
-                isLeader ? 'bg-amber-500 text-slate-950' : 'bg-sky-500 text-white'
-              }`}
-            >
-              {activeMember.avatarUrl ? (
-                <img
-                  src={activeMember.avatarUrl}
-                  alt={activeMember.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                activeMember.avatarInitials
-              )}
-            </div>
-            <div className="hidden sm:block pr-1">
-              <p className="text-xs font-bold text-white leading-tight">
-                {activeMember.name}
-              </p>
-              <p className="text-[10px] text-slate-300 leading-tight">
-                {isLeader ? 'Líder' : 'Miembro'} · Perfil y Grupos
-              </p>
-            </div>
-          </button>
+          {/* Acciones rápidas minimalistas del grupo */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!activeMember.isGuest && (
+              <button
+                type="button"
+                onClick={() => onOpenIdentityModal('invitaciones')}
+                className="min-h-[34px] px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center gap-1.5 text-xs font-semibold text-slate-200 transition-colors"
+                title="Administrar miembros del grupo"
+              >
+                <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>Miembros</span>
+              </button>
+            )}
+
+            {!activeMember.isGuest && (
+              <button
+                type="button"
+                onClick={() => onOpenIdentityModal('grupo')}
+                className="min-h-[34px] w-8 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 flex items-center justify-center text-slate-300 transition-colors"
+                title="Datos y ajustes del grupo"
+                aria-label="Datos del grupo"
+              >
+                <Settings className="w-3.5 h-3.5 text-amber-400" />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Fila minimalista de botones pequeños del grupo */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-          <button
-            type="button"
-            onClick={() => onOpenIdentityModal('grupo')}
-            className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-2 text-left transition-colors"
-          >
-            <Settings className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-200 truncate">
-              Datos del Grupo
+        {activeMember.isGuest && (
+          <div className="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-200">
+            <span>
+              <strong>Pase de Músico Invitado:</strong> Solo ves las fechas y el repertorio de los eventos donde participas.
             </span>
-          </button>
+            <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-bold shrink-0">
+              Invitado
+            </span>
+          </div>
+        )}
+
+        {/* Fila compacta de integrantes (toca cualquiera para ver su Perfil) + acceso a Red de Amigos */}
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+            {members.slice(0, 8).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => onOpenMusicianProfile(m.id, 'perfil')}
+                className="px-2 py-1 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 flex items-center gap-1.5 shrink-0 transition-colors"
+                title={`Ver perfil de ${m.name}`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold overflow-hidden ${
+                    m.role === 'leader'
+                      ? 'bg-amber-500 text-slate-950'
+                      : m.isGuest
+                      ? 'bg-indigo-500 text-white'
+                      : 'bg-sky-500 text-white'
+                  }`}
+                >
+                  {m.avatarUrl ? (
+                    <img
+                      src={m.avatarUrl}
+                      alt={m.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    m.avatarInitials
+                  )}
+                </div>
+                <span className="text-[11px] font-medium text-slate-200 max-w-[80px] truncate">
+                  {m.name.split(' ')[0]}
+                </span>
+                {m.isGuest && (
+                  <span className="text-[9px] font-bold text-amber-400">
+                    Sup
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
 
           <button
             type="button"
-            onClick={() => onOpenIdentityModal('temas')}
-            className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-2 text-left transition-colors"
+            onClick={() => onOpenMusicianProfile(activeMember.id, 'amigos')}
+            className="px-2.5 py-1 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/30 text-[11px] font-bold text-indigo-200 shrink-0 flex items-center gap-1.5"
+            title="Abrir mi Red de Amigos y Directorio de Músicos"
           >
-            <Palette className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-200 truncate">
-              Temas y Color
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onOpenIdentityModal('invitaciones')}
-            className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-2 text-left transition-colors"
-          >
-            <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-200 truncate">
-              {isLeader ? 'Invitar Miembros' : `Código: ${identity.inviteCode}`}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenAuthModal}
-            className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-2 text-left transition-colors"
-          >
-            <FolderPlus className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-200 truncate">
-              Cambiar / Crear Grupo
-            </span>
+            <Users className="w-3 h-3 text-indigo-300" />
+            <span>Amigos ({friendsCount})</span>
+            {pendingFriendRequestsCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[9px] font-bold">
+                {pendingFriendRequestsCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -316,19 +344,44 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('chat')}
-              className="min-h-[72px] p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 shadow-2xs flex items-center gap-3 text-left transition-transform active:scale-[0.98] col-span-2 sm:col-span-2"
+              className="min-h-[72px] p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 shadow-2xs flex items-center gap-3 text-left transition-transform active:scale-[0.98]"
             >
               <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-500 flex items-center justify-center shrink-0">
                 <MessageSquare className="w-5 h-5" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                  Chat del Grupo
+                  {activeMember.isGuest ? 'Mensajes (DM)' : 'Chat y DM'}
                 </p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                  Canales #avisos, #general, #ensayos y #oracion
+                  {activeMember.isGuest
+                    ? 'Mensajes directos 1 a 1'
+                    : 'Canales y mensajes DM'}
                 </p>
               </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onOpenMusicianProfile(activeMember.id, 'perfil')}
+              className="min-h-[72px] p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 shadow-2xs flex items-center gap-3 text-left transition-transform active:scale-[0.98] relative"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                  Perfil y Amigos
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  {friendsCount} {friendsCount === 1 ? 'amigo' : 'amigos'} · Red y suplentes
+                </p>
+              </div>
+              {pendingFriendRequestsCount > 0 && (
+                <span className="absolute top-2.5 right-2.5 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+                  {pendingFriendRequestsCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
