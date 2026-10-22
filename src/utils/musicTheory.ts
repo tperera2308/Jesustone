@@ -126,6 +126,44 @@ export function transposeChordSheet(
     .join('\n');
 }
 
+export function extractUniqueChordsFromSheet(sheet: string): string[] {
+  if (!sheet) return [];
+  const lines = sheet.split('\n');
+  const chordSet = new Set<string>();
+  const chordsInOrder: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (/^\[(Intro|Verso|Coro|Puente|Pre-Coro|Instrumental|Final|Tag|Estrofa|Outro|Espontáneo|Solo|Chorus|Verse|Bridge).*\]$/i.test(trimmed)) {
+      continue;
+    }
+
+    // 1. Check for bracketed inline chords like [G], [D/F#], [Em7]
+    const bracketMatches = Array.from(line.matchAll(/\[([A-G][#b]?[^\]]*)\]/g));
+    for (const match of bracketMatches) {
+      const candidate = match[1].trim();
+      if (CHORD_TOKEN_REGEX.test(candidate) && !chordSet.has(candidate)) {
+        chordSet.add(candidate);
+        chordsInOrder.push(candidate);
+      }
+    }
+
+    // 2. Check for chords in chord-over-lyric lines
+    if (isChordLine(line)) {
+      const tokens = line.split(/\s+/).map((t) => t.trim().replace(/[|()]/g, '')).filter(Boolean);
+      for (const token of tokens) {
+        if (CHORD_TOKEN_REGEX.test(token) && !chordSet.has(token)) {
+          chordSet.add(token);
+          chordsInOrder.push(token);
+        }
+      }
+    }
+  }
+
+  return chordsInOrder;
+}
+
 export function generateLeadSheetSVGDataUrl(
   title: string,
   artist: string,

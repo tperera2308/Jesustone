@@ -93,7 +93,9 @@ interface EventsModuleProps {
   onOpenSongInSongbook: (songId: string, customKey?: string) => void;
 }
 
-const ALL_KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+const MAJOR_KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+const MINOR_KEYS = ['Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'];
+const ALL_KEYS = [...MAJOR_KEYS, ...MINOR_KEYS];
 
 const MONTH_NAMES_ES = [
   'Enero',
@@ -1112,7 +1114,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full min-w-0">
       {/* Alertas visuales */}
       {alerts.length > 0 && (
         <div className="space-y-2.5">
@@ -2474,11 +2476,20 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                               }
                               className="min-h-[34px] px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono text-xs font-bold text-slate-900 dark:text-white"
                             >
-                              {ALL_KEYS.map((k) => (
-                                <option key={k} value={k}>
-                                  Tono: {k} {k === song.originalKey ? '(Base)' : ''}
-                                </option>
-                              ))}
+                              <optgroup label="Tonalidades Mayores">
+                                {MAJOR_KEYS.map((k) => (
+                                  <option key={k} value={k}>
+                                    Tono: {k} Mayor {k === song.originalKey ? '(Base)' : ''}
+                                  </option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Tonalidades Menores">
+                                {MINOR_KEYS.map((k) => (
+                                  <option key={k} value={k}>
+                                    Tono: {k} ({k.replace(/m$/, '')}m) {k === song.originalKey ? '(Base)' : ''}
+                                  </option>
+                                ))}
+                              </optgroup>
                             </select>
                             <button
                               type="button"
@@ -3137,11 +3148,20 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 }}
                                 className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
                               >
-                                {ALL_KEYS.map((k) => (
-                                  <option key={k} value={k}>
-                                    {k}
-                                  </option>
-                                ))}
+                                <optgroup label="Tonalidades Mayores">
+                                  {MAJOR_KEYS.map((k) => (
+                                    <option key={k} value={k}>
+                                      {k} Mayor
+                                    </option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="Tonalidades Menores">
+                                  {MINOR_KEYS.map((k) => (
+                                    <option key={k} value={k}>
+                                      {k} ({k.replace(/m$/, '')}m)
+                                    </option>
+                                  ))}
+                                </optgroup>
                               </select>
                             </div>
                           )}

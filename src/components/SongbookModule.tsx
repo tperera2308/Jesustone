@@ -9,6 +9,7 @@ import {
   WorshipEvent,
 } from '../types';
 import {
+  extractUniqueChordsFromSheet,
   generateLeadSheetSVGDataUrl,
   isChordLine,
   transposeChordSheet,
@@ -17,11 +18,12 @@ import {
 } from '../utils/musicTheory';
 import {
   generateDemoVoiceClipDataUrl,
-  playChordVoicing,
   playMetronomeClick,
 } from '../utils/audioEngine';
 import { getAccentClasses } from './IdentityModal';
 import {
+  ArrowLeft,
+  BookOpen,
   BookmarkCheck,
   Check,
   ChevronLeft,
@@ -72,25 +74,44 @@ interface SongbookModuleProps {
 
 const KEY_SEMITONE_INDEX: Record<string, number> = {
   C: 0,
+  Cm: 0,
   'C#': 1,
+  'C#m': 1,
   Db: 1,
+  Dbm: 1,
   D: 2,
+  Dm: 2,
   'D#': 3,
+  'D#m': 3,
   Eb: 3,
+  Ebm: 3,
   E: 4,
+  Em: 4,
   F: 5,
+  Fm: 5,
   'F#': 6,
+  'F#m': 6,
   Gb: 6,
+  Gbm: 6,
   G: 7,
+  Gm: 7,
   'G#': 8,
+  'G#m': 8,
   Ab: 8,
+  Abm: 8,
   A: 9,
+  Am: 9,
   'A#': 10,
+  'A#m': 10,
   Bb: 10,
+  Bbm: 10,
   B: 11,
+  Bm: 11,
 };
 
-const ALL_KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+const MAJOR_KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+const MINOR_KEYS = ['Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'];
+const ALL_KEYS = [...MAJOR_KEYS, ...MINOR_KEYS];
 
 const SECTION_PRESETS = [
   'Intro',
@@ -139,8 +160,10 @@ function getSectionBadgeColors(sectionName: string): string {
 }
 
 function computeSemitoneDiff(origKey: string, targetKey: string): number {
-  const origIdx = KEY_SEMITONE_INDEX[origKey];
-  const targetIdx = KEY_SEMITONE_INDEX[targetKey];
+  const cleanOrig = origKey.replace(/m$/, '');
+  const cleanTarget = targetKey.replace(/m$/, '');
+  const origIdx = KEY_SEMITONE_INDEX[origKey] ?? KEY_SEMITONE_INDEX[cleanOrig];
+  const targetIdx = KEY_SEMITONE_INDEX[targetKey] ?? KEY_SEMITONE_INDEX[cleanTarget];
   if (origIdx === undefined || targetIdx === undefined) return 0;
   let diff = targetIdx - origIdx;
   if (diff > 6) diff -= 12;
@@ -177,6 +200,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const [selectedSongId, setSelectedSongId] = useState<string>(
     initialSongId || songs[0]?.id || ''
   );
+  const [openedSongId, setOpenedSongId] = useState<string | null>(
+    initialSongId || null
+  );
   const [semitones, setSemitones] = useState<number>(0);
   const [useSolfege, setUseSolfege] = useState<boolean>(false);
   const [lyricsOnly, setLyricsOnly] = useState<boolean>(false);
@@ -210,7 +236,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   // Stage Mode / Modo Atril Fullscreen State
   const [isStageMode, setIsStageMode] = useState<boolean>(false);
   const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
-  const [autoScrollSpeed, setAutoScrollSpeed] = useState<number>(1.5); // 1x, 1.5x, 2x, 3x
+  const [autoScrollSpeed, setAutoScrollSpeed] = useState<number>(0.6); // 0.3x, 0.5x, 0.6x, 0.8x, 1x, 1.4x
   const [stageFontSize, setStageFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('lg');
   const stageScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -229,10 +255,6 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const recordingTimerRef = useRef<number | null>(null);
   const voiceFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Reference Audio Player Simulation State
-  const [isPlayingRef, setIsPlayingRef] = useState<boolean>(false);
-  const [activeChordIdx, setActiveChordIdx] = useState<number>(0);
-  const playIntervalRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Saved Weekly Key Feedback
@@ -320,6 +342,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   useEffect(() => {
     if (initialSongId) {
       setSelectedSongId(initialSongId);
+      setOpenedSongId(initialSongId);
       const targetSong = songs.find((s) => s.id === initialSongId);
       if (targetSong && initialTargetKey) {
         setSemitones(computeSemitoneDiff(targetSong.originalKey, initialTargetKey));
@@ -330,13 +353,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   }, [initialSongId, initialTargetKey, songs]);
 
   useEffect(() => {
-    setIsPlayingRef(false);
-    setActiveChordIdx(0);
     setIsEditingStructure(false);
-    if (playIntervalRef.current) {
-      window.clearInterval(playIntervalRef.current);
-      playIntervalRef.current = null;
-    }
     if (activeSong) {
       setEditedLyrics(activeSong.lyricsAndChords);
       setSongMetronomeBpm(activeSong.bpm);
@@ -382,14 +399,15 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     };
   }, [isSongMetronomePlaying, songMetronomeBpm, activeSong?.timeSignature]);
 
-  // Stage Mode Auto-Scroll Engine synced to BPM & speed multiplier
+  // Stage Mode Auto-Scroll Engine synced to BPM & speed multiplier (calibrated slow and smooth)
   useEffect(() => {
     if (!isStageMode || !isAutoScrolling || !stageScrollContainerRef.current) {
       return;
     }
     const container = stageScrollContainerRef.current;
     const bpmFactor = (activeSong?.bpm || 75) / 75;
-    const pixelsPerTick = 0.8 * autoScrollSpeed * bpmFactor;
+    // Calibrated gentle scrolling pace: ~2.4px/sec at 0.6x (comfortable reading speed)
+    const pixelsPerTick = 0.18 * autoScrollSpeed * bpmFactor;
 
     const timer = window.setInterval(() => {
       if (container) {
@@ -400,40 +418,21 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     return () => window.clearInterval(timer);
   }, [isStageMode, isAutoScrolling, autoScrollSpeed, activeSong?.bpm]);
 
-  // Reference Harmonic Guide Player
-  useEffect(() => {
-    if (!isPlayingRef || !activeSong) {
-      if (playIntervalRef.current) {
-        window.clearInterval(playIntervalRef.current);
-        playIntervalRef.current = null;
-      }
-      return;
-    }
+  // Extract all unique chords present in this song's sheet without repetition
+  const songUniqueChords = activeSong
+    ? extractUniqueChordsFromSheet(activeSong.lyricsAndChords)
+    : [];
 
-    const transposedChords = activeSong.chordProgPreview.map((c) =>
-      transposeSingleChord(c, semitones, false)
-    );
-    playChordVoicing(transposedChords[0] || activeSong.originalKey);
-    let step = 0;
-    const msPerMeasure = Math.max(1400, Math.round((60 / activeSong.bpm) * 4 * 1000));
+  const effectivePreviewChords =
+    songUniqueChords.length > 0
+      ? songUniqueChords
+      : activeSong?.chordProgPreview && activeSong.chordProgPreview.length > 0
+      ? activeSong.chordProgPreview
+      : ['G', 'D', 'Em', 'C'];
 
-    playIntervalRef.current = window.setInterval(() => {
-      step += 1;
-      const nextIdx = step % transposedChords.length;
-      setActiveChordIdx(nextIdx);
-      playChordVoicing(transposedChords[nextIdx] || 'G');
-    }, msPerMeasure);
-
-    return () => {
-      if (playIntervalRef.current) {
-        window.clearInterval(playIntervalRef.current);
-        playIntervalRef.current = null;
-      }
-    };
-  }, [isPlayingRef, activeSong, semitones]);
 
   const currentKey = activeSong
-    ? transposeNote(activeSong.originalKey, semitones)
+    ? transposeSingleChord(activeSong.originalKey, semitones, false)
     : 'G';
   const currentKeyDisplay = activeSong
     ? transposeSingleChord(activeSong.originalKey, semitones, useSolfege)
@@ -441,11 +440,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const transposedText = activeSong
     ? transposeChordSheet(activeSong.lyricsAndChords, semitones, useSolfege)
     : '';
-  const transposedPreviewChords = activeSong
-    ? activeSong.chordProgPreview.map((c) =>
-        transposeSingleChord(c, semitones, useSolfege)
-      )
-    : [];
+  const transposedPreviewChords = effectivePreviewChords.map((c) =>
+    transposeSingleChord(c, semitones, useSolfege)
+  );
 
   // Save currentKey as the weekly customKey for the active Event Playlist (without modifying originalKey)
   const handleSaveKeyForActiveEvent = (targetEventId?: string) => {
@@ -822,15 +819,19 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     onUpdateEventPlaylist(activeEventList.id, copy);
   };
 
-  const handleOpenEditSongModal = () => {
-    if (!activeSong) return;
-    setEditSongTitle(activeSong.title);
-    setEditSongArtist(activeSong.artist);
-    setEditSongKey(activeSong.originalKey);
-    setEditSongBpm(activeSong.bpm);
-    setEditSongTimeSig(activeSong.timeSignature);
-    setEditSongStyle(activeSong.style);
-    setEditSongSpotifyUrl(activeSong.spotifyUrl || 'https://open.spotify.com');
+  const handleOpenEditSongModal = (targetSong?: Song) => {
+    const s = targetSong || activeSong;
+    if (!s) return;
+    if (targetSong) {
+      setSelectedSongId(targetSong.id);
+    }
+    setEditSongTitle(s.title);
+    setEditSongArtist(s.artist);
+    setEditSongKey(s.originalKey);
+    setEditSongBpm(s.bpm);
+    setEditSongTimeSig(s.timeSignature);
+    setEditSongStyle(s.style);
+    setEditSongSpotifyUrl(s.spotifyUrl || 'https://open.spotify.com');
     setShowEditSongModal(true);
   };
 
@@ -920,7 +921,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full min-w-0">
       {/* =====================================================================
           MODO ESCENARIO / ATRIL A PANTALLA COMPLETA (CON AUTO-SCROLL, CLIC EN VIVO, SOLO LETRA Y ESTRUCTURA)
          ===================================================================== */}
@@ -1029,7 +1030,14 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   )}
                   <span>Auto-Scroll</span>
                 </button>
-                {[1, 1.5, 2, 3].map((spd) => (
+                {[
+                  { spd: 0.3, label: '0.3x' },
+                  { spd: 0.5, label: '0.5x' },
+                  { spd: 0.6, label: '0.6x' },
+                  { spd: 0.8, label: '0.8x' },
+                  { spd: 1.0, label: '1x' },
+                  { spd: 1.4, label: '1.4x' },
+                ].map(({ spd, label }) => (
                   <button
                     key={spd}
                     type="button"
@@ -1040,7 +1048,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    {spd}x
+                    {label}
                   </button>
                 ))}
               </div>
@@ -1163,35 +1171,6 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     </p>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Acordes de referencia rápidos (se ocultan si está en Modo Solo Letra para Voces) */}
-            {!lyricsOnly && (
-              <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-neutral-800">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-2">
-                  Progresión Principal ({currentKeyDisplay} · {activeSong.bpm} BPM ·{' '}
-                  {activeSong.timeSignature}):
-                </span>
-                {transposedPreviewChords.map((chord, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() =>
-                      playChordVoicing(
-                        transposeSingleChord(
-                          activeSong.chordProgPreview[idx],
-                          semitones,
-                          false
-                        )
-                      )
-                    }
-                    className="px-3.5 py-1.5 rounded-xl bg-neutral-900 border border-amber-500/40 font-mono text-sm font-bold text-amber-300 flex items-center gap-1.5 hover:bg-neutral-800"
-                  >
-                    <Volume2 className="w-3.5 h-3.5 opacity-70" />
-                    {chord}
-                  </button>
-                ))}
               </div>
             )}
 
@@ -1411,7 +1390,10 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       <button
                         key={s.id}
                         type="button"
-                        onClick={() => selectSongWithContextKey(s)}
+                        onClick={() => {
+                          selectSongWithContextKey(s);
+                          setOpenedSongId(s.id);
+                        }}
                         className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
                           isCurrent
                             ? `${accent.bgClass} shadow-xs`
@@ -1482,90 +1464,210 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             </button>
           </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Columna Izquierda: Canciones */}
-          <div className="lg:col-span-4 space-y-3">
+      ) : !openedSongId ? (
+        /* =====================================================================
+           VISTA LISTA DE CANCIONES (TARJETAS RESUMIDAS, LIMPIAS Y RESPONSIVAS)
+           ===================================================================== */
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <ListMusic className={`w-4 h-4 ${accent.textClass}`} />
+                <span>
+                  {activeEventList
+                    ? `Setlist de «${activeEventList.title}»`
+                    : 'Canciones en Repertorio Base'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Toca cualquier canción para abrirla, ver letra y acordes, transponer o editarla.
+              </p>
+            </div>
+            <span className="text-xs font-mono font-bold text-slate-500 shrink-0">
+              {filteredSongs.length}{' '}
+              {filteredSongs.length === 1 ? 'canción' : 'canciones'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {filteredSongs.map((song, idx) => {
-              const isSelected = song.id === activeSong.id;
               const eventItem = activeEventList?.songs.find(
                 (i) => i.songId === song.id
               );
               const weeklyKey = eventItem?.customKey;
+              const canManageSong =
+                isLeader || song.addedByUserId === activeMember.id;
+
               return (
-                <button
+                <div
                   key={song.id}
-                  type="button"
-                  onClick={() => selectSongWithContextKey(song)}
-                  className={`w-full text-left p-4 rounded-3xl border transition-all ${
-                    isSelected
-                      ? `bg-white dark:bg-slate-900 ${accent.borderClass} ring-2 ring-amber-500/20 shadow-sm`
-                      : 'bg-white/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-900'
-                  }`}
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-xs"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                  {/* Bloque principal clicable para abrir la canción */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      selectSongWithContextKey(song);
+                      setOpenedSongId(song.id);
+                    }}
+                    className="w-full text-left flex items-start justify-between gap-3"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <h4 className="text-base font-bold text-slate-900 dark:text-white truncate">
                         {activeEventList ? `${idx + 1}. ` : ''}
                         {song.title}
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                         {song.artist}
                       </p>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 pt-0.5">
+                        <span className={`font-semibold ${accent.textClass}`}>
+                          {song.style}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono">{song.bpm} BPM</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono">{song.timeSignature}</span>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
+
+                    <div className="shrink-0 text-right">
                       {weeklyKey && weeklyKey !== song.originalKey ? (
-                        <div className="flex flex-col items-end">
-                          <span
-                            className={`font-mono text-xs font-bold px-2 py-0.5 rounded-lg ${accent.softBgClass}`}
-                          >
-                            Semana: {weeklyKey}
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-500">
+                            {weeklyKey}
                           </span>
-                          <span className="font-mono text-[10px] text-slate-400 mt-0.5">
+                          <span className="font-mono text-[10px] text-slate-400">
                             Base: {song.originalKey}
                           </span>
                         </div>
                       ) : (
-                        <span
-                          className={`font-mono text-sm font-bold shrink-0 ${accent.textClass}`}
-                        >
-                          {weeklyKey || song.originalKey}
+                        <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 inline-block">
+                          {song.originalKey}
                         </span>
                       )}
                     </div>
-                  </div>
+                  </button>
 
-                  <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                    <span className="truncate">
-                      Agregada por:{' '}
-                      <strong className="text-slate-800 dark:text-slate-200">
-                        {song.addedByName}
-                      </strong>
-                    </span>
-                    {(song.voiceNotes?.length || 0) > 0 && (
-                      <span className="font-mono text-[11px] text-amber-500 font-bold flex items-center gap-1">
-                        <Mic className="w-3 h-3" />
-                        {song.voiceNotes?.length} audio(s)
-                      </span>
+                  {/* Botones de acción compactos */}
+                  <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectSongWithContextKey(song);
+                        setOpenedSongId(song.id);
+                      }}
+                      className={`flex-1 min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs ${accent.bgClass}`}
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>Abrir</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectSongWithContextKey(song);
+                        setOpenedSongId(song.id);
+                        setIsStageMode(true);
+                      }}
+                      className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-white hover:bg-slate-900 dark:hover:bg-slate-700 text-xs font-bold flex items-center justify-center"
+                      title="Abrir directo en Modo Atril"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
+
+                    {canManageSong && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditSongModal(song)}
+                        className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-amber-500 text-xs font-bold flex items-center justify-center"
+                        title="Editar datos de la canción"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {canManageSong && onDeleteSong && (
+                      confirmDeleteSongId === song.id ? (
+                        <div className="flex items-center gap-1 bg-rose-500/15 border border-rose-500/40 px-2 py-1 rounded-xl">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onDeleteSong(song.id);
+                              setConfirmDeleteSongId(null);
+                            }}
+                            className="text-[11px] font-bold text-rose-500 hover:underline"
+                          >
+                            Sí
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteSongId(null)}
+                            className="text-slate-400 text-xs font-bold ml-1"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteSongId(song.id)}
+                          className="min-h-[40px] px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-rose-500 text-xs font-bold flex items-center justify-center"
+                          title="Eliminar canción"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )
                     )}
                   </div>
-
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono tabular-nums mt-1">
-                    <span>{song.bpm} BPM</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{song.timeSignature}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-sans truncate">
-                      Archivo: {song.attachedFileName || 'Hoja de Acordes'}
-                    </span>
-                  </div>
-                </button>
+                </div>
               );
             })}
           </div>
+        </div>
+      ) : (
+        /* =====================================================================
+           VISTA DETALLE COMPLETO DE LA CANCIÓN ABIERTA (CON BOTÓN DE REGRESO)
+           ===================================================================== */
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => setOpenedSongId(null)}
+              className="min-h-[42px] px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs"
+            >
+              <ArrowLeft className="w-4 h-4 text-amber-500" />
+              <span>Volver a la Lista de Canciones</span>
+            </button>
 
-          {/* Columna Derecha: Visor de Canción + Modo Atril + Metrónomo Integrado + Notas de Voz */}
-          <div className="lg:col-span-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-6">
+            <div className="flex items-center gap-2">
+              {filteredSongs.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigatePlaylist('prev')}
+                    className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span className="hidden sm:inline">Anterior</span>
+                  </button>
+                  <span className="font-mono text-xs text-slate-500 dark:text-slate-400 px-1">
+                    {currentSongIndexInList + 1} de {filteredSongs.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigatePlaylist('next')}
+                    className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                  >
+                    <span className="hidden sm:inline">Siguiente</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-6 w-full max-w-full min-w-0">
             {/* Cabecera de la Canción + Botón Grande de Modo Escenario / Atril */}
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
               <div className="space-y-1.5">
@@ -1634,7 +1736,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   <>
                     <button
                       type="button"
-                      onClick={handleOpenEditSongModal}
+                      onClick={() => handleOpenEditSongModal()}
                       className="min-h-[46px] flex items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 hover:border-amber-500/50 transition-colors"
                       title="Editar datos base de la canción"
                     >
@@ -2108,72 +2210,32 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               )}
             </div>
 
-            {/* Barra de Referencia Spotify y Audio Armónico (se oculta si está activo Solo Letra) */}
-            {!lyricsOnly && (
-              <div className="p-4 rounded-2xl bg-slate-900 dark:bg-slate-950 text-white border border-slate-800 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => setIsPlayingRef(!isPlayingRef)}
-                      className="w-12 h-12 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center shrink-0 transition-transform active:scale-95"
-                    >
-                      {isPlayingRef ? (
-                        <Pause className="w-5 h-5 fill-current" />
-                      ) : (
-                        <Play className="w-5 h-5 fill-current ml-0.5" />
-                      )}
-                    </button>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold">
-                        <Music2 className="w-3.5 h-3.5" />
-                        <span>Spotify &amp; Guía Armónica en Vivo</span>
-                      </div>
-                      <p className="text-sm font-bold truncate">
-                        {activeSong.title} — Tono actual: {currentKeyDisplay}
-                      </p>
-                    </div>
+            {/* Botón directo para Escuchar en Spotify */}
+            {activeSong.spotifyUrl && (
+              <div className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-900 dark:bg-slate-950 text-white border border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    <Music2 className="w-4 h-4" />
                   </div>
-
-                  <a
-                    href={activeSong.spotifyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="min-h-[40px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-white self-end sm:self-center whitespace-nowrap shrink-0"
-                  >
-                    <span>Escuchar en Spotify</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate">
+                      {activeSong.title}
+                    </p>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {activeSong.artist}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2">
-                  {transposedPreviewChords.map((chord, idx) => {
-                    const isCurrentBeat = isPlayingRef && activeChordIdx === idx;
-                    return (
-                      <button
-                        key={`${chord}-${idx}`}
-                        type="button"
-                        onClick={() =>
-                          playChordVoicing(
-                            transposeSingleChord(
-                              activeSong.chordProgPreview[idx],
-                              semitones,
-                              false
-                            )
-                          )
-                        }
-                        className={`min-h-[42px] py-2 px-3 rounded-xl font-mono text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 border transition-all ${
-                          isCurrentBeat
-                            ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300'
-                            : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
-                        }`}
-                      >
-                        <Volume2 className="w-3.5 h-3.5 opacity-60 shrink-0" />
-                        <span>{chord}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <a
+                  href={activeSong.spotifyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-h-[40px] flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-xs font-bold text-slate-950 whitespace-nowrap shrink-0 transition-colors"
+                >
+                  <span>Escuchar en Spotify</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
             )}
 
@@ -2216,7 +2278,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="p-5 sm:p-6 rounded-2xl bg-slate-50/80 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono text-xs sm:text-sm leading-relaxed overflow-x-auto">
+                  <div className="p-5 sm:p-6 rounded-2xl bg-slate-50/80 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono text-xs sm:text-sm leading-relaxed overflow-x-auto min-w-0 max-w-full">
                     {renderSheetLines(transposedText, false)}
                   </div>
                 )}
@@ -2521,11 +2583,20 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     onChange={(e) => setNewKey(e.target.value)}
                     className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
                   >
-                    {ALL_KEYS.map((k) => (
-                      <option key={k} value={k}>
-                        {k}
-                      </option>
-                    ))}
+                    <optgroup label="Tonalidades Mayores">
+                      {MAJOR_KEYS.map((k) => (
+                        <option key={k} value={k}>
+                          {k} Mayor
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Tonalidades Menores">
+                      {MINOR_KEYS.map((k) => (
+                        <option key={k} value={k}>
+                          {k} ({k.replace(/m$/, '')} Menor)
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
                 <div>
@@ -2916,11 +2987,20 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     onChange={(e) => setEditSongKey(e.target.value)}
                     className="w-full min-h-[46px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono text-slate-900 dark:text-white"
                   >
-                    {ALL_KEYS.map((k) => (
-                      <option key={k} value={k}>
-                        {k}
-                      </option>
-                    ))}
+                    <optgroup label="Tonalidades Mayores">
+                      {MAJOR_KEYS.map((k) => (
+                        <option key={k} value={k}>
+                          {k} Mayor
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Tonalidades Menores">
+                      {MINOR_KEYS.map((k) => (
+                        <option key={k} value={k}>
+                          {k} ({k.replace(/m$/, '')} Menor)
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
                 <div>

@@ -408,7 +408,7 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
   // =========================================================================
   if (selectedToolScreen === null) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 w-full max-w-full min-w-0">
         <div className="space-y-1">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
             Selecciona tu Herramienta Musical
@@ -518,7 +518,7 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
   // =========================================================================
   return (
     <div
-      className="space-y-5 select-none"
+      className="space-y-5 select-none w-full max-w-full min-w-0"
       onMouseUp={() => {
         isMouseDownRef.current = false;
       }}

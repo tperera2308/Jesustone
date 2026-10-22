@@ -552,13 +552,13 @@ export default function App() {
           activityFeed: [
             {
               id: `feed-${Date.now()}`,
-              type: 'member_joined',
+              type: 'member_joined' as const,
               actorName: currentUser.name,
-              actorRole: 'member',
+              actorRole: 'member' as const,
               title: 'Nuevo Miembro en el Grupo',
               description: `@${currentUser.username} se unió a «${g.identity.ministryName}».`,
               timestamp: 'Justo ahora',
-              targetTab: 'inicio',
+              targetTab: 'inicio' as NavigationTab,
             },
             ...g.activityFeed,
           ].slice(0, 5),
@@ -781,13 +781,13 @@ export default function App() {
         activityFeed: [
           {
             id: `feed-${Date.now()}`,
-            type: 'member_joined',
+            type: 'member_joined' as const,
             actorName: targetUser.name,
-            actorRole: 'member',
+            actorRole: 'member' as const,
             title: `Nuevo Miembro Invitado: @${targetUser.username}`,
             description: `${activeMember.name} agregó a ${targetUser.name} (@${targetUser.username}) en el rol de ${invite.suggestedInstrument}.`,
             timestamp: 'Justo ahora',
-            targetTab: 'inicio',
+            targetTab: 'inicio' as NavigationTab,
           },
           ...g.activityFeed,
         ].slice(0, 5),
@@ -1513,7 +1513,7 @@ export default function App() {
 
   return (
     <div className={identity.darkMode ? 'dark' : ''}>
-      <div className="min-h-screen bg-slate-100 dark:bg-black text-slate-900 dark:text-slate-100 flex flex-col pb-24 md:pb-10 transition-colors">
+      <div className="min-h-screen bg-slate-100 dark:bg-black text-slate-900 dark:text-slate-100 flex flex-col pb-24 md:pb-10 transition-colors w-full max-w-full overflow-x-hidden">
         {/* BANNER FLOTANTE EN TIEMPO REAL DE NUEVA NOTIFICACIÓN (TOAST) */}
         {toastNotification && (
           <div className="fixed top-4 right-4 left-4 sm:left-auto sm:w-96 z-50 rounded-2xl bg-slate-900 text-white border border-amber-500/40 shadow-2xl p-4 flex items-start justify-between gap-3">
@@ -1703,7 +1703,7 @@ export default function App() {
         </div>
 
         {/* CONTENIDO PRINCIPAL DEL GRUPO ACTIVO */}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-5">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 py-5 min-w-0 overflow-x-hidden">
           {activeTab === 'inicio' && (
             <DashboardHome
               identity={identity}

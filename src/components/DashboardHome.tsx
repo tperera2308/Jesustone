@@ -86,7 +86,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full min-w-0">
       {/* TARJETA SUPERIOR DE BIENVENIDA Y PERFIL DE USUARIO (SIN DATO DE IGLESIA) */}
       <div className="rounded-3xl bg-slate-900 text-white border border-slate-800 p-5 sm:p-7 shadow-xl space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
