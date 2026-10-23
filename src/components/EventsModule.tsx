@@ -970,7 +970,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       id: `reh-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
       title: rehTitleDraft.trim() || `Ensayo ${(activeEvent.rehearsals?.length || 0) + 1}`,
       date: rehDateDraft || baseDate,
-      callTime: rehCallTimeDraft || '19:00',
+      callTime: rehTimeDraft || '19:30',
       time: rehTimeDraft || '19:30',
       location: rehLocationDraft.trim() || activeEvent.location,
       notes: rehNotesDraft.trim() || undefined,
@@ -1896,7 +1896,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
                     Programar Ensayo para «{activeEvent.title}»
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
                         Nombre del Ensayo
@@ -1915,12 +1915,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       onChange={(d) => setRehDateDraft(d)}
                     />
                     <InteractiveTimePicker
-                      label="Hora Citación"
-                      value={rehCallTimeDraft}
-                      onChange={(t) => setRehCallTimeDraft(t)}
-                    />
-                    <InteractiveTimePicker
-                      label="Hora Inicio"
+                      label="Hora"
                       value={rehTimeDraft}
                       onChange={(t) => setRehTimeDraft(t)}
                     />
@@ -2006,7 +2001,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             {reh.title}
                           </p>
                           <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                            Citación: {reh.callTime} · Inicio: {reh.time} ·{' '}
+                            Hora: {reh.time} ·{' '}
                             <span className="font-sans">{reh.location}</span>
                           </p>
                           {reh.notes && (

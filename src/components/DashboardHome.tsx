@@ -663,7 +663,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       <div className="space-y-1.5 min-w-0">
                         <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-slate-500">
                           <span className="font-bold text-amber-600 dark:text-amber-400">
-                            {ev.date} · Cit: {ev.callTime}
+                            {ev.date} · Cit: {ev.callTime} · Ini: {ev.time}
                           </span>
                           <span>
                             {confirmedCount}/{ev.assignments.length} conf.

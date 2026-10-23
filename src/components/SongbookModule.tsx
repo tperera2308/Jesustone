@@ -18,6 +18,7 @@ import {
   transposeKey,
   transposeLineText,
 } from '../utils/chordTransposer';
+import { isChordLine } from '../utils/musicTheory';
 import { generateSimpleChordSvgDataUrl } from '../data/initialData';
 import {
   ArrowDown,
@@ -105,6 +106,70 @@ function stripChordsFromLine(line: string): string {
     .replace(/\[([^\]]+)\]/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
+}
+
+/**
+ * Convierte cualquier línea que aún tenga acordes entre corchetes [G]Letra
+ * al formato tradicional de acordes en la línea de arriba de la letra.
+ */
+function convertBracketedSheetToChordsAbove(rawText: string): string {
+  if (!rawText || !rawText.includes('[')) return rawText;
+  const lines = rawText.split('\n');
+  const out: string[] = [];
+
+  for (const line of lines) {
+    if (!line.includes('[')) {
+      out.push(line);
+      continue;
+    }
+
+    // Si es un encabezado tipo [Verso 1] o [Coro]
+    const trimmed = line.trim();
+    if (
+      /^\[(Intro|Verso|Estrofa|Pre-?Coro|Coro|Puente|Interludio|Instrumental|Solo|Espont[aá]neo|Final|Outro|Tag)[^\]]*\]$/i.test(
+        trimmed
+      )
+    ) {
+      out.push(`${trimmed.slice(1, -1)}:`);
+      continue;
+    }
+
+    // Si la línea solo tiene acordes entre corchetes y espacios (ej. "[G]   [D/F#]   [Em7]   [C]")
+    const withoutBrackets = line.replace(/\[[^\]]+\]/g, '').trim();
+    if (!withoutBrackets) {
+      out.push(line.replace(/\[([^\]]+)\]/g, '$1'));
+      continue;
+    }
+
+    // Línea mixta con acordes y letra: construir línea superior de acordes y línea inferior de letra
+    let chordLine = '';
+    let lyricLine = '';
+    const segments = line.split(/(\[[^\]]+\])/g);
+
+    for (const seg of segments) {
+      if (seg.startsWith('[') && seg.endsWith(']')) {
+        const chord = seg.slice(1, -1).trim();
+        if (chord) {
+          while (chordLine.length < lyricLine.length) {
+            chordLine += ' ';
+          }
+          if (chordLine.length > 0 && !chordLine.endsWith(' ')) {
+            chordLine += ' ';
+          }
+          chordLine += chord;
+        }
+      } else {
+        lyricLine += seg;
+      }
+    }
+
+    if (chordLine.trim()) {
+      out.push(chordLine);
+    }
+    out.push(lyricLine);
+  }
+
+  return out.join('\n');
 }
 
 function getSemitoneStepsBetweenKeys(fromKey: string, toKey: string): number {
@@ -218,29 +283,33 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const [newTitle, setNewTitle] = useState('');
   const [newArtist, setNewArtist] = useState('');
   const [newKey, setNewKey] = useState('G');
-  const [newBpm, setNewBpm] = useState(76);
+  const [newBpm, setNewBpm] = useState<string>('');
   const [newTimeSig, setNewTimeSig] = useState<TimeSignature>('4/4');
   const [newStyle, setNewStyle] = useState<SongStyle>('Adoración');
   const [newTags, setNewTags] = useState('Domingo, Adoración');
-  const [newStructureText, setNewStructureText] = useState(
-    'Intro, Verso 1, Coro, Puente, Final'
-  );
+  const [newStructureList, setNewStructureList] = useState<string[]>([
+    'Intro',
+    'Verso 1',
+    'Coro',
+    'Puente',
+    'Final',
+  ]);
+  const [newCustomSection, setNewCustomSection] = useState('');
   const [newNotes, setNewNotes] = useState('');
   const [newSpotifyUrl, setNewSpotifyUrl] = useState('');
   const [newChordSheetUrl, setNewChordSheetUrl] = useState<string>('');
-  const [newRawLyrics, setNewRawLyrics] = useState(
-    `Intro:\n[G]   [D/F#]   [Em7]   [C]\n\nVerso 1:\n[G]Escribe aquí la [D]letra con acordes entre [Em7]corchetes [C]`
-  );
+  const [newRawLyrics, setNewRawLyrics] = useState('');
 
   // Campos para Editar Canción Existente
   const [editTitle, setEditTitle] = useState('');
   const [editArtist, setEditArtist] = useState('');
   const [editKey, setEditKey] = useState('G');
-  const [editBpm, setEditBpm] = useState(76);
+  const [editBpm, setEditBpm] = useState<string>('');
   const [editTimeSig, setEditTimeSig] = useState<TimeSignature>('4/4');
   const [editStyle, setEditStyle] = useState<SongStyle>('Adoración');
   const [editTags, setEditTags] = useState('');
-  const [editStructureText, setEditStructureText] = useState('');
+  const [editStructureList, setEditStructureList] = useState<string[]>([]);
+  const [editCustomSection, setEditCustomSection] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editSpotifyUrl, setEditSpotifyUrl] = useState('');
   const [editChordSheetUrl, setEditChordSheetUrl] = useState<string>('');
@@ -436,9 +505,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         Math.min(240, Math.round(60000 / avgMs))
       );
       if (mode === 'create') {
-        setNewBpm(calculatedBpm);
+        setNewBpm(String(calculatedBpm));
       } else {
-        setEditBpm(calculatedBpm);
+        setEditBpm(String(calculatedBpm));
       }
     }
   };
@@ -616,21 +685,24 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const handleCreateSongSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    const structureArr = newStructureText
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const structureArr =
+      newStructureList.length > 0
+        ? newStructureList
+        : ['Intro', 'Verso 1', 'Coro'];
     const tagsArr = newTags
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+
+    const parsedBpm = parseInt(newBpm, 10) || 75;
+    const cleanSheet = convertBracketedSheetToChordsAbove(newRawLyrics);
 
     const finalImage =
       newChordSheetUrl ||
       generateSimpleChordSvgDataUrl(
         newTitle.trim(),
         newKey,
-        Number(newBpm) || 75,
+        parsedBpm,
         structureArr.join(' → ')
       );
 
@@ -638,19 +710,18 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       title: newTitle.trim(),
       artist: newArtist.trim() || 'Ministerio Local',
       originalKey: newKey,
-      bpm: Number(newBpm) || 75,
+      bpm: parsedBpm,
       timeSignature: newTimeSig,
       style: newStyle,
       characteristics: tagsArr.length > 0 ? tagsArr : [newStyle],
       tags: tagsArr.length > 0 ? tagsArr : [newStyle],
-      structure:
-        structureArr.length > 0 ? structureArr : ['Intro', 'Verso', 'Coro'],
+      structure: structureArr,
       notes:
         newNotes.trim() ||
         'Canción subida al Repertorio Base. Ajusta el tono con el transpositor.',
       personalNotes: {},
-      lyricsAndChords: newRawLyrics,
-      rawLyricsAndChords: newRawLyrics,
+      lyricsAndChords: cleanSheet,
+      rawLyricsAndChords: cleanSheet,
       chordSheetImageUrl: finalImage,
       spotifyUrl: newSpotifyUrl.trim() || undefined,
       referenceDuration: '3:45',
@@ -668,9 +739,12 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
     setNewTitle('');
     setNewArtist('');
+    setNewBpm('');
     setNewNotes('');
     setNewSpotifyUrl('');
     setNewChordSheetUrl('');
+    setNewRawLyrics('');
+    setNewStructureList(['Intro', 'Verso 1', 'Coro', 'Puente', 'Final']);
     setShowAddSongModal(false);
   };
 
@@ -679,15 +753,23 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     setEditTitle(activeSong.title);
     setEditArtist(activeSong.artist);
     setEditKey(activeSong.originalKey);
-    setEditBpm(activeSong.bpm);
+    setEditBpm(activeSong.bpm ? String(activeSong.bpm) : '');
     setEditTimeSig(activeSong.timeSignature);
     setEditStyle(activeSong.style);
     setEditTags((activeSong.tags || activeSong.characteristics || []).join(', '));
-    setEditStructureText((activeSong.structure || []).join(', '));
+    setEditStructureList(
+      activeSong.structure && activeSong.structure.length > 0
+        ? [...activeSong.structure]
+        : ['Intro', 'Verso 1', 'Coro']
+    );
     setEditNotes(activeSong.notes || '');
     setEditSpotifyUrl(activeSong.spotifyUrl || '');
     setEditChordSheetUrl(activeSong.chordSheetImageUrl || '');
-    setEditRawLyrics(activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || '');
+    setEditRawLyrics(
+      convertBracketedSheetToChordsAbove(
+        activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || ''
+      )
+    );
     setShowEditSongModal(true);
   };
 
@@ -695,31 +777,33 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     e.preventDefault();
     if (!activeSong || !editTitle.trim()) return;
 
-    const structureArr = editStructureText
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const structureArr =
+      editStructureList.length > 0
+        ? editStructureList
+        : ['Intro', 'Verso 1', 'Coro'];
     const tagsArr = editTags
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
+
+    const parsedBpm = parseInt(editBpm, 10) || 75;
+    const cleanSheet = convertBracketedSheetToChordsAbove(editRawLyrics);
 
     onUpdateSong({
       ...activeSong,
       title: editTitle.trim(),
       artist: editArtist.trim() || 'Ministerio Local',
       originalKey: editKey,
-      bpm: Number(editBpm) || 75,
+      bpm: parsedBpm,
       timeSignature: editTimeSig,
       style: editStyle,
       characteristics: tagsArr.length > 0 ? tagsArr : [editStyle],
       tags: tagsArr.length > 0 ? tagsArr : [editStyle],
-      structure:
-        structureArr.length > 0 ? structureArr : ['Intro', 'Verso', 'Coro'],
+      structure: structureArr,
       notes: editNotes.trim(),
       spotifyUrl: editSpotifyUrl.trim() || undefined,
-      lyricsAndChords: editRawLyrics,
-      rawLyricsAndChords: editRawLyrics,
+      lyricsAndChords: cleanSheet,
+      rawLyricsAndChords: cleanSheet,
       chordSheetImageUrl: editChordSheetUrl || undefined,
     });
 
@@ -777,11 +861,17 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   };
 
   const renderSongLines = (rawText: string) => {
-    const lines = rawText.split('\n');
+    const normalizedSheet = convertBracketedSheetToChordsAbove(rawText || '');
+    const lines = normalizedSheet.split('\n');
+
     return lines.map((line, index) => {
       const trimmed = line.trim();
       const isSectionHeader =
-        trimmed.endsWith(':') && !trimmed.includes('[') && trimmed.length < 36;
+        (trimmed.endsWith(':') && trimmed.length < 36) ||
+        (/^(Intro|Verso|Estrofa|Pre-?Coro|Coro|Puente|Interludio|Instrumental|Solo|Espont[aá]neo|Final|Outro|Tag)(\s+\d+)?$/i.test(
+          trimmed
+        ) &&
+          !isChordLine(line));
 
       if (isSectionHeader) {
         return (
@@ -789,15 +879,20 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             key={index}
             className={`mt-5 mb-1.5 font-sans text-xs font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-lg inline-block ${accent.softBgClass}`}
           >
-            {trimmed.replace(':', '')}
+            {trimmed.replace(/:$/, '')}
           </div>
         );
       }
 
+      const lineIsChords = isChordLine(line);
+
       if (showLyricsOnly) {
+        if (lineIsChords) {
+          return null;
+        }
         const cleanLyric = stripChordsFromLine(line);
         if (!cleanLyric) {
-          return <div key={index} className="h-2" />;
+          return <div key={index} className="h-2.5" />;
         }
         return (
           <div
@@ -809,28 +904,28 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         );
       }
 
-      const transposed = transposeLineText(line, semitoneOffset);
-      const segments = transposed.split(/(\[[^\]]+\])/g);
+      if (lineIsChords) {
+        const transposedChords = transposeLineText(line, semitoneOffset);
+        return (
+          <div
+            key={index}
+            className="font-mono font-extrabold text-amber-600 dark:text-amber-400 whitespace-pre leading-snug mt-2.5 select-text"
+          >
+            {transposedChords}
+          </div>
+        );
+      }
+
+      if (!trimmed) {
+        return <div key={index} className="h-3" />;
+      }
 
       return (
         <div
           key={index}
-          className="leading-8 text-slate-800 dark:text-slate-200 whitespace-pre-wrap my-0.5"
+          className="leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap mb-1 font-sans"
         >
-          {segments.map((seg, idx) => {
-            if (seg.startsWith('[') && seg.endsWith(']')) {
-              const chordName = seg.slice(1, -1);
-              return (
-                <span
-                  key={idx}
-                  className={`inline-block font-mono font-extrabold px-1.5 py-0.5 mx-0.5 rounded-md text-xs sm:text-sm shadow-2xs ${accent.bgClass}`}
-                >
-                  {chordName}
-                </span>
-              );
-            }
-            return <span key={idx}>{seg}</span>;
-          })}
+          {line}
         </div>
       );
     });
@@ -967,18 +1062,31 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </button>
             </div>
 
-            {/* Solo letra / Acordes */}
-            <button
-              type="button"
-              onClick={() => setShowLyricsOnly((v) => !v)}
-              className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-bold border ${
-                showLyricsOnly
-                  ? 'bg-emerald-600 text-white border-emerald-500'
-                  : 'bg-slate-800 text-slate-300 border-slate-700'
-              }`}
-            >
-              {showLyricsOnly ? 'Solo Letra' : 'Acordes + Letra'}
-            </button>
+            {/* Selector explícito: Acordes + Letra vs Solo Letra */}
+            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setShowLyricsOnly(false)}
+                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  !showLyricsOnly
+                    ? 'bg-amber-500 text-slate-950'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Acordes + Letra
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLyricsOnly(true)}
+                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  showLyricsOnly
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Solo Letra
+              </button>
+            </div>
 
             {/* Tamaño de letra */}
             <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
@@ -1680,27 +1788,32 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowLyricsOnly((v) => !v)}
-                  className={`min-h-[34px] px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 border ${
-                    showLyricsOnly
-                      ? 'bg-emerald-600 text-white border-emerald-500'
-                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  {showLyricsOnly ? (
-                    <>
-                      <EyeOff className="w-3.5 h-3.5" />
-                      <span>Modo Vocal (Solo Letra)</span>
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Acordes + Letra</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setShowLyricsOnly(false)}
+                    className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      !showLyricsOnly
+                        ? `${accent.bgClass}`
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Acordes + Letra</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLyricsOnly(true)}
+                    className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      showLyricsOnly
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Solo Letra</span>
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
                   <button
@@ -2060,11 +2173,17 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   </label>
                   <div className="flex items-center gap-1">
                     <input
-                      type="number"
-                      min={40}
-                      max={240}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Ej. 120"
                       value={newBpm}
-                      onChange={(e) => setNewBpm(Number(e.target.value))}
+                      onChange={(e) =>
+                        setNewBpm(
+                          e.target.value
+                            .replace(/[^0-9]/g, '')
+                            .replace(/^0+/, '')
+                        )
+                      }
                       className="w-full min-h-[42px] px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
                     />
                     <button
@@ -2114,41 +2233,140 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Estructura (separada por comas)
+              {/* ESTRUCTURA CON BOTONES DE CADA SECCIÓN */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Estructura de la Canción (toca los botones para armar el orden)
                   </label>
+                  {newStructureList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setNewStructureList([])}
+                      className="text-[11px] font-bold text-rose-500 hover:underline"
+                    >
+                      Limpiar estructura
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {QUICK_STRUCTURE_CHIPS.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() =>
+                        setNewStructureList((prev) => [...prev, chip])
+                      }
+                      className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors"
+                    >
+                      + {chip}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    value={newStructureText}
-                    onChange={(e) => setNewStructureText(e.target.value)}
-                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                    value={newCustomSection}
+                    onChange={(e) => setNewCustomSection(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const clean = newCustomSection.trim();
+                        if (clean) {
+                          setNewStructureList((prev) => [...prev, clean]);
+                          setNewCustomSection('');
+                        }
+                      }
+                    }}
+                    placeholder="Otra sección personalizada (ej. Tag, Corte)..."
+                    className="flex-1 min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                   />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const clean = newCustomSection.trim();
+                      if (clean) {
+                        setNewStructureList((prev) => [...prev, clean]);
+                        setNewCustomSection('');
+                      }
+                    }}
+                    className="min-h-[36px] px-3 py-1 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200"
+                  >
+                    + Añadir
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Enlace de Spotify (Opcional)
-                  </label>
-                  <input
-                    type="url"
-                    value={newSpotifyUrl}
-                    onChange={(e) => setNewSpotifyUrl(e.target.value)}
-                    placeholder="https://open.spotify.com/track/..."
-                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                  />
-                </div>
+
+                {newStructureList.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    {newStructureList.map((sec, idx) => (
+                      <span
+                        key={`${sec}-${idx}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-xs font-bold text-slate-900 dark:text-amber-300"
+                      >
+                        <span className="font-mono text-amber-600 dark:text-amber-400">
+                          {idx + 1}.
+                        </span>
+                        <span>{sec}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewStructureList((prev) =>
+                              prev.filter((_, i) => i !== idx)
+                            )
+                          }
+                          className="text-slate-400 hover:text-rose-500 ml-0.5"
+                          title="Quitar sección"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400">
+                    Toca los botones de arriba (+ Intro, + Verso 1, + Coro...) para definir el orden de la canción.
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Letra y Acordes (coloca los acordes entre corchetes, ej. [G] [D/F#] [Em7])
+                  Enlace de Spotify (Opcional)
                 </label>
+                <input
+                  type="url"
+                  value={newSpotifyUrl}
+                  onChange={(e) => setNewSpotifyUrl(e.target.value)}
+                  placeholder="https://open.spotify.com/track/..."
+                  className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Letra y Acordes (escribe los acordes en la línea de arriba de la letra)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNewRawLyrics(
+                        `Intro:\nG          D/F#       Em7        C\n\nVerso 1:\nG                     D/F#\nAquí estás, moviéndote en este lugar\nEm7                   C\nTe adoraré, te adoraré\n\nCoro:\nG                     D/F#\nMilagroso, abres camino, cumples promesas\nEm7                   C\nLuz en tinieblas, mi Dios, así eres Tú`
+                      )
+                    }
+                    className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline"
+                  >
+                    + Insertar ejemplo con acordes arriba
+                  </button>
+                </div>
                 <textarea
-                  rows={7}
+                  rows={8}
                   value={newRawLyrics}
                   onChange={(e) => setNewRawLyrics(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs sm:text-sm text-slate-900 dark:text-white"
+                  placeholder={`Intro:\nG          D/F#       Em7        C\n\nVerso 1:\nG                     D/F#\nEscribe los acordes en la línea de arriba de la letra\nEm7                   C\nSin usar corchetes, tal como en el cifrado tradicional`}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs sm:text-sm text-slate-900 dark:text-white leading-relaxed"
                 />
               </div>
 
@@ -2251,11 +2469,17 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   </label>
                   <div className="flex items-center gap-1">
                     <input
-                      type="number"
-                      min={40}
-                      max={240}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Ej. 120"
                       value={editBpm}
-                      onChange={(e) => setEditBpm(Number(e.target.value))}
+                      onChange={(e) =>
+                        setEditBpm(
+                          e.target.value
+                            .replace(/[^0-9]/g, '')
+                            .replace(/^0+/, '')
+                        )
+                      }
                       className="w-full min-h-[42px] px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white"
                     />
                     <button
@@ -2304,40 +2528,122 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Estructura (separada por comas)
+              {/* ESTRUCTURA CON BOTONES DE CADA SECCIÓN */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Estructura de la Canción (toca los botones para agregar secciones)
                   </label>
+                  {editStructureList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setEditStructureList([])}
+                      className="text-[11px] font-bold text-rose-500 hover:underline"
+                    >
+                      Limpiar estructura
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {QUICK_STRUCTURE_CHIPS.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() =>
+                        setEditStructureList((prev) => [...prev, chip])
+                      }
+                      className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors"
+                    >
+                      + {chip}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    value={editStructureText}
-                    onChange={(e) => setEditStructureText(e.target.value)}
-                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                    value={editCustomSection}
+                    onChange={(e) => setEditCustomSection(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const clean = editCustomSection.trim();
+                        if (clean) {
+                          setEditStructureList((prev) => [...prev, clean]);
+                          setEditCustomSection('');
+                        }
+                      }
+                    }}
+                    placeholder="Otra sección personalizada..."
+                    className="flex-1 min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                   />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const clean = editCustomSection.trim();
+                      if (clean) {
+                        setEditStructureList((prev) => [...prev, clean]);
+                        setEditCustomSection('');
+                      }
+                    }}
+                    className="min-h-[36px] px-3 py-1 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200"
+                  >
+                    + Añadir
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Enlace de Spotify
-                  </label>
-                  <input
-                    type="url"
-                    value={editSpotifyUrl}
-                    onChange={(e) => setEditSpotifyUrl(e.target.value)}
-                    className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                  />
-                </div>
+
+                {editStructureList.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    {editStructureList.map((sec, idx) => (
+                      <span
+                        key={`${sec}-${idx}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-xs font-bold text-slate-900 dark:text-amber-300"
+                      >
+                        <span className="font-mono text-amber-600 dark:text-amber-400">
+                          {idx + 1}.
+                        </span>
+                        <span>{sec}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditStructureList((prev) =>
+                              prev.filter((_, i) => i !== idx)
+                            )
+                          }
+                          className="text-slate-400 hover:text-rose-500 ml-0.5"
+                          title="Quitar sección"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Letra y Acordes entre corchetes
+                  Enlace de Spotify
+                </label>
+                <input
+                  type="url"
+                  value={editSpotifyUrl}
+                  onChange={(e) => setEditSpotifyUrl(e.target.value)}
+                  className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Letra y Acordes (escribe los acordes en la línea de arriba de la letra)
                 </label>
                 <textarea
                   rows={8}
                   value={editRawLyrics}
                   onChange={(e) => setEditRawLyrics(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs sm:text-sm text-slate-900 dark:text-white"
+                  placeholder={`Intro:\nG          D/F#       Em7        C\n\nVerso 1:\nG                     D/F#\nEscribe los acordes en la línea de arriba de la letra`}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs sm:text-sm text-slate-900 dark:text-white leading-relaxed"
                 />
               </div>
 
