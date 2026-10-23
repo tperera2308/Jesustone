@@ -423,7 +423,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         </div>
 
         {/* CABECERA EXCLUSIVA DEL GRUPO CON "MIEMBROS" Y "DATOS DEL GRUPO" */}
-        <div className="rounded-3xl bg-slate-900 text-white border border-slate-800 p-4 sm:p-5 shadow-md space-y-4">
+        <div className="rounded-3xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-xs dark:shadow-md space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
             <div className="flex items-center gap-3.5 min-w-0">
               <div
@@ -439,8 +439,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               </div>
 
               <div className="min-w-0 space-y-0.5">
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
-                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
                     {isLeader
                       ? 'Líder / Admin'
                       : activeMember.isGuest
@@ -452,13 +452,13 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   {!activeMember.isGuest && (
                     <>
                       <span>·</span>
-                      <span className="font-mono text-slate-300">
+                      <span className="font-mono text-slate-600 dark:text-slate-300">
                         Código: {identity.inviteCode}
                       </span>
                     </>
                   )}
                 </div>
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white truncate">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-950 dark:text-white truncate">
                   {identity.ministryName}
                 </h1>
               </div>
@@ -470,18 +470,18 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenIdentityModal('invitaciones')}
-                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 flex items-center gap-1.5 text-xs font-bold text-white transition-colors"
+                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white transition-colors"
                 >
-                  <Users className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <Users className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
                   <span>Miembros ({members.length})</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => onOpenIdentityModal('grupo')}
-                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 flex items-center gap-1.5 text-xs font-bold text-slate-200 transition-colors"
+                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/15 border border-slate-200 dark:border-white/10 flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors"
                 >
-                  <Settings className="w-4 h-4 text-amber-400 shrink-0" />
+                  <Settings className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
                   <span>Datos del Grupo</span>
                 </button>
               </div>
@@ -489,7 +489,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
 
           {activeMember.isGuest && (
-            <div className="px-3.5 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-200">
+            <div className="px-3.5 py-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-200">
               <span>
                 <strong>Pase de Músico Invitado:</strong> Solo ves las fechas y el repertorio de los eventos donde participas en este grupo.
               </span>
@@ -500,7 +500,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           )}
 
           {/* Pestañas Internas del Grupo: Todo | Fechas | Repertorio | Estudios | Feed | Miembros */}
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-1.5 p-1 rounded-2xl bg-slate-950/70 border border-white/5">
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-950/70 border border-slate-200/80 dark:border-white/5">
             {[
               { id: 'todo', label: 'Todo del Grupo' },
               { id: 'fechas', label: `Fechas (${upcomingEvents.length})` },
@@ -521,7 +521,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 className={`min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all truncate ${
                   groupSectionTab === t.id
                     ? `${accent.bgClass} shadow-2xs`
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'
                 }`}
               >
                 {t.label}
@@ -1211,7 +1211,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 onClick={() => handleEnterGroupScreen(grp.id)}
                 className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between gap-3 group min-w-0 ${
                   isCurrentActive
-                    ? 'bg-slate-900 text-white border-slate-800 shadow-sm'
+                    ? 'bg-amber-500/10 dark:bg-slate-900 border-amber-500/60 dark:border-slate-800 text-slate-950 dark:text-white shadow-xs'
                     : 'bg-white dark:bg-slate-900/70 text-slate-900 dark:text-white border-slate-200 dark:border-slate-800 hover:border-amber-500/50'
                 }`}
               >
@@ -1231,26 +1231,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p
-                        className={`text-sm font-bold truncate group-hover:text-amber-400 transition-colors ${
-                          isCurrentActive
-                            ? 'text-white'
-                            : 'text-slate-900 dark:text-white'
-                        }`}
-                      >
+                      <p className="text-sm font-bold truncate group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors text-slate-950 dark:text-white">
                         {grp.identity.ministryName}
                       </p>
                       {isGrpLeader && (
-                        <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
                       )}
                     </div>
-                    <p
-                      className={`text-[11px] truncate ${
-                        isCurrentActive
-                          ? 'text-slate-400'
-                          : 'text-slate-500 dark:text-slate-400'
-                      }`}
-                    >
+                    <p className="text-[11px] truncate text-slate-500 dark:text-slate-400">
                       {grp.members.length} miembros · {grpUpcomingCount}{' '}
                       {grpUpcomingCount === 1 ? 'fecha' : 'fechas'}
                     </p>

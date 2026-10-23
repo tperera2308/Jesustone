@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -7,15 +9,24 @@
     --font-mono: 'JetBrains Mono', monospace;
     --brand-primary: #d97706;
     --brand-primary-rgb: 217, 119, 6;
+    color-scheme: light;
+  }
+
+  html.dark,
+  .dark {
+    color-scheme: dark;
   }
 
   body {
     font-family: var(--font-sans);
+    background-color: #f8fafc;
+    color: #09090b;
     -webkit-tap-highlight-color: transparent;
   }
 
   .dark body,
-  html.dark {
+  html.dark,
+  body.dark {
     background-color: #000000;
     color: #f8fafc;
   }

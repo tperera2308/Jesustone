@@ -618,8 +618,10 @@ export default function App() {
     localStorage.setItem(STORAGE_KEYS.THEME_PREF, JSON.stringify(identity));
     if (identity.darkMode) {
       document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
     }
   }, [identity]);
 
@@ -2729,7 +2731,7 @@ export default function App() {
 
   return (
     <div className={identity.darkMode ? 'dark' : ''}>
-      <div className="min-h-screen bg-slate-100 dark:bg-black text-slate-900 dark:text-slate-100 flex flex-col pb-24 md:pb-10 transition-colors w-full max-w-full overflow-x-hidden">
+      <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-slate-100 flex flex-col pb-24 md:pb-10 transition-colors w-full max-w-full overflow-x-hidden">
         {/* BANNER FLOTANTE EN TIEMPO REAL DE NUEVA NOTIFICACIÓN (TOAST) */}
         {toastNotification && (
           <div className="fixed top-4 right-4 left-4 sm:left-auto sm:w-96 z-50 rounded-2xl bg-slate-900 text-white border border-amber-500/40 shadow-2xl p-4 flex items-start justify-between gap-3">

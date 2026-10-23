@@ -639,7 +639,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
           >
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
-                Modo de Pantalla (Negro OLED / Claro)
+                Tema de Pantalla
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -647,24 +647,24 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                   onClick={() => setDarkMode(true)}
                   className={`min-h-[68px] flex items-center justify-center gap-3 p-4 rounded-2xl border text-sm font-bold transition-all ${
                     darkMode
-                      ? 'border-amber-500/50 bg-black text-white ring-2 ring-amber-500/20'
-                      : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                      ? 'border-amber-500/50 bg-black text-white ring-2 ring-amber-500/20 shadow-md'
+                      : 'border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   <Moon className="w-5 h-5 text-amber-400" />
-                  <span>Negro OLED (Escenario)</span>
+                  <span>Modo Oscuro</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setDarkMode(false)}
                   className={`min-h-[68px] flex items-center justify-center gap-3 p-4 rounded-2xl border text-sm font-bold transition-all ${
                     !darkMode
-                      ? 'border-amber-500/50 bg-amber-50/70 text-slate-900 ring-2 ring-amber-500/20'
-                      : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                      ? 'border-amber-500/60 bg-white text-slate-950 shadow-sm ring-2 ring-amber-500/20'
+                      : 'border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   <Sun className="w-5 h-5 text-amber-500" />
-                  <span>Modo Día (Claro)</span>
+                  <span>Modo Claro</span>
                 </button>
               </div>
             </div>
