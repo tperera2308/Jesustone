@@ -1315,19 +1315,21 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                     setSocialTab('search');
                     setMobileDrawerOpen(true);
                   }}
-                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-xs font-bold text-slate-200 flex items-center gap-1.5"
+                  className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors"
+                  title="Buscar Músicos"
                 >
-                  <UserPlus className="w-3.5 h-3.5 text-indigo-400" />
+                  <UserPlus className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
                   <span className="hidden sm:inline">Buscar Músicos</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={onExitFullScreenChat}
-                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-xs font-bold text-white flex items-center gap-1.5"
+                  className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
+                  title="Volver al menú principal"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Salir</span>
+                  <ArrowLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <span className="hidden sm:inline">Salir</span>
                 </button>
               </div>
             </header>
@@ -1704,18 +1706,19 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
              VISTA DE CANALES INTERNOS DEL GRUPO (#avisos, #general, etc.)
              =============================================================== */
           <>
-            <header className="h-14 px-4 border-b border-black/30 flex items-center justify-between gap-3 shrink-0 bg-[#313338]">
-              <div className="flex items-center gap-2.5 min-w-0">
+            <header className="h-14 px-3 sm:px-4 border-b border-black/30 flex items-center justify-between gap-2 sm:gap-3 shrink-0 bg-[#313338] min-w-0">
+              <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setMobileDrawerOpen(true)}
-                  className="md:hidden min-h-[40px] min-w-[40px] rounded-xl bg-[#2b2d31] flex items-center justify-center text-slate-200"
-                  aria-label="Ver canales"
+                  className="md:hidden min-h-[38px] min-w-[38px] rounded-xl bg-[#2b2d31] hover:bg-[#383a40] flex items-center justify-center text-slate-200 shrink-0 transition-colors"
+                  aria-label="Abrir canales y grupos"
+                  title="Canales"
                 >
                   <Menu className="w-5 h-5" />
                 </button>
 
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${currentGroupAccent.bgClass}`}
                   >
@@ -1725,34 +1728,35 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                       className="w-4 h-4"
                     />
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 text-xs text-amber-400 font-bold">
-                      <span className="truncate max-w-[120px] sm:max-w-none">
+                  <div className="min-w-0 truncate">
+                    <div className="flex items-center gap-1.5 text-xs text-amber-400 font-bold truncate">
+                      <span className="truncate hidden sm:inline max-w-[130px]">
                         {currentGroupIdentity.ministryName}
                       </span>
-                      <ChevronRight className="w-3 h-3 text-slate-500 shrink-0" />
-                      <span className="text-white flex items-center gap-0.5">
-                        <Hash className="w-3 h-3 text-slate-400 inline" />
-                        {channelMeta.name}
+                      <ChevronRight className="w-3 h-3 text-slate-500 shrink-0 hidden sm:inline" />
+                      <span className="text-white flex items-center gap-1 font-bold truncate">
+                        <Hash className="w-3.5 h-3.5 text-amber-400 inline shrink-0" />
+                        <span className="truncate">{channelMeta.name}</span>
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-400 truncate hidden sm:block">
-                      {channelMeta.description} · Grupo: {currentGroupIdentity.ministryName}
+                      {channelMeta.description}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setChatMode('social')}
-                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 text-xs font-bold text-white flex items-center gap-1.5"
+                  className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 text-xs font-bold text-white flex items-center gap-1.5 transition-colors relative"
+                  title="Amigos y Mensajes Directos (DM)"
                 >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Amigos y DM</span>
+                  <Users className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <span className="hidden sm:inline">Amigos y DM</span>
                   {incomingFriendRequests.length > 0 && (
-                    <span className="px-1.5 rounded-full bg-rose-500 text-white text-[10px]">
+                    <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold">
                       {incomingFriendRequests.length}
                     </span>
                   )}
@@ -1761,7 +1765,8 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setMobileMembersOpen(!mobileMembersOpen)}
-                  className="lg:hidden min-h-[36px] px-2.5 py-1.5 rounded-xl bg-[#2b2d31] text-xs font-bold text-slate-200 flex items-center gap-1.5"
+                  className="lg:hidden min-h-[36px] px-2.5 py-1.5 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors"
+                  title={`${currentGroupMembers.length} miembros en este grupo`}
                 >
                   <Users className="w-4 h-4 text-amber-400" />
                   <span>{currentGroupMembers.length}</span>
@@ -1770,10 +1775,11 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={onExitFullScreenChat}
-                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-xs font-bold text-white flex items-center gap-1.5"
+                  className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
+                  title="Volver al menú principal"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Salir</span>
+                  <ArrowLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <span className="hidden sm:inline">Salir</span>
                 </button>
               </div>
             </header>
