@@ -76,12 +76,12 @@ export function transposeSingleChord(
   return `${formattedRoot}${quality}${formattedBass}`;
 }
 
-const CHORD_TOKEN_REGEX = /^[A-G][#b]?(?:m|maj|min|dim|aug|sus|add|M)?[0-9]*(?:sus[24]|add[0-9]+|b[59]|#[59]|maj[79])?(?:\/[A-G][#b]?)?$/;
+const CHORD_TOKEN_REGEX = /^[A-G][#b]?(?:m|maj|min|dim|aug|sus|add|M)?[0-9]*(?:sus[24]|add[0-9]+|b[59]|#[59]|maj[79]|m[79]|dim[7]|aug[7])?[0-9]*(?:\/[A-G][#b]?)?$/i;
 
 export function isChordLine(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return false;
-  if (/^\[(Intro|Verso|Coro|Puente|Pre-Coro|Instrumental|Final|Tag|Estrofa|アウトロ).*\]$/i.test(trimmed)) {
+  if (/^\[(Intro|Verso|Coro|Puente|Pre-Coro|Instrumental|Final|Tag|Estrofa|Outro).*\]$/i.test(trimmed)) {
     return false;
   }
   const tokens = trimmed.split(/\s+/).filter(Boolean);
@@ -90,7 +90,7 @@ export function isChordLine(line: string): boolean {
   const validChords = tokens.filter(
     (t) => CHORD_TOKEN_REGEX.test(t.replace(/[|()]/g, '')) || t === '|' || t === '/' || t === '-' || t === 'x2' || t === 'x4'
   );
-  return validChords.length / tokens.length >= 0.65;
+  return validChords.length / tokens.length >= 0.6;
 }
 
 export function transposeChordSheet(
@@ -98,6 +98,7 @@ export function transposeChordSheet(
   semitones: number,
   useSolfege = false
 ): string {
+  if (!sheet || semitones === 0) return sheet;
   const lines = sheet.split('\n');
   return lines
     .map((line) => {
@@ -113,12 +114,15 @@ export function transposeChordSheet(
 
       // Handle chord-over-lyric lines while preserving exact column spacing
       if (isChordLine(line)) {
-        return line.replace(/([A-G][#b]?(?:m|maj|min|dim|aug|sus|add|M)?[0-9]*(?:sus[24]|add[0-9]+|b[59]|#[59]|maj[79])?(?:\/[A-G][#b]?)?)/g, (match) => {
-          if (CHORD_TOKEN_REGEX.test(match)) {
-            return transposeSingleChord(match, semitones, useSolfege);
+        return line.replace(
+          /(^|\s|\(|\[)([A-G][#b]?(?:m|maj|min|dim|aug|sus|add|M)?[0-9]*(?:sus[24]|add[0-9]+|b[59]|#[59]|maj[79]|m[79]|dim[7]|aug[7])?[0-9]*(?:\/[A-G][#b]?)?)(?=\s|\)|\]|$)/g,
+          (full, prefix, chordMatch) => {
+            if (CHORD_TOKEN_REGEX.test(chordMatch)) {
+              return prefix + transposeSingleChord(chordMatch, semitones, useSolfege);
+            }
+            return full;
           }
-          return match;
-        });
+        );
       }
 
       return line;

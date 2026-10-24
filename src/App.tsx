@@ -162,7 +162,8 @@ function safeSaveToStorage(key: string, value: unknown): void {
             chordSheetImageUrl:
               s.chordSheetImageUrl &&
               (s.chordSheetImageUrl.startsWith('data:image/svg+xml;utf8,') ||
-                s.chordSheetImageUrl.length > 40000)
+                (s.chordSheetImageUrl.startsWith('data:') &&
+                  s.chordSheetImageUrl.length > 250000))
                 ? undefined
                 : s.chordSheetImageUrl,
             voiceNotes: (s.voiceNotes || []).map((vn) => ({

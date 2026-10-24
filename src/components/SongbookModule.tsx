@@ -20,6 +20,8 @@ import {
 } from '../utils/chordTransposer';
 import { isChordLine } from '../utils/musicTheory';
 import { generateSimpleChordSvgDataUrl } from '../data/initialData';
+import { compressImageToDataUrl } from '../utils/imageCompressor';
+import { uploadMediaDataUrlToStorage } from '../firebase';
 import {
   ArrowDown,
   ArrowLeft,
@@ -172,14 +174,41 @@ function convertBracketedSheetToChordsAbove(rawText: string): string {
   return out.join('\n');
 }
 
+const PITCH_MAP: Record<string, number> = {
+  C: 0,
+  'B#': 0,
+  'C#': 1,
+  Db: 1,
+  D: 2,
+  'D#': 3,
+  Eb: 3,
+  E: 4,
+  Fb: 4,
+  F: 5,
+  'E#': 5,
+  'F#': 6,
+  Gb: 6,
+  G: 7,
+  'G#': 8,
+  Ab: 8,
+  A: 9,
+  'A#': 10,
+  Bb: 10,
+  B: 11,
+  Cb: 11,
+};
+
 function getSemitoneStepsBetweenKeys(fromKey: string, toKey: string): number {
   if (!fromKey || !toKey || fromKey === toKey) return 0;
-  for (let step = -6; step <= 6; step++) {
-    if (transposeKey(fromKey, step) === toKey) {
-      return step;
-    }
+  const rootFrom = fromKey.replace(/m$/, '');
+  const rootTo = toKey.replace(/m$/, '');
+  const idxFrom = PITCH_MAP[rootFrom];
+  const idxTo = PITCH_MAP[rootTo];
+  if (idxFrom === undefined || idxTo === undefined) {
+    return 0;
   }
-  return 0;
+  const diff = ((idxTo - idxFrom) % 12 + 12) % 12;
+  return diff > 6 ? diff - 12 : diff;
 }
 
 function getTodayStr(): string {
@@ -275,6 +304,10 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<number | null>(null);
+
+  // Pantalla completa y zoom de imagen adjunta
+  const [isImageFullscreen, setIsImageFullscreen] = useState(false);
+  const [imageZoom, setImageZoom] = useState(1);
 
   // Tap Tempo para modales de Crear/Editar canción
   const tapTimestampsRef = useRef<number[]>([]);
@@ -512,28 +545,55 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     }
   };
 
-  const handleImageUpload = (
+  const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     mode: 'new' | 'edit' | 'direct'
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
+
+    try {
+      // 1. Compresión instantánea en el cliente (<100KB, 1400px máx)
+      const optimizedDataUrl = await compressImageToDataUrl(file);
+
       if (mode === 'new') {
-        setNewChordSheetUrl(result);
+        setNewChordSheetUrl(optimizedDataUrl);
       } else if (mode === 'edit') {
-        setEditChordSheetUrl(result);
+        setEditChordSheetUrl(optimizedDataUrl);
       } else if (mode === 'direct' && activeSong) {
         onUpdateSong({
           ...activeSong,
-          chordSheetImageUrl: result,
+          chordSheetImageUrl: optimizedDataUrl,
         });
         setSheetViewMode('image');
+        showTempSavedNotice('Imagen optimizada y guardada en la canción');
       }
-    };
-    reader.readAsDataURL(file);
+
+      // 2. Sincronización en segundo plano con Firebase Storage si hay red
+      uploadMediaDataUrlToStorage(
+        'song_sheets',
+        `song_${Date.now()}.jpg`,
+        optimizedDataUrl
+      )
+        .then((cloudUrl) => {
+          if (cloudUrl && cloudUrl.startsWith('http')) {
+            if (mode === 'new') setNewChordSheetUrl(cloudUrl);
+            else if (mode === 'edit') setEditChordSheetUrl(cloudUrl);
+            else if (mode === 'direct' && activeSong) {
+              onUpdateSong({
+                ...activeSong,
+                chordSheetImageUrl: cloudUrl,
+              });
+            }
+          }
+        })
+        .catch(() => {
+          // Si falla la red, el dataUrl comprimido ya quedó guardado
+        });
+    } catch (err) {
+      console.error('Error al procesar la imagen:', err);
+      showTempSavedNotice('No se pudo procesar la imagen seleccionada');
+    }
   };
 
   const showTempSavedNotice = (msg: string) => {
@@ -716,9 +776,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       characteristics: tagsArr.length > 0 ? tagsArr : [newStyle],
       tags: tagsArr.length > 0 ? tagsArr : [newStyle],
       structure: structureArr,
-      notes:
-        newNotes.trim() ||
-        'Canción subida al Repertorio Base. Ajusta el tono con el transpositor.',
+      notes: newNotes.trim(),
       personalNotes: {},
       lyricsAndChords: cleanSheet,
       rawLyricsAndChords: cleanSheet,
@@ -867,11 +925,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     return lines.map((line, index) => {
       const trimmed = line.trim();
       const isSectionHeader =
-        (trimmed.endsWith(':') && trimmed.length < 36) ||
-        (/^(Intro|Verso|Estrofa|Pre-?Coro|Coro|Puente|Interludio|Instrumental|Solo|Espont[aá]neo|Final|Outro|Tag)(\s+\d+)?$/i.test(
-          trimmed
-        ) &&
-          !isChordLine(line));
+        trimmed.endsWith(':') && trimmed.length < 36 && !isChordLine(line);
 
       if (isSectionHeader) {
         return (
@@ -897,7 +951,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         return (
           <div
             key={index}
-            className="leading-relaxed text-slate-800 dark:text-slate-100 my-1 font-sans"
+            className="leading-relaxed text-slate-900 dark:text-slate-100 my-1 font-sans font-medium"
           >
             {cleanLyric}
           </div>
@@ -909,7 +963,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         return (
           <div
             key={index}
-            className="font-mono font-extrabold text-amber-600 dark:text-amber-400 whitespace-pre leading-snug mt-2.5 select-text"
+            className="font-mono font-extrabold text-amber-700 dark:text-amber-400 whitespace-pre leading-snug mt-2.5 select-text"
           >
             {transposedChords}
           </div>
@@ -923,7 +977,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       return (
         <div
           key={index}
-          className="leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap mb-1 font-sans"
+          className="leading-relaxed text-slate-900 dark:text-slate-100 whitespace-pre-wrap mb-1 font-sans"
         >
           {line}
         </div>
@@ -1066,9 +1120,12 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
               <button
                 type="button"
-                onClick={() => setShowLyricsOnly(false)}
+                onClick={() => {
+                  setSheetViewMode('interactive');
+                  setShowLyricsOnly(false);
+                }}
                 className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                  !showLyricsOnly
+                  sheetViewMode === 'interactive' && !showLyricsOnly
                     ? 'bg-amber-500 text-slate-950'
                     : 'text-slate-300 hover:text-white'
                 }`}
@@ -1077,15 +1134,33 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setShowLyricsOnly(true)}
+                onClick={() => {
+                  setSheetViewMode('interactive');
+                  setShowLyricsOnly(true);
+                }}
                 className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                  showLyricsOnly
+                  sheetViewMode === 'interactive' && showLyricsOnly
                     ? 'bg-emerald-600 text-white'
                     : 'text-slate-300 hover:text-white'
                 }`}
               >
                 Solo Letra
               </button>
+              {activeSong.chordSheetImageUrl && (
+                <button
+                  type="button"
+                  onClick={() => setSheetViewMode((m) => (m === 'image' ? 'interactive' : 'image'))}
+                  className={`min-h-[34px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    sheetViewMode === 'image'
+                      ? 'bg-sky-600 text-white'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                  title="Ver imagen de la canción"
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>Imagen</span>
+                </button>
+              )}
             </div>
 
             {/* Tamaño de letra */}
@@ -1393,7 +1468,15 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         <span>·</span>
                         <span className="font-sans">{song.style}</span>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 shrink-0" />
+                      <div className="flex items-center gap-1.5">
+                        {song.chordSheetImageUrl && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
+                            <ImageIcon className="w-3 h-3" />
+                            <span>Imagen</span>
+                          </span>
+                        )}
+                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 shrink-0" />
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -1875,7 +1958,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
             </div>
 
-            {/* PESTAÑAS INTERNAS DE LA HOJA: Cifrado Interactivo vs Imagen de Partitura/Hoja */}
+            {/* PESTAÑAS: Cifrado Interactivo vs Imagen Adjunta */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
@@ -1902,34 +1985,67 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     }`}
                   >
                     <ImageIcon className="w-3.5 h-3.5" />
-                    <span>Hoja / Imagen Adjunta</span>
+                    <span>Imagen Adjunta</span>
                   </button>
                 </div>
 
-                <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                  <Upload className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Subir Foto de Partitura/Acordes</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(e, 'direct')}
-                    className="hidden"
-                  />
-                </label>
+                <div className="flex items-center gap-2">
+                  {sheetViewMode === 'image' && activeSong.chordSheetImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageZoom(1);
+                        setIsImageFullscreen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                      title="Ver imagen en pantalla completa con zoom"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>Pantalla Completa</span>
+                    </button>
+                  )}
+
+                  <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors">
+                    <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{activeSong.chordSheetImageUrl ? 'Cambiar Imagen' : '+ Agregar Imagen'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'direct')}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
 
               {sheetViewMode === 'image' && activeSong.chordSheetImageUrl ? (
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 p-4 flex justify-center">
+                <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 p-4 flex flex-col items-center justify-center group">
                   <img
                     src={activeSong.chordSheetImageUrl}
                     alt={activeSong.title}
-                    className="max-w-full h-auto rounded-xl"
+                    onClick={() => {
+                      setImageZoom(1);
+                      setIsImageFullscreen(true);
+                    }}
+                    className="max-w-full h-auto max-h-[70vh] rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
+                    title="Toca para ver en pantalla completa"
                   />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageZoom(1);
+                      setIsImageFullscreen(true);
+                    }}
+                    className="mt-3 px-4 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-2 border border-slate-700 shadow-md"
+                  >
+                    <Maximize2 className="w-4 h-4 text-amber-400" />
+                    <span>Abrir en Pantalla Completa</span>
+                  </button>
                 </div>
               ) : (
                 <div
                   style={{ fontSize: `${fontSize}px` }}
-                  className="p-4 sm:p-6 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono overflow-x-auto"
+                  className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono overflow-x-auto shadow-2xs"
                 >
                   {renderSongLines(activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || '')}
                 </div>
@@ -2331,6 +2447,62 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 )}
               </div>
 
+              {/* IMAGEN DE LA CANCIÓN (SUBIR CANCIÓN) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Imagen de la Canción (Opcional)
+                  </label>
+                  {newChordSheetUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setNewChordSheetUrl('')}
+                      className="text-[11px] font-bold text-rose-500 hover:underline"
+                    >
+                      Quitar imagen
+                    </button>
+                  )}
+                </div>
+
+                {newChordSheetUrl ? (
+                  <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-between gap-3">
+                    <img
+                      src={newChordSheetUrl}
+                      alt="Vista previa"
+                      className="w-14 h-14 object-cover rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        Imagen cargada
+                      </p>
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        ✓ Optimizada y lista para guardar
+                      </p>
+                    </div>
+                    <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors">
+                      <span>Cambiar</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, 'new')}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer w-full min-h-[46px] px-4 py-3 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500 dark:hover:border-amber-400 bg-slate-50 dark:bg-slate-800/40 hover:bg-amber-500/5 flex items-center justify-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 transition-all">
+                    <ImageIcon className="w-4 h-4 text-amber-500" />
+                    <span>+ Agregar Imagen</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'new')}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Enlace de Spotify (Opcional)
@@ -2345,27 +2517,14 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
 
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Letra y Acordes (escribe los acordes en la línea de arriba de la letra)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNewRawLyrics(
-                        `Intro:\nG          D/F#       Em7        C\n\nVerso 1:\nG                     D/F#\nAquí estás, moviéndote en este lugar\nEm7                   C\nTe adoraré, te adoraré\n\nCoro:\nG                     D/F#\nMilagroso, abres camino, cumples promesas\nEm7                   C\nLuz en tinieblas, mi Dios, así eres Tú`
-                      )
-                    }
-                    className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline"
-                  >
-                    + Insertar ejemplo con acordes arriba
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Letra y Acordes (escribe los acordes en la línea de arriba de la letra)
+                </label>
                 <textarea
                   rows={8}
                   value={newRawLyrics}
                   onChange={(e) => setNewRawLyrics(e.target.value)}
-                  placeholder={`Intro:\nG          D/F#       Em7        C\n\nVerso 1:\nG                     D/F#\nEscribe los acordes en la línea de arriba de la letra\nEm7                   C\nSin usar corchetes, tal como en el cifrado tradicional`}
+                  placeholder={`Escribe o pega aquí la letra con los acordes arriba de cada línea.\nEjemplo:\n\nG          D/F#       Em7        C\nTu fidelidad es grande, Dios`}
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs sm:text-sm text-slate-900 dark:text-white leading-relaxed"
                 />
               </div>
@@ -2622,6 +2781,62 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 )}
               </div>
 
+              {/* IMAGEN DE LA CANCIÓN (EDITAR CANCIÓN) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Imagen de la Canción (Opcional)
+                  </label>
+                  {editChordSheetUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditChordSheetUrl('')}
+                      className="text-[11px] font-bold text-rose-500 hover:underline"
+                    >
+                      Quitar imagen
+                    </button>
+                  )}
+                </div>
+
+                {editChordSheetUrl ? (
+                  <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-between gap-3">
+                    <img
+                      src={editChordSheetUrl}
+                      alt="Vista previa"
+                      className="w-14 h-14 object-cover rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        Imagen cargada
+                      </p>
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        ✓ Optimizada y lista para guardar
+                      </p>
+                    </div>
+                    <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors">
+                      <span>Cambiar</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, 'edit')}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="cursor-pointer w-full min-h-[46px] px-4 py-3 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500 dark:hover:border-amber-400 bg-slate-50 dark:bg-slate-800/40 hover:bg-amber-500/5 flex items-center justify-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 transition-all">
+                    <ImageIcon className="w-4 h-4 text-amber-500" />
+                    <span>+ Agregar Imagen</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'edit')}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Enlace de Spotify
@@ -2642,7 +2857,6 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   rows={8}
                   value={editRawLyrics}
                   onChange={(e) => setEditRawLyrics(e.target.value)}
-                  placeholder={`Intro:\nG          D/F#       Em7        C\n\nVerso 1:\nG                     D/F#\nEscribe los acordes en la línea de arriba de la letra`}
                   className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs sm:text-sm text-slate-900 dark:text-white leading-relaxed"
                 />
               </div>
@@ -2827,6 +3041,79 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             >
               Listo
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: IMAGEN EN PANTALLA COMPLETA CON ZOOM */}
+      {isImageFullscreen && activeSong?.chordSheetImageUrl && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col">
+          {/* Cabecera del visor a pantalla completa */}
+          <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 text-white">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
+              <div className="min-w-0">
+                <span className="font-bold text-sm truncate block">{activeSong.title}</span>
+                <span className="text-[11px] text-amber-400 font-mono">Tono: {currentKey} · {activeSong.bpm} BPM</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setImageZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                  className="min-h-[32px] px-2.5 rounded-lg hover:bg-slate-700 text-xs font-bold font-mono text-slate-200"
+                  title="Alejar (-)"
+                >
+                  -
+                </button>
+                <span className="text-xs font-mono font-bold text-amber-400 w-12 text-center">
+                  {Math.round(imageZoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setImageZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
+                  className="min-h-[32px] px-2.5 rounded-lg hover:bg-slate-700 text-xs font-bold font-mono text-slate-200"
+                  title="Acercar (+)"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageZoom(1)}
+                  className="min-h-[32px] px-2.5 rounded-lg hover:bg-slate-700 text-xs font-bold text-slate-300"
+                >
+                  Ajustar
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setImageZoom(1);
+                  setIsImageFullscreen(false);
+                }}
+                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs"
+              >
+                <X className="w-4 h-4" />
+                <span>Cerrar</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Cuerpo con imagen centrada y scrollable */}
+          <div className="flex-1 overflow-auto p-4 sm:p-8 flex items-center justify-center">
+            <img
+              src={activeSong.chordSheetImageUrl}
+              alt={activeSong.title}
+              style={{
+                transform: `scale(${imageZoom})`,
+                transformOrigin: 'center center',
+                transition: 'transform 0.15s ease-out',
+              }}
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            />
           </div>
         </div>
       )}
