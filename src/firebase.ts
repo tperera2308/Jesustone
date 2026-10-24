@@ -22,6 +22,7 @@ import {
   where,
 } from 'firebase/firestore';
 import {
+  deleteObject,
   getDownloadURL,
   getStorage,
   ref as storageRef,
@@ -173,6 +174,43 @@ export async function uploadMediaBlobToStorage(
     return publicUrl;
   } catch {
     return fallbackDataUrl;
+  }
+}
+
+/**
+ * Elimina de manera segura un archivo de Firebase Cloud Storage
+ * evitando la acumulación de archivos huérfanos al borrar o actualizar canciones.
+ */
+export async function deleteMediaFromStorage(
+  mediaUrl?: string | null
+): Promise<boolean> {
+  if (!mediaUrl || !mediaUrl.startsWith('http')) {
+    return false;
+  }
+  if (
+    !mediaUrl.includes('firebasestorage.googleapis.com') &&
+    !mediaUrl.includes('jesustone')
+  ) {
+    return false;
+  }
+  try {
+    const urlParts = mediaUrl.split('/o/');
+    if (urlParts.length > 1) {
+      const fullPathEncoded = urlParts[1].split('?')[0];
+      const decodedPath = decodeURIComponent(fullPathEncoded);
+      const fileRef = storageRef(storage, decodedPath);
+      await deleteObject(fileRef);
+      return true;
+    }
+    const fileRef = storageRef(storage, mediaUrl);
+    await deleteObject(fileRef);
+    return true;
+  } catch (err) {
+    console.warn(
+      'Archivo de Cloud Storage ya no existía o fue purgado previamente:',
+      err
+    );
+    return false;
   }
 }
 

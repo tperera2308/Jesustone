@@ -77,12 +77,14 @@ import {
   syncDirectMessageToFirestore,
   syncFirebaseEmailAuth,
   syncFriendRequestToFirestore,
+  deleteMediaFromStorage,
   syncGroupToFirestore,
   syncNotificationToFirestore,
   syncSongToFirestore,
   syncUserToFirestore,
   testFirestoreConnection,
 } from './firebase';
+import { runAutomaticStorageCleanup } from './utils/storageCleaner';
 import {
   ArrowLeft,
   Bell,
@@ -153,6 +155,7 @@ function safeSaveToStorage(key: string, value: unknown): void {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (err) {
     console.warn(`Storage quota warning on key ${key}, compacting...`, err);
+    runAutomaticStorageCleanup();
     if (key === STORAGE_KEYS.GROUPS && Array.isArray(value)) {
       try {
         const compacted = (value as WorshipGroup[]).map((g) => ({
@@ -163,18 +166,14 @@ function safeSaveToStorage(key: string, value: unknown): void {
               s.chordSheetImageUrl &&
               (s.chordSheetImageUrl.startsWith('data:image/svg+xml;utf8,') ||
                 (s.chordSheetImageUrl.startsWith('data:') &&
-                  s.chordSheetImageUrl.length > 250000))
+                  s.chordSheetImageUrl.length > 200000))
                 ? undefined
                 : s.chordSheetImageUrl,
-            voiceNotes: (s.voiceNotes || []).map((vn) => ({
-              ...vn,
-              audioDataUrl: vn.audioDataUrl.length > 40000 ? '' : vn.audioDataUrl,
-            })),
           })),
         }));
         localStorage.setItem(key, JSON.stringify(compacted));
       } catch {
-        // Fallback: keep at least song metadata, lyrics, chords, and events
+        // Fallback: keep metadata
       }
     }
   }
@@ -629,6 +628,7 @@ export default function App() {
   // Registrar Service Worker de Push Nativas y escuchar clics en notificaciones del sistema
   const handledUrlParamsRef = useRef(false);
   useEffect(() => {
+    runAutomaticStorageCleanup();
     ensurePushServiceWorker();
 
     if (!handledUrlParamsRef.current && typeof window !== 'undefined') {
@@ -2320,6 +2320,14 @@ export default function App() {
   };
 
   const handleUpdateSong = (updated: Song) => {
+    const oldSong = activeGroup.songs.find((s) => s.id === updated.id);
+    if (
+      oldSong?.chordSheetImageUrl &&
+      oldSong.chordSheetImageUrl !== updated.chordSheetImageUrl &&
+      oldSong.chordSheetImageUrl.startsWith('http')
+    ) {
+      deleteMediaFromStorage(oldSong.chordSheetImageUrl);
+    }
     syncSongToFirestore(activeGroup.id, updated);
     updateActiveGroup((g) => ({
       ...g,
@@ -2328,6 +2336,10 @@ export default function App() {
   };
 
   const handleDeleteSong = (songId: string) => {
+    const targetSong = activeGroup.songs.find((s) => s.id === songId);
+    if (targetSong?.chordSheetImageUrl && targetSong.chordSheetImageUrl.startsWith('http')) {
+      deleteMediaFromStorage(targetSong.chordSheetImageUrl);
+    }
     recordDeletedId(STORAGE_KEYS.DELETED_SONG_IDS, songId);
     deleteSongFromFirestore(songId);
     updateActiveGroup((g) => ({
@@ -3060,6 +3072,7 @@ export default function App() {
               onRemoveAvailability={handleRemoveAvailability}
               onOpenSongInSongbook={handleOpenSongInSongbook}
               onConvokeFriendAsGuest={handleConvokeFriendAsGuest}
+              ministryName={activeGroup.identity.ministryName}
             />
           )}
 
