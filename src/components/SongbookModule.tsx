@@ -22,14 +22,22 @@ import { isChordLine } from '../utils/musicTheory';
 import { compressImageToDataUrl } from '../utils/imageCompressor';
 import { uploadMediaDataUrlToStorage } from '../firebase';
 import {
+  fetchSongImageOnDemand,
+  getCachedSongImageSync,
+  isValidImageString,
+  songHasCloudOrInlineImage,
+} from '../utils/songImageCloudStore';
+import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   Calendar,
+  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
   Clock,
+  CloudDownload,
   Edit3,
   Eye,
   EyeOff,
@@ -38,6 +46,7 @@ import {
   Headphones,
   Image as ImageIcon,
   ListMusic,
+  Loader2,
   Lock,
   Maximize2,
   Mic,
@@ -47,6 +56,7 @@ import {
   Pause,
   Play,
   Plus,
+  RefreshCw,
   RotateCcw,
   Search,
   ShieldCheck,
@@ -56,6 +66,7 @@ import {
   Upload,
   User,
   Volume2,
+  Wand2,
   X,
 } from 'lucide-react';
 
@@ -114,9 +125,8 @@ function stripChordsFromLine(line: string): string {
  * (descarta cualquier SVG autogenerado anterior o cadena vacía).
  */
 function getValidUploadedSongImage(url?: string | null): string | undefined {
-  if (!url || !url.trim()) return undefined;
-  if (url.startsWith('data:image/svg+xml')) return undefined;
-  return url;
+  if (!isValidImageString(url)) return undefined;
+  return url!;
 }
 
 /**
@@ -307,9 +317,23 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   >(null);
 
 
-  // Pantalla completa y zoom de imagen adjunta
+  // Pantalla completa y zoom de imagen adjunta + Streaming bajo demanda desde la nube + Caché IndexedDB
   const [isImageFullscreen, setIsImageFullscreen] = useState(false);
   const [imageZoom, setImageZoom] = useState(1);
+  const [streamedImageUrl, setStreamedImageUrl] = useState<string | null>(null);
+  const [isLoadingStreamedImage, setIsLoadingStreamedImage] = useState(false);
+  const [streamedImageError, setStreamedImageError] = useState<string | null>(
+    null
+  );
+
+  // Escáner IA de Canciones (Gemini AI)
+  const [isScanningAI, setIsScanningAI] = useState(false);
+  const [aiScanFeedback, setAiScanFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const [attachScannedPhotoAsSongImage, setAttachScannedPhotoAsSongImage] =
+    useState(true);
 
   // Tap Tempo para modales de Crear/Editar canción
   const tapTimestampsRef = useRef<number[]>([]);
@@ -348,6 +372,8 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const [editNotes, setEditNotes] = useState('');
   const [editSpotifyUrl, setEditSpotifyUrl] = useState('');
   const [editChordSheetUrl, setEditChordSheetUrl] = useState<string>('');
+  const [editHadCloudImageRemoved, setEditHadCloudImageRemoved] =
+    useState<boolean>(false);
   const [editRawLyrics, setEditRawLyrics] = useState('');
 
   const accent = getAccentClasses(accentColor);
@@ -400,20 +426,102 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const activeSong =
     songs.find((s) => s.id === selectedSongId) || null;
 
-  //Sincronizar borradores de notas al cambiar de canción activa
+  const activeSongHasImage = songHasCloudOrInlineImage(activeSong);
+
+  // Función para descargar bajo demanda la imagen de la canción activa (con caché IndexedDB)
+  const triggerOnDemandImageLoad = async (
+    targetSong: Song,
+    forceRefresh = false
+  ) => {
+    if (!songHasCloudOrInlineImage(targetSong)) {
+      setStreamedImageUrl(null);
+      return;
+    }
+
+    if (!forceRefresh) {
+      const syncCached =
+        getCachedSongImageSync(targetSong.id) ||
+        getValidUploadedSongImage(targetSong.chordSheetImageUrl);
+      if (syncCached) {
+        setStreamedImageUrl(syncCached);
+        setStreamedImageError(null);
+        return;
+      }
+    }
+
+    setIsLoadingStreamedImage(true);
+    setStreamedImageError(null);
+    try {
+      const fetched = await fetchSongImageOnDemand(targetSong);
+      if (fetched) {
+        setStreamedImageUrl(fetched);
+      } else {
+        setStreamedImageError(
+          'No se encontró la imagen en la nube para esta canción.'
+        );
+      }
+    } catch {
+      setStreamedImageError(
+        'Error de red al descargar la imagen. Verifica tu conexión e intenta de nuevo.'
+      );
+    } finally {
+      setIsLoadingStreamedImage(false);
+    }
+  };
+
+  // Sincronizar borradores de notas e imagen en caché al cambiar de canción activa
   useEffect(() => {
-    if (!activeSong) return;
+    if (!activeSong) {
+      setStreamedImageUrl(null);
+      setStreamedImageError(null);
+      return;
+    }
     setGroupNotesDraft(activeSong.notes || '');
     setPersonalNotesDraft(
       (activeSong.personalNotes && activeSong.personalNotes[activeMember.id]) ||
         ''
     );
     setSavedFeedbackMessage(null);
-    if (!getValidUploadedSongImage(activeSong.chordSheetImageUrl)) {
+
+    const hasImg = songHasCloudOrInlineImage(activeSong);
+    if (!hasImg) {
+      setStreamedImageUrl(null);
+      setStreamedImageError(null);
       setSheetViewMode('interactive');
       setIsImageFullscreen(false);
+    } else {
+      const instantCached =
+        getCachedSongImageSync(activeSong.id) ||
+        getValidUploadedSongImage(activeSong.chordSheetImageUrl) ||
+        null;
+      setStreamedImageUrl(instantCached);
+      setStreamedImageError(null);
     }
-  }, [activeSong?.id, activeSong?.chordSheetImageUrl, activeMember.id]);
+  }, [
+    activeSong?.id,
+    activeSong?.hasChordSheetImage,
+    activeSong?.chordSheetImageUrl,
+    activeSong?.chordSheetImageUpdatedAt,
+    activeMember.id,
+  ]);
+
+  // Cuando el usuario abre la pestaña "Imagen" o el visor en Modo Escenario, descargamos bajo demanda si aún no está en memoria
+  useEffect(() => {
+    if (
+      activeSong &&
+      songHasCloudOrInlineImage(activeSong) &&
+      sheetViewMode === 'image' &&
+      !streamedImageUrl &&
+      !isLoadingStreamedImage
+    ) {
+      triggerOnDemandImageLoad(activeSong);
+    }
+  }, [
+    activeSong?.id,
+    sheetViewMode,
+    streamedImageUrl,
+    isLoadingStreamedImage,
+  ]);
 
   // Auto-scroll effect in Stage Mode (con sincronización a BPM de la canción)
   useEffect(() => {
@@ -614,16 +722,22 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         setNewChordSheetUrl(optimizedDataUrl);
       } else if (mode === 'edit') {
         setEditChordSheetUrl(optimizedDataUrl);
+        setEditHadCloudImageRemoved(false);
       } else if (mode === 'direct' && activeSong) {
+        setStreamedImageUrl(optimizedDataUrl);
         onUpdateSong({
           ...activeSong,
+          hasChordSheetImage: true,
+          chordSheetImageUpdatedAt: Date.now(),
           chordSheetImageUrl: optimizedDataUrl,
         });
         setSheetViewMode('image');
-        showTempSavedNotice('Imagen optimizada y guardada en la canción');
+        showTempSavedNotice(
+          'Imagen sincronizada en la nube (colección bajo demanda + caché local)'
+        );
       }
 
-      // 2. Sincronización en segundo plano con Firebase Storage si hay red
+      // 2. Intento opcional de Storage si está habilitado
       uploadMediaDataUrlToStorage(
         'song_sheets',
         `song_${Date.now()}.jpg`,
@@ -634,19 +748,160 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             if (mode === 'new') setNewChordSheetUrl(cloudUrl);
             else if (mode === 'edit') setEditChordSheetUrl(cloudUrl);
             else if (mode === 'direct' && activeSong) {
+              setStreamedImageUrl(cloudUrl);
               onUpdateSong({
                 ...activeSong,
+                hasChordSheetImage: true,
+                chordSheetImageUpdatedAt: Date.now(),
                 chordSheetImageUrl: cloudUrl,
               });
             }
           }
         })
         .catch(() => {
-          // Si falla la red, el dataUrl comprimido ya quedó guardado
+          // Si Storage no está disponible, se guarda en el documento dedicado songimg__{songId}
         });
     } catch (err) {
       console.error('Error al procesar la imagen:', err);
       showTempSavedNotice('No se pudo procesar la imagen seleccionada');
+    }
+  };
+
+  /**
+   * Escáner IA de Canciones (Gemini AI):
+   * Analiza una foto/captura de hoja de acordes o texto pegado y rellena automáticamente
+   * Título, Artista, Tono, BPM, Compás, Estilo, Estructura y Letra con Acordes arriba.
+   */
+  const runAISongScan = async (
+    mode: 'new' | 'edit',
+    options: { imageDataUrl?: string; rawTextHint?: string }
+  ) => {
+    if (!options.imageDataUrl && !options.rawTextHint?.trim()) {
+      setAiScanFeedback({
+        type: 'error',
+        message:
+          'Selecciona una foto de la hoja de acordes o escribe/pega la letra antes de escanear.',
+      });
+      return;
+    }
+
+    setIsScanningAI(true);
+    setAiScanFeedback(null);
+
+    try {
+      const response = await fetch('/api/ai/scan-song', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageDataUrl: options.imageDataUrl,
+          rawTextHint: options.rawTextHint,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload.ok || !payload.song) {
+        throw new Error(
+          payload?.error || 'No se pudo analizar la canción con el Escáner IA.'
+        );
+      }
+
+      const scanned = payload.song;
+      const detectedTitle = (scanned.title || '').trim();
+      const detectedArtist = (scanned.artist || '').trim();
+      const detectedKey = ALL_KEYS.includes(scanned.originalKey)
+        ? scanned.originalKey
+        : 'G';
+      const detectedBpm =
+        typeof scanned.bpm === 'number' && scanned.bpm >= 40 && scanned.bpm <= 240
+          ? String(Math.round(scanned.bpm))
+          : '75';
+      const validTimeSigs: TimeSignature[] = ['4/4', '3/4', '6/8', '2/4'];
+      const detectedTimeSig: TimeSignature = validTimeSigs.includes(
+        scanned.timeSignature
+      )
+        ? scanned.timeSignature
+        : '4/4';
+      const detectedStyle: SongStyle = STYLES.includes(scanned.style)
+        ? scanned.style
+        : 'Adoración';
+      const detectedStructure: string[] =
+        Array.isArray(scanned.structure) && scanned.structure.length > 0
+          ? scanned.structure.filter((s: unknown) => typeof s === 'string' && s.trim())
+          : ['Intro', 'Verso 1', 'Coro', 'Puente', 'Final'];
+      const detectedLyrics = convertBracketedSheetToChordsAbove(
+        scanned.lyricsAndChords || ''
+      );
+      const detectedNotes = (scanned.notes || '').trim();
+
+      if (mode === 'new') {
+        if (detectedTitle) setNewTitle(detectedTitle);
+        if (detectedArtist) setNewArtist(detectedArtist);
+        setNewKey(detectedKey);
+        setNewBpm(detectedBpm);
+        setNewTimeSig(detectedTimeSig);
+        setNewStyle(detectedStyle);
+        setNewStructureList(detectedStructure);
+        if (detectedLyrics) setNewRawLyrics(detectedLyrics);
+        if (detectedNotes && !newNotes.trim()) setNewNotes(detectedNotes);
+        if (options.imageDataUrl && attachScannedPhotoAsSongImage) {
+          setNewChordSheetUrl(options.imageDataUrl);
+        }
+      } else {
+        if (detectedTitle) setEditTitle(detectedTitle);
+        if (detectedArtist) setEditArtist(detectedArtist);
+        setEditKey(detectedKey);
+        setEditBpm(detectedBpm);
+        setEditTimeSig(detectedTimeSig);
+        setEditStyle(detectedStyle);
+        setEditStructureList(detectedStructure);
+        if (detectedLyrics) setEditRawLyrics(detectedLyrics);
+        if (detectedNotes && !editNotes.trim()) setEditNotes(detectedNotes);
+        if (options.imageDataUrl && attachScannedPhotoAsSongImage) {
+          setEditChordSheetUrl(options.imageDataUrl);
+          setEditHadCloudImageRemoved(false);
+        }
+      }
+
+      setAiScanFeedback({
+        type: 'success',
+        message: `¡Escaneo IA completado! Se detectó «${
+          detectedTitle || 'Canción'
+        }» en Tono ${detectedKey} · ${detectedBpm} BPM (${detectedTimeSig}) con ${
+          detectedStructure.length
+        } secciones.`,
+      });
+    } catch (err) {
+      setAiScanFeedback({
+        type: 'error',
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Error al conectar con el Escáner IA.',
+      });
+    } finally {
+      setIsScanningAI(false);
+    }
+  };
+
+  const handleScanPhotoFile = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    mode: 'new' | 'edit'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const optimizedDataUrl = await compressImageToDataUrl(file);
+      await runAISongScan(mode, {
+        imageDataUrl: optimizedDataUrl,
+        rawTextHint: mode === 'new' ? newRawLyrics : editRawLyrics,
+      });
+    } catch {
+      setAiScanFeedback({
+        type: 'error',
+        message: 'No se pudo leer la imagen para el Escáner IA.',
+      });
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -728,6 +983,8 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       personalNotes: {},
       lyricsAndChords: cleanSheet,
       rawLyricsAndChords: cleanSheet,
+      hasChordSheetImage: Boolean(uploadedImage),
+      chordSheetImageUpdatedAt: uploadedImage ? Date.now() : undefined,
       chordSheetImageUrl: uploadedImage,
       spotifyUrl: newSpotifyUrl.trim() || undefined,
       referenceDuration: '3:45',
@@ -750,6 +1007,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     setNewSpotifyUrl('');
     setNewChordSheetUrl('');
     setNewRawLyrics('');
+    setAiScanFeedback(null);
     setNewStructureList(['Intro', 'Verso 1', 'Coro', 'Puente', 'Final']);
     setShowAddSongModal(false);
   };
@@ -770,9 +1028,25 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     );
     setEditNotes(activeSong.notes || '');
     setEditSpotifyUrl(activeSong.spotifyUrl || '');
-    setEditChordSheetUrl(
-      getValidUploadedSongImage(activeSong.chordSheetImageUrl) || ''
-    );
+    setEditHadCloudImageRemoved(false);
+    setAiScanFeedback(null);
+
+    const existingImg =
+      streamedImageUrl ||
+      getCachedSongImageSync(activeSong.id) ||
+      getValidUploadedSongImage(activeSong.chordSheetImageUrl) ||
+      '';
+    setEditChordSheetUrl(existingImg);
+
+    if (songHasCloudOrInlineImage(activeSong) && !existingImg) {
+      fetchSongImageOnDemand(activeSong).then((cloudImg) => {
+        if (cloudImg) {
+          setStreamedImageUrl(cloudImg);
+          setEditChordSheetUrl(cloudImg);
+        }
+      });
+    }
+
     setEditRawLyrics(
       convertBracketedSheetToChordsAbove(
         activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || ''
@@ -796,6 +1070,17 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
     const parsedBpm = parseInt(editBpm, 10) || 75;
     const cleanSheet = convertBracketedSheetToChordsAbove(editRawLyrics);
+    const uploadedImg = getValidUploadedSongImage(editChordSheetUrl);
+    const keepCloudFlag =
+      !editHadCloudImageRemoved &&
+      (Boolean(uploadedImg) || Boolean(activeSong.hasChordSheetImage));
+
+    if (uploadedImg) {
+      setStreamedImageUrl(uploadedImg);
+    } else if (editHadCloudImageRemoved) {
+      setStreamedImageUrl(null);
+      setSheetViewMode('interactive');
+    }
 
     onUpdateSong({
       ...activeSong,
@@ -812,7 +1097,13 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       spotifyUrl: editSpotifyUrl.trim() || undefined,
       lyricsAndChords: cleanSheet,
       rawLyricsAndChords: cleanSheet,
-      chordSheetImageUrl: getValidUploadedSongImage(editChordSheetUrl),
+      hasChordSheetImage: keepCloudFlag,
+      chordSheetImageUpdatedAt: uploadedImg
+        ? Date.now()
+        : keepCloudFlag
+        ? activeSong.chordSheetImageUpdatedAt
+        : undefined,
+      chordSheetImageUrl: uploadedImg,
     });
 
     setSemitoneOffset(0);
@@ -1097,16 +1388,20 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               >
                 Solo Letra
               </button>
-              {getValidUploadedSongImage(activeSong.chordSheetImageUrl) && (
+              {activeSongHasImage && (
                 <button
                   type="button"
-                  onClick={() => setSheetViewMode((m) => (m === 'image' ? 'interactive' : 'image'))}
+                  onClick={() =>
+                    setSheetViewMode((m) =>
+                      m === 'image' ? 'interactive' : 'image'
+                    )
+                  }
                   className={`min-h-[34px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
                     sheetViewMode === 'image'
                       ? 'bg-sky-600 text-white'
                       : 'text-slate-300 hover:text-white'
                   }`}
-                  title="Ver imagen de la canción"
+                  title="Ver imagen de la canción (descarga bajo demanda + caché)"
                 >
                   <ImageIcon className="w-3.5 h-3.5" />
                   <span>Imagen</span>
@@ -1167,21 +1462,48 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             ))}
           </div>
 
-          {sheetViewMode === 'image' &&
-          getValidUploadedSongImage(activeSong.chordSheetImageUrl) ? (
-            <div className="rounded-3xl overflow-hidden border border-slate-800 bg-slate-900 p-4 flex justify-center">
-              <img
-                src={getValidUploadedSongImage(activeSong.chordSheetImageUrl)}
-                alt={activeSong.title}
-                className="max-w-full h-auto rounded-2xl"
-              />
+          {sheetViewMode === 'image' && activeSongHasImage ? (
+            <div className="rounded-3xl overflow-hidden border border-slate-800 bg-slate-900 p-4 flex flex-col items-center justify-center min-h-[260px]">
+              {isLoadingStreamedImage ? (
+                <div className="flex flex-col items-center gap-2 py-12 text-slate-300">
+                  <Loader2 className="w-7 h-7 animate-spin text-amber-400" />
+                  <span className="text-xs font-bold">
+                    Descargando imagen desde la nube...
+                  </span>
+                </div>
+              ) : streamedImageUrl ? (
+                <img
+                  src={streamedImageUrl}
+                  alt={activeSong.title}
+                  className="max-w-full h-auto rounded-2xl"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-10 text-center">
+                  <p className="text-xs text-slate-400">
+                    {streamedImageError ||
+                      'Toca para cargar la imagen desde la nube.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => triggerOnDemandImageLoad(activeSong, true)}
+                    className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <CloudDownload className="w-4 h-4" />
+                    <span>Descargar Imagen</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div
               style={{ fontSize: `${fontSize + 2}px` }}
               className="font-mono leading-relaxed select-text pb-24"
             >
-              {renderSongLines(activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || '')}
+              {renderSongLines(
+                activeSong.rawLyricsAndChords ||
+                  activeSong.lyricsAndChords ||
+                  ''
+              )}
             </div>
           )}
 
@@ -1404,11 +1726,19 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                             {song.artist}
                           </p>
                         </div>
-                        <span
-                          className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${accent.softBgClass}`}
-                        >
-                          {song.originalKey}
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {songHasCloudOrInlineImage(song) && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] font-bold shrink-0">
+                              <ImageIcon className="w-3.5 h-3.5" />
+                              <span>Imagen</span>
+                            </span>
+                          )}
+                          <span
+                            className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${accent.softBgClass}`}
+                          >
+                            {song.originalKey}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -1421,12 +1751,6 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         <span className="font-sans">{song.style}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {getValidUploadedSongImage(song.chordSheetImageUrl) && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
-                            <ImageIcon className="w-3 h-3" />
-                            <span>Imagen</span>
-                          </span>
-                        )}
                         <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 shrink-0" />
                       </div>
                     </div>
@@ -1586,15 +1910,23 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                                       {songObj.title}
                                     </h3>
                                   </div>
-                                  <span
-                                    className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${
-                                      isKeyTransposed
-                                        ? 'bg-amber-500 text-slate-950'
-                                        : accent.softBgClass
-                                    }`}
-                                  >
-                                    Tono: {targetKey}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {songHasCloudOrInlineImage(songObj) && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] font-bold shrink-0">
+                                        <ImageIcon className="w-3.5 h-3.5" />
+                                        <span>Imagen</span>
+                                      </span>
+                                    )}
+                                    <span
+                                      className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${
+                                        isKeyTransposed
+                                          ? 'bg-amber-500 text-slate-950'
+                                          : accent.softBgClass
+                                      }`}
+                                    >
+                                      Tono: {targetKey}
+                                    </span>
+                                  </div>
                                 </div>
 
                                 <p className="text-xs text-slate-500 truncate">
@@ -1910,77 +2242,109 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
             </div>
 
-            {/* PESTAÑAS: Cifrado Interactivo vs Imagen (solo si se subió una imagen) */}
-            {(() => {
-              const validSongImage = getValidUploadedSongImage(
-                activeSong.chordSheetImageUrl
-              );
-              return (
-                <div className="space-y-3">
-                  {validSongImage && (
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setSheetViewMode('interactive')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
-                            sheetViewMode === 'interactive'
-                              ? `${accent.bgClass}`
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                          }`}
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>Cifrado Interactivo</span>
-                        </button>
+            {/* PESTAÑAS: Cifrado Interactivo vs Imagen en Nube bajo Demanda (con Caché IndexedDB) */}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSheetViewMode('interactive')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      sheetViewMode === 'interactive'
+                        ? `${accent.bgClass}`
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Cifrado Interactivo</span>
+                  </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setSheetViewMode('image')}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
-                            sheetViewMode === 'image'
-                              ? `${accent.bgClass}`
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                          }`}
-                        >
-                          <ImageIcon className="w-3.5 h-3.5" />
-                          <span>Imagen</span>
-                        </button>
-                      </div>
+                  {activeSongHasImage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSheetViewMode('image');
+                        if (!streamedImageUrl) {
+                          triggerOnDemandImageLoad(activeSong);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                        sheetViewMode === 'image'
+                          ? `${accent.bgClass}`
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      <span>Imagen Adjunta</span>
+                    </button>
+                  )}
+                </div>
 
-                      <div className="flex items-center gap-2">
-                        {sheetViewMode === 'image' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setImageZoom(1);
-                              setIsImageFullscreen(true);
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                            title="Ver imagen en pantalla completa con zoom"
-                          >
-                            <Maximize2 className="w-3.5 h-3.5" />
-                            <span>Pantalla Completa</span>
-                          </button>
-                        )}
-
-                        <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors">
-                          <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
-                          <span>Cambiar Imagen</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageUpload(e, 'direct')}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {sheetViewMode === 'image' && streamedImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageZoom(1);
+                        setIsImageFullscreen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                      title="Ver imagen en pantalla completa con zoom"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>Pantalla Completa</span>
+                    </button>
                   )}
 
-                  {sheetViewMode === 'image' && validSongImage ? (
-                    <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 p-4 flex flex-col items-center justify-center group">
+                  {sheetViewMode === 'image' && activeSongHasImage && (
+                    <button
+                      type="button"
+                      onClick={() => triggerOnDemandImageLoad(activeSong, true)}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1"
+                      title="Volver a sincronizar imagen desde la nube"
+                    >
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 ${
+                          isLoadingStreamedImage ? 'animate-spin' : ''
+                        }`}
+                      />
+                      <span className="hidden sm:inline">Sincronizar</span>
+                    </button>
+                  )}
+
+                  <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors">
+                    <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
+                    <span>
+                      {activeSongHasImage
+                        ? 'Cambiar Imagen'
+                        : '+ Adjuntar Imagen'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, 'direct')}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {sheetViewMode === 'image' && activeSongHasImage ? (
+                <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 p-4 flex flex-col items-center justify-center min-h-[260px] group">
+                  {isLoadingStreamedImage ? (
+                    <div className="flex flex-col items-center gap-2.5 py-12 text-slate-300">
+                      <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+                      <p className="text-xs font-bold">
+                        Descargando imagen en streaming desde la nube...
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Se guardará automáticamente en la caché de este dispositivo.
+                      </p>
+                    </div>
+                  ) : streamedImageUrl ? (
+                    <>
                       <img
-                        src={validSongImage}
+                        src={streamedImageUrl}
                         alt={activeSong.title}
                         onClick={() => {
                           setImageZoom(1);
@@ -1989,33 +2353,53 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         className="max-w-full h-auto max-h-[70vh] rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
                         title="Toca para ver en pantalla completa"
                       />
+                      <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageZoom(1);
+                            setIsImageFullscreen(true);
+                          }}
+                          className="px-4 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-2 border border-slate-700 shadow-md"
+                        >
+                          <Maximize2 className="w-4 h-4 text-amber-400" />
+                          <span>Abrir en Pantalla Completa</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 py-10 text-center max-w-md">
+                      <CloudDownload className="w-8 h-8 text-amber-400" />
+                      <p className="text-xs font-semibold text-slate-300">
+                        {streamedImageError ||
+                          'La imagen está almacenada en la nube lista para descargarse bajo demanda.'}
+                      </p>
                       <button
                         type="button"
-                        onClick={() => {
-                          setImageZoom(1);
-                          setIsImageFullscreen(true);
-                        }}
-                        className="mt-3 px-4 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-2 border border-slate-700 shadow-md"
+                        onClick={() =>
+                          triggerOnDemandImageLoad(activeSong, true)
+                        }
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5"
                       >
-                        <Maximize2 className="w-4 h-4 text-amber-400" />
-                        <span>Abrir en Pantalla Completa</span>
+                        <CloudDownload className="w-4 h-4" />
+                        <span>Descargar Imagen Ahora</span>
                       </button>
-                    </div>
-                  ) : (
-                    <div
-                      style={{ fontSize: `${fontSize}px` }}
-                      className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono overflow-x-auto shadow-2xs"
-                    >
-                      {renderSongLines(
-                        activeSong.rawLyricsAndChords ||
-                          activeSong.lyricsAndChords ||
-                          ''
-                      )}
                     </div>
                   )}
                 </div>
-              );
-            })()}
+              ) : (
+                <div
+                  style={{ fontSize: `${fontSize}px` }}
+                  className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono overflow-x-auto shadow-2xs"
+                >
+                  {renderSongLines(
+                    activeSong.rawLyricsAndChords ||
+                      activeSong.lyricsAndChords ||
+                      ''
+                  )}
+                </div>
+              )}
+            </div>
 
 
             {/* NOTAS GRUPALES Y PERSONALES DE LA CANCIÓN */}
@@ -2097,11 +2481,105 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </h3>
               <button
                 type="button"
-                onClick={() => setShowAddSongModal(false)}
+                onClick={() => {
+                  setAiScanFeedback(null);
+                  setShowAddSongModal(false);
+                }}
                 className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* BANNER: ESCÁNER IA DE CANCIONES (FOTO DE HOJA O TEXTO) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-emerald-500/10 border border-amber-500/30 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                    <Sparkles className="w-4 h-4" />
+                    <span>Escáner IA de Canciones</span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    Sube una foto/captura de tu hoja de acordes o pega texto sin formato y la IA detectará título, tono, BPM, estructura y acordes interactivos.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    className={`cursor-pointer min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all ${
+                      isScanningAI
+                        ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 pointer-events-none'
+                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                    }`}
+                  >
+                    {isScanningAI ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Escaneando con IA...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4" />
+                        <span>Escanear Foto / Hoja</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={isScanningAI}
+                      onChange={(e) => handleScanPhotoFile(e, 'new')}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {newRawLyrics.trim().length > 10 && (
+                    <button
+                      type="button"
+                      disabled={isScanningAI}
+                      onClick={() =>
+                        runAISongScan('new', { rawTextHint: newRawLyrics })
+                      }
+                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/40 hover:border-amber-500 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5"
+                    >
+                      <Wand2 className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Auto-Formatear Texto con IA</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={attachScannedPhotoAsSongImage}
+                  onChange={(e) =>
+                    setAttachScannedPhotoAsSongImage(e.target.checked)
+                  }
+                  className="rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                />
+                <span>
+                  Adjuntar también la foto escaneada como imagen de respaldo en la nube
+                </span>
+              </label>
+
+              {aiScanFeedback && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs font-bold flex items-center justify-between gap-2 ${
+                    aiScanFeedback.type === 'success'
+                      ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-300'
+                  }`}
+                >
+                  <span>{aiScanFeedback.message}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAiScanFeedback(null)}
+                    className="opacity-70 hover:opacity-100"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleCreateSongSubmit} className="space-y-4">
@@ -2356,16 +2834,37 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         ✓ Optimizada y lista para guardar
                       </p>
                     </div>
-                    <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors">
-                      <span>Cambiar</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(e, 'new')}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isScanningAI}
+                          onClick={() =>
+                            runAISongScan('new', {
+                              imageDataUrl: newChordSheetUrl,
+                              rawTextHint: newRawLyrics,
+                            })
+                          }
+                          className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1 transition-colors"
+                          title="Extraer acordes y letra de esta imagen con IA"
+                        >
+                          {isScanningAI ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                          <span>Extraer con IA</span>
+                        </button>
+                        <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors">
+                          <span>Cambiar</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleImageUpload(e, 'new')}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
                 ) : (
                   <label className="cursor-pointer w-full min-h-[46px] px-4 py-3 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500 dark:hover:border-amber-400 bg-slate-50 dark:bg-slate-800/40 hover:bg-amber-500/5 flex items-center justify-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 transition-all">
                     <ImageIcon className="w-4 h-4 text-amber-500" />
@@ -2438,11 +2937,89 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </h3>
               <button
                 type="button"
-                onClick={() => setShowEditSongModal(false)}
+                onClick={() => {
+                  setAiScanFeedback(null);
+                  setShowEditSongModal(false);
+                }}
                 className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* BANNER: ESCÁNER IA EN EDICIÓN */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-emerald-500/10 border border-amber-500/30 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-xs font-extrabold text-amber-600 dark:text-amber-400">
+                  <Sparkles className="w-4 h-4" />
+                  <span>Escáner IA:</span>
+                  <span className="font-normal text-slate-600 dark:text-slate-300">
+                    Extrae letra, acordes y estructura desde una foto o formatea el texto.
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <label
+                    className={`cursor-pointer min-h-[34px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                      isScanningAI
+                        ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 pointer-events-none'
+                        : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                    }`}
+                  >
+                    {isScanningAI ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Escaneando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Escanear Foto con IA</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={isScanningAI}
+                      onChange={(e) => handleScanPhotoFile(e, 'edit')}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {editRawLyrics.trim().length > 10 && (
+                    <button
+                      type="button"
+                      disabled={isScanningAI}
+                      onClick={() =>
+                        runAISongScan('edit', { rawTextHint: editRawLyrics })
+                      }
+                      className="min-h-[34px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/40 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1"
+                    >
+                      <Wand2 className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Formatear Texto con IA</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {aiScanFeedback && (
+                <div
+                  className={`p-2 rounded-xl text-xs font-bold flex items-center justify-between gap-2 ${
+                    aiScanFeedback.type === 'success'
+                      ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-300'
+                  }`}
+                >
+                  <span>{aiScanFeedback.message}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAiScanFeedback(null)}
+                    className="opacity-70 hover:opacity-100"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleEditSongSubmit} className="space-y-4">
@@ -2662,15 +3239,20 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Imagen de la Canción (Opcional)
+                    Imagen de la Canción en la Nube (Opcional)
                   </label>
-                  {editChordSheetUrl && (
+                  {(editChordSheetUrl ||
+                    (!editHadCloudImageRemoved &&
+                      activeSong.hasChordSheetImage)) && (
                     <button
                       type="button"
-                      onClick={() => setEditChordSheetUrl('')}
+                      onClick={() => {
+                        setEditChordSheetUrl('');
+                        setEditHadCloudImageRemoved(true);
+                      }}
                       className="text-[11px] font-bold text-rose-500 hover:underline"
                     >
-                      Quitar imagen
+                      Eliminar imagen de la nube
                     </button>
                   )}
                 </div>
@@ -2684,21 +3266,41 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                        Imagen cargada
+                        Imagen sincronizada en la nube
                       </p>
                       <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                        ✓ Optimizada y lista para guardar
+                        ✓ Disponible bajo demanda en cualquier dispositivo
                       </p>
                     </div>
-                    <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors">
-                      <span>Cambiar</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(e, 'edit')}
-                        className="hidden"
-                      />
-                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={isScanningAI}
+                        onClick={() =>
+                          runAISongScan('edit', {
+                            imageDataUrl: editChordSheetUrl,
+                            rawTextHint: editRawLyrics,
+                          })
+                        }
+                        className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1 transition-colors"
+                      >
+                        {isScanningAI ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        <span>Extraer con IA</span>
+                      </button>
+                      <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors">
+                        <span>Cambiar</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload(e, 'edit')}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
                   </div>
                 ) : (
                   <label className="cursor-pointer w-full min-h-[46px] px-4 py-3 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500 dark:hover:border-amber-400 bg-slate-50 dark:bg-slate-800/40 hover:bg-amber-500/5 flex items-center justify-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 transition-all">
@@ -2923,17 +3525,19 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       )}
 
       {/* MODAL: IMAGEN EN PANTALLA COMPLETA CON ZOOM */}
-      {isImageFullscreen &&
-        activeSong &&
-        getValidUploadedSongImage(activeSong.chordSheetImageUrl) && (
+      {isImageFullscreen && activeSong && streamedImageUrl && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col">
           {/* Cabecera del visor a pantalla completa */}
           <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 text-white">
             <div className="flex items-center gap-2.5 min-w-0">
               <ImageIcon className="w-4 h-4 text-amber-400 shrink-0" />
               <div className="min-w-0">
-                <span className="font-bold text-sm truncate block">{activeSong.title}</span>
-                <span className="text-[11px] text-amber-400 font-mono">Tono: {currentKey} · {activeSong.bpm} BPM</span>
+                <span className="font-bold text-sm truncate block">
+                  {activeSong.title}
+                </span>
+                <span className="text-[11px] text-amber-400 font-mono">
+                  Tono: {currentKey} · {activeSong.bpm} BPM
+                </span>
               </div>
             </div>
 
@@ -2941,7 +3545,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
                 <button
                   type="button"
-                  onClick={() => setImageZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
+                  onClick={() =>
+                    setImageZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))
+                  }
                   className="min-h-[32px] px-2.5 rounded-lg hover:bg-slate-700 text-xs font-bold font-mono text-slate-200"
                   title="Alejar (-)"
                 >
@@ -2952,7 +3558,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={() => setImageZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
+                  onClick={() =>
+                    setImageZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))
+                  }
                   className="min-h-[32px] px-2.5 rounded-lg hover:bg-slate-700 text-xs font-bold font-mono text-slate-200"
                   title="Acercar (+)"
                 >
@@ -2984,7 +3592,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
           {/* Cuerpo con imagen centrada y scrollable */}
           <div className="flex-1 overflow-auto p-4 sm:p-8 flex items-center justify-center">
             <img
-              src={getValidUploadedSongImage(activeSong.chordSheetImageUrl)}
+              src={streamedImageUrl}
               alt={activeSong.title}
               style={{
                 transform: `scale(${imageZoom})`,

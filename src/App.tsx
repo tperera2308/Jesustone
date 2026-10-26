@@ -86,6 +86,13 @@ import {
   syncUserToFirestore,
   testFirestoreConnection,
 } from './firebase';
+import {
+  deleteSongImageFromCloud,
+  fetchSongImageOnDemand,
+  isValidImageString,
+  saveSongImageToCloud,
+  songHasCloudOrInlineImage,
+} from './utils/songImageCloudStore';
 import { runAutomaticStorageCleanup } from './utils/storageCleaner';
 import {
   ArrowLeft,
@@ -155,37 +162,15 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 function safeSaveToStorage(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch (err) {
-    console.warn(`Storage quota warning on key ${key}, compacting...`, err);
+  } catch {
     runAutomaticStorageCleanup();
-    if (key === STORAGE_KEYS.GROUPS && Array.isArray(value)) {
-      try {
-        const compacted = (value as WorshipGroup[]).map((g) => ({
-          ...g,
-          songs: (g.songs || []).map((s) => ({
-            ...s,
-            chordSheetImageUrl:
-              s.chordSheetImageUrl &&
-              (s.chordSheetImageUrl.startsWith('data:image/svg+xml;utf8,') ||
-                (s.chordSheetImageUrl.startsWith('data:') &&
-                  s.chordSheetImageUrl.length > 200000))
-                ? undefined
-                : s.chordSheetImageUrl,
-          })),
-        }));
-        localStorage.setItem(key, JSON.stringify(compacted));
-      } catch {
-        // Fallback: keep metadata
-      }
-    }
   }
 }
 
 function recordDeletedId(storageKey: string, id: string): void {
   const existing = loadFromStorage<string[]>(storageKey, []);
   if (!existing.includes(id)) {
-    // Conservar únicamente los últimos 100 IDs eliminados para no saturar localStorage
-    const next = [...existing, id].slice(-100);
+    const next = [...existing, id].slice(-40);
     safeSaveToStorage(storageKey, next);
   }
 }
@@ -215,25 +200,54 @@ function extractMentionedUsernames(text: string): string[] {
   );
 }
 
+/**
+ * Si este dispositivo tenía canciones con imágenes guardadas localmente en una versión previa,
+ * las migra automáticamente a documentos independientes en la nube (`jesustone_groups/songimg__{id}`)
+ * y a IndexedDB antes de liberar el localStorage.
+ */
+function migrateLegacyLocalGroupsOnce(): WorshipGroup[] {
+  const legacyGroups = loadFromStorage<WorshipGroup[]>(STORAGE_KEYS.GROUPS, []);
+  if (!Array.isArray(legacyGroups) || legacyGroups.length === 0) {
+    return [];
+  }
+
+  const migrated = legacyGroups.map((g) => ({
+    ...g,
+    songs: (g.songs || []).map((s) => {
+      const hasValidInline = isValidImageString(s.chordSheetImageUrl);
+      const ts = s.chordSheetImageUpdatedAt || Date.now();
+      if (hasValidInline && s.chordSheetImageUrl!.startsWith('data:image/')) {
+        saveSongImageToCloud(g.id, s.id, s.chordSheetImageUrl!, ts);
+      }
+      return {
+        ...s,
+        hasChordSheetImage: Boolean(s.hasChordSheetImage || hasValidInline) || undefined,
+        chordSheetImageUpdatedAt:
+          s.hasChordSheetImage || hasValidInline ? ts : undefined,
+        chordSheetImageUrl:
+          hasValidInline && s.chordSheetImageUrl!.startsWith('http')
+            ? s.chordSheetImageUrl
+            : undefined,
+      };
+    }),
+  }));
+
+  try {
+    localStorage.removeItem(STORAGE_KEYS.GROUPS);
+  } catch {
+    // ignore
+  }
+
+  return migrated;
+}
+
 export default function App() {
-  const [users, setUsers] = useState<AppUser[]>(() =>
-    loadFromStorage<AppUser[]>(STORAGE_KEYS.USERS, []).map(ensureUserMusicianCode)
-  );
+  const [users, setUsers] = useState<AppUser[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>(() =>
     loadFromStorage(STORAGE_KEYS.CURRENT_USER_ID, '')
   );
   const [groups, setGroups] = useState<WorshipGroup[]>(() =>
-    loadFromStorage<WorshipGroup[]>(STORAGE_KEYS.GROUPS, []).map((g) => ({
-      ...g,
-      songs: (g.songs || []).map((s) => ({
-        ...s,
-        chordSheetImageUrl:
-          s.chordSheetImageUrl &&
-          s.chordSheetImageUrl.startsWith('data:image/svg+xml')
-            ? undefined
-            : s.chordSheetImageUrl,
-      })),
-    }))
+    migrateLegacyLocalGroupsOnce()
   );
   const [activeGroupId, setActiveGroupId] = useState<string>(() =>
     loadFromStorage(STORAGE_KEYS.ACTIVE_GROUP_ID, '')
@@ -241,15 +255,9 @@ export default function App() {
   const [fallbackIdentity, setFallbackIdentity] = useState<AppIdentity>(() =>
     loadFromStorage(STORAGE_KEYS.THEME_PREF, INITIAL_IDENTITY)
   );
-  const [notifications, setNotifications] = useState<AppNotification[]>(() =>
-    loadFromStorage(STORAGE_KEYS.NOTIFICATIONS, [])
-  );
-  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>(() =>
-    loadFromStorage(STORAGE_KEYS.FRIEND_REQUESTS, [])
-  );
-  const [directMessages, setDirectMessages] = useState<DirectMessage[]>(() =>
-    loadFromStorage(STORAGE_KEYS.DIRECT_MESSAGES, [])
-  );
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
   const [toastNotification, setToastNotification] =
     useState<AppNotification | null>(null);
 
@@ -343,7 +351,7 @@ export default function App() {
                 ...deletedMsgs,
               ]);
 
-              // Sincronizar IDs eliminados en la nube hacia el almacenamiento local de este dispositivo
+              // Sincronizar IDs eliminados en la nube
               for (const delId of cloudGrp.deletedIds || []) {
                 if (delId.startsWith('ev-') && !deletedEvents.has(delId)) {
                   deletedEvents.add(delId);
@@ -360,9 +368,28 @@ export default function App() {
               if (!localGrp) {
                 return enrichGroupIndexes({
                   ...cloudGrp,
-                  songs: (cloudGrp.songs || []).filter(
-                    (s) => !groupDeletedSet.has(s.id)
-                  ),
+                  songs: (cloudGrp.songs || [])
+                    .filter((s) => !groupDeletedSet.has(s.id))
+                    .map((s) => {
+                      const hasValidInline = isValidImageString(s.chordSheetImageUrl);
+                      if (hasValidInline && s.chordSheetImageUrl!.startsWith('data:image/')) {
+                        saveSongImageToCloud(
+                          cloudGrp.id,
+                          s.id,
+                          s.chordSheetImageUrl!,
+                          s.chordSheetImageUpdatedAt || Date.now()
+                        );
+                      }
+                      return {
+                        ...s,
+                        hasChordSheetImage:
+                          Boolean(s.hasChordSheetImage || hasValidInline) || undefined,
+                        chordSheetImageUrl:
+                          hasValidInline && s.chordSheetImageUrl!.startsWith('http')
+                            ? s.chordSheetImageUrl
+                            : undefined,
+                      };
+                    }),
                   events: (cloudGrp.events || []).filter(
                     (e) => !groupDeletedSet.has(e.id)
                   ),
@@ -411,7 +438,7 @@ export default function App() {
                 }
               }
 
-              // 2. Añadir canciones de la nube (conservando adjuntos locales si el documento de grupo fue compactado)
+              // 2. Añadir canciones de la nube (sincronizando el indicador hasChordSheetImage)
               for (const cloudSong of cloudGrp.songs || []) {
                 if (
                   groupDeletedSet.has(cloudSong.id) ||
@@ -422,15 +449,51 @@ export default function App() {
                 const localMatch = (localGrp.songs || []).find(
                   (ls) => ls.id === cloudSong.id
                 );
-                const rawImg =
-                  cloudSong.chordSheetImageUrl ||
-                  localMatch?.chordSheetImageUrl;
+
+                const cloudInlineValid = isValidImageString(
+                  cloudSong.chordSheetImageUrl
+                );
+                const localInlineValid = isValidImageString(
+                  localMatch?.chordSheetImageUrl
+                );
+
+                const hasImage = Boolean(
+                  cloudSong.hasChordSheetImage ||
+                    localMatch?.hasChordSheetImage ||
+                    cloudInlineValid ||
+                    localInlineValid
+                );
+
+                const resolvedUpdatedAt =
+                  cloudSong.chordSheetImageUpdatedAt ||
+                  localMatch?.chordSheetImageUpdatedAt ||
+                  (hasImage ? Date.now() : undefined);
+
+                if (
+                  localInlineValid &&
+                  localMatch?.chordSheetImageUrl?.startsWith('data:image/')
+                ) {
+                  saveSongImageToCloud(
+                    cloudGrp.id,
+                    cloudSong.id,
+                    localMatch.chordSheetImageUrl,
+                    resolvedUpdatedAt
+                  );
+                }
+
+                if (hasImage && !cloudSong.hasChordSheetImage) {
+                  needsResync = true;
+                }
+
                 mergedSongs.push({
                   ...cloudSong,
+                  hasChordSheetImage: hasImage || undefined,
+                  chordSheetImageUpdatedAt: hasImage ? resolvedUpdatedAt : undefined,
                   chordSheetImageUrl:
-                    rawImg && rawImg.startsWith('data:image/svg+xml')
-                      ? undefined
-                      : rawImg,
+                    cloudInlineValid &&
+                    cloudSong.chordSheetImageUrl!.startsWith('http')
+                      ? cloudSong.chordSheetImageUrl
+                      : undefined,
                 });
                 seenSongIds.add(cloudSong.id);
               }
@@ -540,118 +603,6 @@ export default function App() {
             return mergedGroups;
           });
         },
-        onSongsSnapshot: (songsByGroup) => {
-          const deletedSongs = new Set<string>(
-            loadFromStorage<string[]>(STORAGE_KEYS.DELETED_SONG_IDS, [])
-          );
-          setGroups((prevGroups) =>
-            prevGroups.map((grp) => {
-              const groupDeletedSet = new Set<string>([
-                ...deletedSongs,
-                ...(grp.deletedIds || []),
-              ]);
-              const cloudGroupSongs = songsByGroup[grp.id];
-              const extraSongs = (cloudGroupSongs || []).filter(
-                (s) => !groupDeletedSet.has(s.id)
-              );
-
-              // Filtrar cualquier canción que haya sido marcada como eliminada
-              const filteredExisting = grp.songs.filter(
-                (s) => !groupDeletedSet.has(s.id)
-              );
-              let changed = filteredExisting.length !== grp.songs.length;
-              const existingMap = new Map(
-                filteredExisting.map((s) => [s.id, s])
-              );
-              const nextSongs = [...filteredExisting];
-
-              for (const extSong of extraSongs) {
-                const existing = existingMap.get(extSong.id);
-                if (!existing) {
-                  nextSongs.unshift(extSong);
-                  changed = true;
-                } else if (
-                  !existing.chordSheetImageUrl &&
-                  extSong.chordSheetImageUrl
-                ) {
-                  const idx = nextSongs.findIndex((x) => x.id === extSong.id);
-                  if (idx !== -1) {
-                    nextSongs[idx] = {
-                      ...existing,
-                      chordSheetImageUrl: extSong.chordSheetImageUrl,
-                    };
-                    changed = true;
-                  }
-                }
-              }
-
-              return changed ? { ...grp, songs: nextSongs } : grp;
-            })
-          );
-        },
-        onMessagesSnapshot: (groupId, cloudMessages) => {
-          const deletedMsgs = new Set<string>(
-            loadFromStorage<string[]>(STORAGE_KEYS.DELETED_MSG_IDS, [])
-          );
-          setGroups((prevGroups) =>
-            prevGroups.map((grp) => {
-              if (grp.id !== groupId) return grp;
-              const groupDeletedSet = new Set<string>([
-                ...deletedMsgs,
-                ...(grp.deletedIds || []),
-              ]);
-              const validChannelIds = new Set<string>([
-                'general',
-                ...(grp.customChannels || []).map((c) => c.id),
-              ]);
-              const validCloud = cloudMessages.filter(
-                (m) =>
-                  !groupDeletedSet.has(m.id) &&
-                  !groupDeletedSet.has(m.channel) &&
-                  validChannelIds.has(m.channel)
-              );
-
-              const cloudMap = new Map(validCloud.map((m) => [m.id, m]));
-              const combined: ChatMessage[] = [...validCloud];
-
-              for (const localMsg of grp.chatMessages || []) {
-                if (
-                  groupDeletedSet.has(localMsg.id) ||
-                  groupDeletedSet.has(localMsg.channel) ||
-                  !validChannelIds.has(localMsg.channel)
-                ) {
-                  continue;
-                }
-                const isRecentLocal =
-                  (localMsg.createdAtMs &&
-                    Date.now() - localMsg.createdAtMs < 8000) ||
-                  isRecentlyCreatedLocally(localMsg.id);
-                if (!cloudMap.has(localMsg.id) && isRecentLocal) {
-                  combined.push(localMsg);
-                  syncChatMessageToFirestore(groupId, localMsg);
-                }
-              }
-
-              combined.sort(
-                (a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0)
-              );
-              if (combined.length > MAX_CHAT_MESSAGES_PER_GROUP) {
-                const overflow = combined.slice(
-                  0,
-                  combined.length - MAX_CHAT_MESSAGES_PER_GROUP
-                );
-                overflow.forEach((oldMsg) =>
-                  deleteChatMessageFromFirestore(oldMsg.id)
-                );
-              }
-
-              return {
-                ...grp,
-                chatMessages: combined.slice(-MAX_CHAT_MESSAGES_PER_GROUP),
-              };
-            })
-          );
-        },
         onNotificationsSnapshot: (cloudNotifs) => {
           setNotifications((prevLocal) => {
             const prevIds = new Set(prevLocal.map((n) => n.id));
@@ -678,44 +629,13 @@ export default function App() {
           });
         },
         onFriendRequestsSnapshot: (cloudReqs) => {
-          setFriendRequests((prevLocal) => {
-            const cloudMap = new Map(cloudReqs.map((r) => [r.id, r]));
-            const merged = [...cloudReqs];
-            for (const localR of prevLocal) {
-              if (!cloudMap.has(localR.id)) {
-                merged.push(localR);
-                syncFriendRequestToFirestore(localR);
-              }
-            }
-            return merged.slice(0, 80);
-          });
+          setFriendRequests(cloudReqs.slice(0, 80));
         },
         onDirectMessagesSnapshot: (cloudDms) => {
-          setDirectMessages((prevLocal) => {
-            const cloudMap = new Map(cloudDms.map((m) => [m.id, m]));
-            const merged = [...cloudDms];
-            for (const localDm of prevLocal) {
-              if (!cloudMap.has(localDm.id)) {
-                merged.push(localDm);
-                syncDirectMessageToFirestore(localDm);
-              }
-            }
-            merged.sort((a, b) => a.createdAtMs - b.createdAtMs);
-            const byConv = new Map<string, DirectMessage[]>();
-            merged.forEach((dm) => {
-              const key =
-                dm.conversationId ||
-                [dm.senderId, dm.recipientId].sort().join('__');
-              const list = byConv.get(key) || [];
-              list.push(dm);
-              byConv.set(key, list);
-            });
-            const trimmed: DirectMessage[] = [];
-            byConv.forEach((list) => {
-              trimmed.push(...list.slice(-MAX_DMS_PER_CONVERSATION));
-            });
-            return trimmed.sort((a, b) => a.createdAtMs - b.createdAtMs);
-          });
+          const sorted = [...cloudDms].sort(
+            (a, b) => a.createdAtMs - b.createdAtMs
+          );
+          setDirectMessages(sorted);
         },
         onSyncStatusChange: (status) => setCloudStatus(status),
       }
@@ -723,33 +643,14 @@ export default function App() {
     return () => unsub();
   }, [currentUserId, activeGroupId]);
 
-  useEffect(() => {
-    safeSaveToStorage(STORAGE_KEYS.USERS, users);
-  }, [users]);
-
+  // Solo guardar el ID de sesión activa en localStorage (todo el contenido vive en streaming en la nube)
   useEffect(() => {
     safeSaveToStorage(STORAGE_KEYS.CURRENT_USER_ID, currentUserId);
   }, [currentUserId]);
 
   useEffect(() => {
-    safeSaveToStorage(STORAGE_KEYS.GROUPS, groups);
-  }, [groups]);
-
-  useEffect(() => {
     safeSaveToStorage(STORAGE_KEYS.ACTIVE_GROUP_ID, activeGroupId);
   }, [activeGroupId]);
-
-  useEffect(() => {
-    safeSaveToStorage(STORAGE_KEYS.NOTIFICATIONS, notifications);
-  }, [notifications]);
-
-  useEffect(() => {
-    safeSaveToStorage(STORAGE_KEYS.FRIEND_REQUESTS, friendRequests);
-  }, [friendRequests]);
-
-  useEffect(() => {
-    safeSaveToStorage(STORAGE_KEYS.DIRECT_MESSAGES, directMessages);
-  }, [directMessages]);
 
   // Auto-hide toast notification after 4.5s
   useEffect(() => {
@@ -1869,10 +1770,24 @@ export default function App() {
   };
 
   const handleImportSharedSongToRepertoire = (sharedSong: Song) => {
+    const newId = `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const hasImg = songHasCloudOrInlineImage(sharedSong);
     const copiedSong: Song = {
       ...sharedSong,
-      id: `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: newId,
+      hasChordSheetImage: hasImg,
+      chordSheetImageUpdatedAt: hasImg ? Date.now() : undefined,
+      chordSheetImageUrl: undefined,
     };
+
+    if (hasImg) {
+      fetchSongImageOnDemand(sharedSong).then((imgData) => {
+        if (imgData) {
+          saveSongImageToCloud(newId, activeGroup.id, imgData);
+        }
+      });
+    }
+
     syncSongToFirestore(activeGroup.id, copiedSong);
     updateActiveGroup((g) => ({
       ...g,
@@ -2459,12 +2374,28 @@ export default function App() {
     }));
   };
 
-  // Songbook Handlers + Notifications
+  // Songbook Handlers + Notifications (Streaming bajo demanda + Caché IndexedDB)
   const handleAddSong = (newSong: Omit<Song, 'id'>) => {
+    const newId = `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const hasUploadedImg =
+      isValidImageString(newSong.chordSheetImageUrl) ||
+      Boolean(newSong.hasChordSheetImage);
+
+    if (isValidImageString(newSong.chordSheetImageUrl)) {
+      saveSongImageToCloud(newId, activeGroup.id, newSong.chordSheetImageUrl!);
+    }
+
     const created: Song = {
       ...newSong,
-      id: `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: newId,
+      hasChordSheetImage: hasUploadedImg,
+      chordSheetImageUpdatedAt: hasUploadedImg ? Date.now() : undefined,
+      chordSheetImageUrl:
+        newSong.chordSheetImageUrl && newSong.chordSheetImageUrl.startsWith('http')
+          ? newSong.chordSheetImageUrl
+          : undefined,
     };
+
     const activityItem: ActivityFeedItem = {
       id: `feed-${Date.now()}`,
       type: 'song_added',
@@ -2512,18 +2443,53 @@ export default function App() {
     ) {
       deleteMediaFromStorage(oldSong.chordSheetImageUrl);
     }
-    syncSongToFirestore(activeGroup.id, updated);
+
+    let nextHasImage = Boolean(updated.hasChordSheetImage);
+    let nextUpdatedAt = updated.chordSheetImageUpdatedAt;
+
+    if (isValidImageString(updated.chordSheetImageUrl)) {
+      saveSongImageToCloud(
+        updated.id,
+        activeGroup.id,
+        updated.chordSheetImageUrl!
+      );
+      nextHasImage = true;
+      nextUpdatedAt = Date.now();
+    } else if (
+      updated.hasChordSheetImage === false &&
+      (oldSong?.hasChordSheetImage || isValidImageString(oldSong?.chordSheetImageUrl))
+    ) {
+      deleteSongImageFromCloud(updated.id);
+      nextHasImage = false;
+      nextUpdatedAt = undefined;
+    }
+
+    const normalizedSong: Song = {
+      ...updated,
+      hasChordSheetImage: nextHasImage,
+      chordSheetImageUpdatedAt: nextUpdatedAt,
+      chordSheetImageUrl:
+        updated.chordSheetImageUrl && updated.chordSheetImageUrl.startsWith('http')
+          ? updated.chordSheetImageUrl
+          : undefined,
+    };
+
+    syncSongToFirestore(activeGroup.id, normalizedSong);
     updateActiveGroup((g) => ({
       ...g,
-      songs: g.songs.map((s) => (s.id === updated.id ? updated : s)),
+      songs: g.songs.map((s) => (s.id === normalizedSong.id ? normalizedSong : s)),
     }));
   };
 
   const handleDeleteSong = (songId: string) => {
     const targetSong = activeGroup.songs.find((s) => s.id === songId);
-    if (targetSong?.chordSheetImageUrl && targetSong.chordSheetImageUrl.startsWith('http')) {
+    if (
+      targetSong?.chordSheetImageUrl &&
+      targetSong.chordSheetImageUrl.startsWith('http')
+    ) {
       deleteMediaFromStorage(targetSong.chordSheetImageUrl);
     }
+    deleteSongImageFromCloud(songId);
     recordDeletedId(STORAGE_KEYS.DELETED_SONG_IDS, songId);
     deleteSongFromFirestore(songId);
     updateActiveGroup((g) => ({

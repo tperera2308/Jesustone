@@ -235,6 +235,8 @@ export interface Song {
   lyricsAndChords: string;
   rawLyricsAndChords?: string;
   chordSheetImageUrl?: string;
+  hasChordSheetImage?: boolean;
+  chordSheetImageUpdatedAt?: number;
   attachedFileName?: string;
   notes?: string;
   groupNotes?: string; // Shared band notes for the song

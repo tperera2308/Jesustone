@@ -1,5 +1,6 @@
 import { deleteMediaFromStorage } from '../firebase';
-import { Song, WorshipGroup } from '../types';
+import { Song } from '../types';
+import { deleteSongImageFromCloud } from './songImageCloudStore';
 
 export interface StorageCleanupStats {
   keysRemoved: number;
@@ -9,12 +10,15 @@ export interface StorageCleanupStats {
 }
 
 /**
- * Lista de prefijos y claves obsoletas de versiones anteriores de JesusTone
- * que pueden haber quedado en el localStorage del usuario.
+ * Lista de prefijos y claves obsoletas o pesadas que no deben ocupar localStorage,
+ * ya que la app funciona en streaming sincronizado con la nube + IndexedDB para imágenes bajo demanda.
  */
 const LEGACY_STORAGE_PATTERNS = [
   /^jesustone_users_v[123]$/,
-  /^jesustone_groups_v[123]$/,
+  /^jesustone_groups_v[1234]$/,
+  /^jesustone_notifications_v4$/,
+  /^jesustone_friend_requests_v4$/,
+  /^jesustone_direct_messages_v4$/,
   /^jesustone_temp_/,
   /^jesustone_draft_/,
   /^jesustone_audio_/,
@@ -24,9 +28,9 @@ const LEGACY_STORAGE_PATTERNS = [
 
 /**
  * Ejecuta una limpieza automática integral en el localStorage:
- * 1. Elimina claves de versiones viejas o fragmentos temporales.
- * 2. Recorta las listas de IDs borrados a un máximo de 40 para evitar crecimiento indefinido.
- * 3. Compacta grupos locales eliminando SVG temporales o imágenes base64 huérfanas > 200KB.
+ * 1. Elimina copias locales pesadas (grupos, canciones, imágenes base64) de localStorage
+ *    para que todo opere en streaming desde la nube sin límites de almacenamiento.
+ * 2. Recorta las listas de IDs borrados a un máximo de 40.
  */
 export function runAutomaticStorageCleanup(): StorageCleanupStats {
   if (typeof window === 'undefined' || !window.localStorage) {
@@ -49,9 +53,11 @@ export function runAutomaticStorageCleanup(): StorageCleanupStats {
       if (k) allKeys.push(k);
     }
 
-    // 1. Eliminar claves obsoletas
+    // 1. Eliminar claves pesadas u obsoletas de localStorage
     for (const key of allKeys) {
-      const isLegacy = LEGACY_STORAGE_PATTERNS.some((pattern) => pattern.test(key));
+      const isLegacy = LEGACY_STORAGE_PATTERNS.some((pattern) =>
+        pattern.test(key)
+      );
       if (isLegacy) {
         const val = localStorage.getItem(key) || '';
         bytesFreed += key.length + val.length;
@@ -60,7 +66,7 @@ export function runAutomaticStorageCleanup(): StorageCleanupStats {
       }
     }
 
-    // 2. Podar arrays de IDs borrados para que no acumulen miles de IDs a lo largo de los meses
+    // 2. Podar arrays de IDs borrados
     const trackingKeys = [
       'jesustone_deleted_songs_v4',
       'jesustone_deleted_events_v4',
@@ -85,45 +91,6 @@ export function runAutomaticStorageCleanup(): StorageCleanupStats {
         // ignore parse error
       }
     }
-
-    // 3. Limpieza de grupos locales: remover notas de voz de canciones y SVGs sobredimensionados
-    try {
-      const groupsRaw = localStorage.getItem('jesustone_groups_v4');
-      if (groupsRaw) {
-        const groups = JSON.parse(groupsRaw);
-        if (Array.isArray(groups)) {
-          let modified = false;
-          const cleanedGroups = groups.map((g: WorshipGroup) => {
-            const cleanedSongs = (g.songs || []).map((s: Song) => {
-              // Eliminar voiceNotes de canciones
-              const hasVoice = (s as unknown as { voiceNotes?: unknown[] }).voiceNotes && (s as unknown as { voiceNotes?: unknown[] }).voiceNotes!.length > 0;
-              // Si la imagen es un SVG autogenerado innecesario
-              const isAutoSvg = s.chordSheetImageUrl && s.chordSheetImageUrl.startsWith('data:image/svg+xml;utf8,');
-              if (hasVoice || isAutoSvg) {
-                modified = true;
-                const nextS = { ...s };
-                delete (nextS as unknown as { voiceNotes?: unknown }).voiceNotes;
-                if (isAutoSvg) nextS.chordSheetImageUrl = undefined;
-                return nextS;
-              }
-              return s;
-            });
-            return {
-              ...g,
-              songs: cleanedSongs,
-            };
-          });
-
-          if (modified) {
-            const newRaw = JSON.stringify(cleanedGroups);
-            bytesFreed += Math.max(0, groupsRaw.length - newRaw.length);
-            localStorage.setItem('jesustone_groups_v4', newRaw);
-          }
-        }
-      }
-    } catch {
-      // ignore
-    }
   } catch (err) {
     console.warn('Advertencia en limpieza automática de storage:', err);
   }
@@ -138,11 +105,14 @@ export function runAutomaticStorageCleanup(): StorageCleanupStats {
 
 /**
  * Limpieza en la nube al borrar canciones o reemplazar imágenes:
- * Elimina automáticamente el archivo huérfano en Firebase Storage
+ * Elimina automáticamente el documento de imagen bajo demanda en Firestore, el caché IndexedDB y Storage.
  */
 export async function cleanDeletedSongCloudAssets(
   deletedSong: Song
 ): Promise<void> {
+  if (deletedSong.id) {
+    await deleteSongImageFromCloud(deletedSong.id);
+  }
   if (deletedSong.chordSheetImageUrl) {
     await deleteMediaFromStorage(deletedSong.chordSheetImageUrl);
   }

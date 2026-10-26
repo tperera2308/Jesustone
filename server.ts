@@ -1,3 +1,4 @@
+import { GoogleGenAI, Type } from '@google/genai';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -7,6 +8,15 @@ import webpush from 'web-push';
 const PORT = 3000;
 const VAPID_FILE = path.resolve(process.cwd(), '.vapid-keys.json');
 const SUBSCRIPTIONS_FILE = path.resolve(process.cwd(), '.push-subscriptions.json');
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    },
+  },
+});
 
 interface VapidKeyPair {
   publicKey: string;
@@ -92,7 +102,7 @@ function saveSubscriptions(map: Map<string, StoredPushSubscription>) {
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '2mb' }));
+  app.use(express.json({ limit: '10mb' }));
 
   const vapidKeys = getOrCreateVapidKeys();
   webpush.setVapidDetails(
@@ -102,6 +112,146 @@ async function startServer() {
   );
 
   const subscriptions = loadSubscriptions();
+
+  // 0. ESCÁNER IA DE CANCIONES (Extrae letra, acordes sobre cada línea, tono, BPM y estructura desde imagen o texto)
+  app.post('/api/ai/scan-song', async (req, res) => {
+    try {
+      const { imageDataUrl, rawText } = req.body || {};
+      if (!imageDataUrl && !rawText) {
+        res.status(400).json({
+          ok: false,
+          error: 'Envía una imagen de la hoja de acordes o texto para analizar.',
+        });
+        return;
+      }
+
+      const parts: Array<
+        | { text: string }
+        | { inlineData: { mimeType: string; data: string } }
+      > = [];
+
+      if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:')) {
+        const commaIdx = imageDataUrl.indexOf(',');
+        const header = imageDataUrl.slice(0, commaIdx);
+        const base64Data = imageDataUrl.slice(commaIdx + 1);
+        const mimeMatch = header.match(/^data:([^;]+);base64$/i);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        parts.push({
+          inlineData: {
+            mimeType,
+            data: base64Data,
+          },
+        });
+      }
+
+      const promptInstructions = `Eres un director musical experto en alabanza y adoración. Analiza la hoja de acordes/letra proporcionada y extrae todos los datos estructurados para nuestro cancionero interactivo con transpositor automático.
+
+REGLAS ESTRICTAS PARA "lyricsAndChords":
+1. Transcribe TODA la letra y TODOS los acordes exactamente como aparecen en la hoja (sin omitir estrofas, coros ni puentes).
+2. Coloca las etiquetas de sección en su propia línea terminando en dos puntos, por ejemplo: "Intro:", "Verso 1:", "Pre-Coro:", "Coro:", "Puente:", "Interludio:", "Final:".
+3. ¡MUY IMPORTANTE! Los acordes SIEMPRE deben ir en la línea de ARRIBA de la letra correspondiente (NUNCA entre corchetes [G] y NUNCA mezclados en la misma línea de la letra), usando espacios para alinear cada acorde sobre la sílaba donde cambia.
+   Ejemplo de formato correcto:
+   Intro:
+   G   D/F#   Em7   C
+
+   Verso 1:
+   G                 D/F#
+   Aquí estás, te vemos mover
+   Em7               C
+   Te adoraré, te adoraré
+4. Usa cifrado americano estándar (C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B con sus modificadores m, 7, maj7, sus4, add9, barras G/B, D/F#, etc.). Si la hoja original está en Do, Re, Mi, Fa, Sol, La, Si, conviértela automáticamente a cifrado americano (C, D, E, F, G, A, B) para que el transpositor funcione.
+5. Para "originalKey", devuelve únicamente la nota raíz en cifrado americano (ej. "G", "C", "D", "E", "F", "A", "Bb", "Eb", "Am", "Em", "Bm", "Dm", "F#m", "C#m").`;
+
+      parts.push({
+        text: rawText
+          ? `${promptInstructions}\n\nTexto adicional/borrador proporcionado por el músico:\n${rawText}`
+          : promptInstructions,
+      });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: { parts },
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: {
+                type: Type.STRING,
+                description: 'Título de la canción detectado en la hoja.',
+              },
+              artist: {
+                type: Type.STRING,
+                description: 'Artista, autor o ministerio si aparece en la hoja.',
+              },
+              originalKey: {
+                type: Type.STRING,
+                description:
+                  'Tonalidad principal en cifrado americano, ej: G, C, D, F, Bb, Am, Em, Bm, Dm.',
+              },
+              bpm: {
+                type: Type.INTEGER,
+                description:
+                  'Tempo en BPM detectado en la hoja o estimado por el estilo (entre 55 y 155).',
+              },
+              timeSignature: {
+                type: Type.STRING,
+                description: 'Compás de la canción: "4/4", "3/4", "6/8" o "2/4".',
+              },
+              style: {
+                type: Type.STRING,
+                description:
+                  'Estilo musical: "Adoración", "Alabanza", "Contemporáneo", "Himno" o "Especial".',
+              },
+              structure: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description:
+                  'Orden de las secciones de la canción, ej: ["Intro", "Verso 1", "Coro", "Puente", "Final"].',
+              },
+              lyricsAndChords: {
+                type: Type.STRING,
+                description:
+                  'Letra completa y acordes formateados con los acordes en la línea superior sobre la letra.',
+              },
+              notes: {
+                type: Type.STRING,
+                description:
+                  'Indicaciones musicales adicionales, capo, dinámicas o notas detectadas.',
+              },
+            },
+            required: [
+              'title',
+              'originalKey',
+              'bpm',
+              'timeSignature',
+              'style',
+              'structure',
+              'lyricsAndChords',
+            ],
+          },
+        },
+      });
+
+      const rawJson = (response.text || '{}').trim();
+      const parsed = JSON.parse(rawJson);
+
+      res.json({
+        ok: true,
+        songData: parsed,
+      });
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error
+          ? error.message
+          : 'Error al analizar la canción con IA.';
+      console.error('Error en /api/ai/scan-song:', msg);
+      res.status(500).json({
+        ok: false,
+        error: msg,
+      });
+    }
+  });
 
   // 1. Obtener llave pública VAPID para PushManager.subscribe
   app.get('/api/push/vapid-public-key', (_req, res) => {

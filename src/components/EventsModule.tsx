@@ -37,6 +37,7 @@ import {
   FileText,
   Headphones,
   HelpCircle,
+  Image as ImageIcon,
   ListMusic,
   Lock,
   MapPin,
@@ -2284,15 +2285,27 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             </div>
                           )}
 
-                          <span
-                            className={`font-mono text-xs font-bold px-2.5 py-1 rounded-xl ${
-                              isModifiedKey
-                                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                                : accent.softBgClass
-                            }`}
-                          >
-                            Tono: {weeklyKey}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {(songObj.hasChordSheetImage ||
+                              (songObj.chordSheetImageUrl &&
+                                !songObj.chordSheetImageUrl.startsWith(
+                                  'data:image/svg+xml'
+                                ))) && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-bold shrink-0">
+                                  <ImageIcon className="w-3 h-3" />
+                                  <span>Imagen</span>
+                                </span>
+                              )}
+                            <span
+                              className={`font-mono text-xs font-bold px-2.5 py-1 rounded-xl shrink-0 ${
+                                isModifiedKey
+                                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                                  : accent.softBgClass
+                              }`}
+                            >
+                              Tono: {weeklyKey}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
