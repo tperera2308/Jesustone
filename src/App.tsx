@@ -223,7 +223,17 @@ export default function App() {
     loadFromStorage(STORAGE_KEYS.CURRENT_USER_ID, '')
   );
   const [groups, setGroups] = useState<WorshipGroup[]>(() =>
-    loadFromStorage(STORAGE_KEYS.GROUPS, [])
+    loadFromStorage<WorshipGroup[]>(STORAGE_KEYS.GROUPS, []).map((g) => ({
+      ...g,
+      songs: (g.songs || []).map((s) => ({
+        ...s,
+        chordSheetImageUrl:
+          s.chordSheetImageUrl &&
+          s.chordSheetImageUrl.startsWith('data:image/svg+xml')
+            ? undefined
+            : s.chordSheetImageUrl,
+      })),
+    }))
   );
   const [activeGroupId, setActiveGroupId] = useState<string>(() =>
     loadFromStorage(STORAGE_KEYS.ACTIVE_GROUP_ID, '')
@@ -412,11 +422,15 @@ export default function App() {
                 const localMatch = (localGrp.songs || []).find(
                   (ls) => ls.id === cloudSong.id
                 );
+                const rawImg =
+                  cloudSong.chordSheetImageUrl ||
+                  localMatch?.chordSheetImageUrl;
                 mergedSongs.push({
                   ...cloudSong,
                   chordSheetImageUrl:
-                    cloudSong.chordSheetImageUrl ||
-                    localMatch?.chordSheetImageUrl,
+                    rawImg && rawImg.startsWith('data:image/svg+xml')
+                      ? undefined
+                      : rawImg,
                 });
                 seenSongIds.add(cloudSong.id);
               }

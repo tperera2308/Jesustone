@@ -19,7 +19,6 @@ import {
   transposeLineText,
 } from '../utils/chordTransposer';
 import { isChordLine } from '../utils/musicTheory';
-import { generateSimpleChordSvgDataUrl } from '../data/initialData';
 import { compressImageToDataUrl } from '../utils/imageCompressor';
 import { uploadMediaDataUrlToStorage } from '../firebase';
 import {
@@ -108,6 +107,16 @@ function stripChordsFromLine(line: string): string {
     .replace(/\[([^\]]+)\]/g, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
+}
+
+/**
+ * Devuelve la URL de la imagen únicamente si fue subida por el usuario
+ * (descarta cualquier SVG autogenerado anterior o cadena vacía).
+ */
+function getValidUploadedSongImage(url?: string | null): string | undefined {
+  if (!url || !url.trim()) return undefined;
+  if (url.startsWith('data:image/svg+xml')) return undefined;
+  return url;
 }
 
 /**
@@ -400,7 +409,11 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
         ''
     );
     setSavedFeedbackMessage(null);
-  }, [activeSong?.id, activeMember.id]);
+    if (!getValidUploadedSongImage(activeSong.chordSheetImageUrl)) {
+      setSheetViewMode('interactive');
+      setIsImageFullscreen(false);
+    }
+  }, [activeSong?.id, activeSong?.chordSheetImageUrl, activeMember.id]);
 
   // Auto-scroll effect in Stage Mode (con sincronización a BPM de la canción)
   useEffect(() => {
@@ -699,15 +712,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
     const parsedBpm = parseInt(newBpm, 10) || 75;
     const cleanSheet = convertBracketedSheetToChordsAbove(newRawLyrics);
-
-    const finalImage =
-      newChordSheetUrl ||
-      generateSimpleChordSvgDataUrl(
-        newTitle.trim(),
-        newKey,
-        parsedBpm,
-        structureArr.join(' → ')
-      );
+    const uploadedImage = getValidUploadedSongImage(newChordSheetUrl);
 
     onAddSong({
       title: newTitle.trim(),
@@ -723,7 +728,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       personalNotes: {},
       lyricsAndChords: cleanSheet,
       rawLyricsAndChords: cleanSheet,
-      chordSheetImageUrl: finalImage,
+      chordSheetImageUrl: uploadedImage,
       spotifyUrl: newSpotifyUrl.trim() || undefined,
       referenceDuration: '3:45',
       chordProgPreview: [],
@@ -765,7 +770,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     );
     setEditNotes(activeSong.notes || '');
     setEditSpotifyUrl(activeSong.spotifyUrl || '');
-    setEditChordSheetUrl(activeSong.chordSheetImageUrl || '');
+    setEditChordSheetUrl(
+      getValidUploadedSongImage(activeSong.chordSheetImageUrl) || ''
+    );
     setEditRawLyrics(
       convertBracketedSheetToChordsAbove(
         activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || ''
@@ -805,7 +812,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       spotifyUrl: editSpotifyUrl.trim() || undefined,
       lyricsAndChords: cleanSheet,
       rawLyricsAndChords: cleanSheet,
-      chordSheetImageUrl: editChordSheetUrl || undefined,
+      chordSheetImageUrl: getValidUploadedSongImage(editChordSheetUrl),
     });
 
     setSemitoneOffset(0);
@@ -1090,7 +1097,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               >
                 Solo Letra
               </button>
-              {activeSong.chordSheetImageUrl && (
+              {getValidUploadedSongImage(activeSong.chordSheetImageUrl) && (
                 <button
                   type="button"
                   onClick={() => setSheetViewMode((m) => (m === 'image' ? 'interactive' : 'image'))}
@@ -1160,10 +1167,11 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             ))}
           </div>
 
-          {sheetViewMode === 'image' && activeSong.chordSheetImageUrl ? (
+          {sheetViewMode === 'image' &&
+          getValidUploadedSongImage(activeSong.chordSheetImageUrl) ? (
             <div className="rounded-3xl overflow-hidden border border-slate-800 bg-slate-900 p-4 flex justify-center">
               <img
-                src={activeSong.chordSheetImageUrl}
+                src={getValidUploadedSongImage(activeSong.chordSheetImageUrl)}
                 alt={activeSong.title}
                 className="max-w-full h-auto rounded-2xl"
               />
@@ -1413,7 +1421,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         <span className="font-sans">{song.style}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {song.chordSheetImageUrl && (
+                        {getValidUploadedSongImage(song.chordSheetImageUrl) && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
                             <ImageIcon className="w-3 h-3" />
                             <span>Imagen</span>
@@ -1902,99 +1910,112 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
             </div>
 
-            {/* PESTAÑAS: Cifrado Interactivo vs Imagen Adjunta */}
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSheetViewMode('interactive')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
-                      sheetViewMode === 'interactive'
-                        ? `${accent.bgClass}`
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Cifrado Interactivo</span>
-                  </button>
+            {/* PESTAÑAS: Cifrado Interactivo vs Imagen (solo si se subió una imagen) */}
+            {(() => {
+              const validSongImage = getValidUploadedSongImage(
+                activeSong.chordSheetImageUrl
+              );
+              return (
+                <div className="space-y-3">
+                  {validSongImage && (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSheetViewMode('interactive')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                            sheetViewMode === 'interactive'
+                              ? `${accent.bgClass}`
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                          }`}
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Cifrado Interactivo</span>
+                        </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setSheetViewMode('image')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
-                      sheetViewMode === 'image'
-                        ? `${accent.bgClass}`
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <ImageIcon className="w-3.5 h-3.5" />
-                    <span>Imagen Adjunta</span>
-                  </button>
-                </div>
+                        <button
+                          type="button"
+                          onClick={() => setSheetViewMode('image')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                            sheetViewMode === 'image'
+                              ? `${accent.bgClass}`
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                          }`}
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          <span>Imagen</span>
+                        </button>
+                      </div>
 
-                <div className="flex items-center gap-2">
-                  {sheetViewMode === 'image' && activeSong.chordSheetImageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setImageZoom(1);
-                        setIsImageFullscreen(true);
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                      title="Ver imagen en pantalla completa con zoom"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                      <span>Pantalla Completa</span>
-                    </button>
+                      <div className="flex items-center gap-2">
+                        {sheetViewMode === 'image' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImageZoom(1);
+                              setIsImageFullscreen(true);
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                            title="Ver imagen en pantalla completa con zoom"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                            <span>Pantalla Completa</span>
+                          </button>
+                        )}
+
+                        <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors">
+                          <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Cambiar Imagen</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleImageUpload(e, 'direct')}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
                   )}
 
-                  <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors">
-                    <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
-                    <span>{activeSong.chordSheetImageUrl ? 'Cambiar Imagen' : '+ Agregar Imagen'}</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(e, 'direct')}
-                      className="hidden"
-                    />
-                  </label>
+                  {sheetViewMode === 'image' && validSongImage ? (
+                    <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 p-4 flex flex-col items-center justify-center group">
+                      <img
+                        src={validSongImage}
+                        alt={activeSong.title}
+                        onClick={() => {
+                          setImageZoom(1);
+                          setIsImageFullscreen(true);
+                        }}
+                        className="max-w-full h-auto max-h-[70vh] rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
+                        title="Toca para ver en pantalla completa"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImageZoom(1);
+                          setIsImageFullscreen(true);
+                        }}
+                        className="mt-3 px-4 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-2 border border-slate-700 shadow-md"
+                      >
+                        <Maximize2 className="w-4 h-4 text-amber-400" />
+                        <span>Abrir en Pantalla Completa</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      style={{ fontSize: `${fontSize}px` }}
+                      className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono overflow-x-auto shadow-2xs"
+                    >
+                      {renderSongLines(
+                        activeSong.rawLyricsAndChords ||
+                          activeSong.lyricsAndChords ||
+                          ''
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              {sheetViewMode === 'image' && activeSong.chordSheetImageUrl ? (
-                <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 p-4 flex flex-col items-center justify-center group">
-                  <img
-                    src={activeSong.chordSheetImageUrl}
-                    alt={activeSong.title}
-                    onClick={() => {
-                      setImageZoom(1);
-                      setIsImageFullscreen(true);
-                    }}
-                    className="max-w-full h-auto max-h-[70vh] rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
-                    title="Toca para ver en pantalla completa"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImageZoom(1);
-                      setIsImageFullscreen(true);
-                    }}
-                    className="mt-3 px-4 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-2 border border-slate-700 shadow-md"
-                  >
-                    <Maximize2 className="w-4 h-4 text-amber-400" />
-                    <span>Abrir en Pantalla Completa</span>
-                  </button>
-                </div>
-              ) : (
-                <div
-                  style={{ fontSize: `${fontSize}px` }}
-                  className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono overflow-x-auto shadow-2xs"
-                >
-                  {renderSongLines(activeSong.rawLyricsAndChords || activeSong.lyricsAndChords || '')}
-                </div>
-              )}
-            </div>
+              );
+            })()}
 
 
             {/* NOTAS GRUPALES Y PERSONALES DE LA CANCIÓN */}
@@ -2902,7 +2923,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       )}
 
       {/* MODAL: IMAGEN EN PANTALLA COMPLETA CON ZOOM */}
-      {isImageFullscreen && activeSong?.chordSheetImageUrl && (
+      {isImageFullscreen &&
+        activeSong &&
+        getValidUploadedSongImage(activeSong.chordSheetImageUrl) && (
         <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col">
           {/* Cabecera del visor a pantalla completa */}
           <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 text-white">
@@ -2961,7 +2984,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
           {/* Cuerpo con imagen centrada y scrollable */}
           <div className="flex-1 overflow-auto p-4 sm:p-8 flex items-center justify-center">
             <img
-              src={activeSong.chordSheetImageUrl}
+              src={getValidUploadedSongImage(activeSong.chordSheetImageUrl)}
               alt={activeSong.title}
               style={{
                 transform: `scale(${imageZoom})`,

@@ -104,8 +104,8 @@ export function handleFirestoreError(
     operationType,
     path,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
   if (shouldThrow) {
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
     throw new Error(JSON.stringify(errInfo));
   }
   return errInfo;

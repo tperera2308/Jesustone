@@ -1500,14 +1500,22 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               );
 
               return (
-                <button
+                <div
                   key={ev.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     setSelectedEventId(ev.id);
                     setOpenedEventId(ev.id);
                   }}
-                  className="w-full text-left p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-lg transition-all flex flex-col justify-between gap-4 group"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedEventId(ev.id);
+                      setOpenedEventId(ev.id);
+                    }
+                  }}
+                  className="w-full text-left p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-lg transition-all flex flex-col justify-between gap-4 group cursor-pointer"
                 >
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between gap-2 text-xs">
@@ -1612,7 +1620,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       </button>
                     </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
