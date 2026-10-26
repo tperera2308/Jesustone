@@ -256,10 +256,6 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   onUpdateEvent,
   onOpenMetronomeWithSong,
 }) => {
-  // Sub-pestaña interna del Cancionero: 1) Repertorio Base vs 2) Setlists por Evento
-  const [activeSubView, setActiveSubView] = useState<'repertoire' | 'setlists'>(
-    initialEventId ? 'setlists' : 'repertoire'
-  );
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStyle, setSelectedStyle] = useState<string>('all');
   const [selectedKeyFilter, setSelectedKeyFilter] = useState<string>('all');
@@ -276,7 +272,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     Boolean(initialSongId)
   );
   const [selectedSetlistEventId, setSelectedSetlistEventId] =
-    useState<string>(initialEventId || events[0]?.id || '');
+    useState<string>(initialEventId || '');
 
   const [semitoneOffset, setSemitoneOffset] = useState<number>(0);
   const [fontSize, setFontSize] = useState<number>(15);
@@ -301,12 +297,10 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const stageAudioCtxRef = useRef<AudioContext | null>(null);
   const stageClickTimerRef = useRef<number | null>(null);
 
-  // Modales de Canciones y Playlist
+  // Modales de Canciones
   const [showAddSongModal, setShowAddSongModal] = useState(false);
   const [showEditSongModal, setShowEditSongModal] = useState(false);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [showManagePlaylistModal, setShowManagePlaylistModal] = useState(false);
-  const [playlistSearchModal, setPlaylistSearchModal] = useState('');
 
   // Estados para edición de estructura y notas de la canción activa
   const [newSectionInput, setNewSectionInput] = useState('');
@@ -380,10 +374,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
   const isLeader = activeMember.role === 'leader';
 
   useEffect(() => {
-    if (initialEventId) {
-      setActiveSubView('setlists');
-      setSelectedSetlistEventId(initialEventId);
-    }
+    setSelectedSetlistEventId(initialEventId || '');
     if (initialSongId) {
       const targetSong = songs.find((s) => s.id === initialSongId);
       if (targetSong) {
@@ -397,31 +388,41 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
           setSemitoneOffset(0);
         }
       }
+    } else if (!initialAutoStageMode) {
+      setSelectedSongId(null);
     }
     if (initialAutoStageMode) {
       setIsStageMode(true);
     }
   }, [initialSongId, initialTargetKey, initialEventId, initialAutoStageMode, songs]);
 
-  const filteredSongs = songs.filter((song) => {
-    const matchesSearch =
-      song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      song.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (song.rawLyricsAndChords || song.lyricsAndChords || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStyle =
-      selectedStyle === 'all' || song.style === selectedStyle;
-    const matchesKey =
-      selectedKeyFilter === 'all' || song.originalKey === selectedKeyFilter;
-    const matchesBpm =
-      selectedBpmFilter === 'all' ||
-      (selectedBpmFilter === 'slow' && song.bpm < 75) ||
-      (selectedBpmFilter === 'medium' && song.bpm >= 75 && song.bpm <= 110) ||
-      (selectedBpmFilter === 'fast' && song.bpm > 110);
-    return matchesSearch && matchesStyle && matchesKey && matchesBpm;
-  });
+  const filteredSongs = songs
+    .filter((song) => {
+      const matchesSearch =
+        song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        song.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (song.rawLyricsAndChords || song.lyricsAndChords || '')
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+      const matchesStyle =
+        selectedStyle === 'all' || song.style === selectedStyle;
+      const matchesKey =
+        selectedKeyFilter === 'all' || song.originalKey === selectedKeyFilter;
+      const matchesBpm =
+        selectedBpmFilter === 'all' ||
+        (selectedBpmFilter === 'slow' && song.bpm < 75) ||
+        (selectedBpmFilter === 'medium' && song.bpm >= 75 && song.bpm <= 110) ||
+        (selectedBpmFilter === 'fast' && song.bpm > 110);
+      return matchesSearch && matchesStyle && matchesKey && matchesBpm;
+    })
+    .slice()
+    .sort((a, b) =>
+      a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })
+    );
 
-  const activeSetlistEvent =
-    events.find((e) => e.id === selectedSetlistEventId) || events[0] || null;
+  const activeSetlistEvent = selectedSetlistEventId
+    ? events.find((e) => e.id === selectedSetlistEventId) || null
+    : null;
 
   const activeSong =
     songs.find((s) => s.id === selectedSongId) || null;
@@ -607,9 +608,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     ? transposeKey(activeSong.originalKey, semitoneOffset)
     : 'C';
 
-  // Lista ordenada de canciones para navegar Anterior / Siguiente en Modo Escenario
+  // Lista ordenada de canciones para navegar Anterior / Siguiente
   const setlistOrderIds: { songId: string; customKey?: string }[] =
-    activeSubView === 'setlists' && activeSetlistEvent
+    activeSetlistEvent && activeSetlistEvent.songs.length > 0
       ? activeSetlistEvent.songs.map((item) => ({
           songId: item.songId,
           customKey: item.customKey,
@@ -1119,46 +1120,6 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     onDeleteSong(idToRemove);
   };
 
-  const toggleSongInSetlist = (song: Song) => {
-    if (!activeSetlistEvent || !isLeader) return;
-    const exists = activeSetlistEvent.songs.some((s) => s.songId === song.id);
-    const updated: EventSongItem[] = exists
-      ? activeSetlistEvent.songs.filter((s) => s.songId !== song.id)
-      : [
-          ...activeSetlistEvent.songs,
-          {
-            songId: song.id,
-            customKey: song.originalKey,
-            vocalLeader: activeMember.name,
-            backingVocals: [],
-          },
-        ];
-    onUpdateEventPlaylist(activeSetlistEvent.id, updated);
-  };
-
-  const moveSetlistSongOrder = (index: number, direction: -1 | 1) => {
-    if (!activeSetlistEvent || !isLeader) return;
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= activeSetlistEvent.songs.length) {
-      return;
-    }
-    const copy = [...activeSetlistEvent.songs];
-    const [moved] = copy.splice(index, 1);
-    copy.splice(targetIndex, 0, moved);
-    onUpdateEventPlaylist(activeSetlistEvent.id, copy);
-  };
-
-  const updateSetlistItemField = (
-    songId: string,
-    patch: Partial<EventSongItem>
-  ) => {
-    if (!activeSetlistEvent || !isLeader) return;
-    const updated = activeSetlistEvent.songs.map((item) =>
-      item.songId === songId ? { ...item, ...patch } : item
-    );
-    onUpdateEventPlaylist(activeSetlistEvent.id, updated);
-  };
-
   const renderSongLines = (rawText: string) => {
     const normalizedSheet = convertBracketedSheetToChordsAbove(rawText || '');
     const lines = normalizedSheet.split('\n');
@@ -1358,35 +1319,28 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </button>
             </div>
 
-            {/* Selector explícito: Acordes + Letra vs Solo Letra */}
+            {/* Conmutador compacto: Acordes vs Solo Letra + Imagen */}
             <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
               <button
                 type="button"
                 onClick={() => {
-                  setSheetViewMode('interactive');
-                  setShowLyricsOnly(false);
+                  if (sheetViewMode === 'image') {
+                    setSheetViewMode('interactive');
+                  } else {
+                    setShowLyricsOnly((prev) => !prev);
+                  }
                 }}
-                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                  sheetViewMode === 'interactive' && !showLyricsOnly
+                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  sheetViewMode === 'interactive' && showLyricsOnly
+                    ? 'bg-emerald-600 text-white'
+                    : sheetViewMode === 'interactive'
                     ? 'bg-amber-500 text-slate-950'
                     : 'text-slate-300 hover:text-white'
                 }`}
+                title="Alternar entre Acordes + Letra y Solo Letra"
               >
-                Acordes + Letra
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSheetViewMode('interactive');
-                  setShowLyricsOnly(true);
-                }}
-                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                  sheetViewMode === 'interactive' && showLyricsOnly
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Solo Letra
+                <FileText className="w-3.5 h-3.5" />
+                <span>{showLyricsOnly ? 'Solo Letra' : 'Acordes + Letra'}</span>
               </button>
               {activeSongHasImage && (
                 <button
@@ -1522,7 +1476,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
   return (
     <div className="space-y-5 w-full max-w-full min-w-0">
-      {/* BARRA SUPERIOR COMPACTA: Selector Repertorio vs Setlists + Buscador + Subir Canción */}
+      {/* BARRA SUPERIOR COMPACTA: Repertorio A-Z + Buscador + Subir Canción */}
       <div className="flex flex-col gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -1537,32 +1491,14 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </button>
             )}
 
-            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setActiveSubView('repertoire')}
-                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-                  activeSubView === 'repertoire'
-                    ? `${accent.bgClass} shadow-xs`
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Music className="w-3.5 h-3.5" />
-                <span>Repertorio Base ({songs.length})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveSubView('setlists')}
-                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-                  activeSubView === 'setlists'
-                    ? `${accent.bgClass} shadow-xs`
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <ListMusic className="w-3.5 h-3.5" />
-                <span>Setlists de Eventos ({events.length})</span>
-              </button>
+            <div className="flex items-center gap-2 px-2 py-1">
+              <Music className={`w-4 h-4 ${accent.textClass}`} />
+              <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                Repertorio del Grupo ({songs.length})
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">
+                Orden A–Z
+              </span>
             </div>
           </div>
 
@@ -1576,8 +1512,8 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
           </button>
         </div>
 
-        {/* Buscador y Filtros Rápidos (Estilo, Tonalidad y Tempo/BPM) cuando estamos en Repertorio Base */}
-        {activeSubView === 'repertoire' && (
+        {/* Buscador y Filtros Rápidos (Estilo, Tonalidad y Tempo/BPM) */}
+        {!selectedSongId && (
           <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
             <div className="flex flex-col lg:flex-row gap-2">
               <div className="relative flex-1">
@@ -1663,298 +1599,99 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
       {/* =====================================================================
           VISTA PRINCIPAL:
-          - Si NO hay canción abierta (`!selectedSongId`), mostramos la cuadrícula limpia de Canciones o Setlists.
+          - Si NO hay canción abierta (`!selectedSongId`), mostramos la cuadrícula limpia de Canciones (A–Z).
           - Si el usuario toca una canción (`selectedSongId`), abrimos su vista enfocada con botón de "Volver".
          ===================================================================== */}
       {!selectedSongId || !activeSong ? (
-        activeSubView === 'repertoire' ? (
-          songs.length === 0 ? (
-            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 sm:p-12 text-center space-y-4">
-              <div
-                className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto ${accent.softBgClass}`}
-              >
-                <Music className="w-8 h-8" />
-              </div>
-              <div className="max-w-md mx-auto space-y-1.5">
-                <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
-                  El Repertorio Base de este grupo está vacío
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Tanto el Líder como los Miembros pueden subir canciones con acordes, estructura, notas de voz y hojas para toda la banda.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddSongModal(true)}
-                className={`min-h-[48px] px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 shadow-md ${accent.bgClass}`}
-              >
-                <Plus className="w-4 h-4" />
-                <span>Subir Primera Canción</span>
-              </button>
+        songs.length === 0 ? (
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 sm:p-12 text-center space-y-4">
+            <div
+              className={`w-16 h-16 rounded-3xl flex items-center justify-center mx-auto ${accent.softBgClass}`}
+            >
+              <Music className="w-8 h-8" />
             </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Toca cualquier canción para abrir sus acordes, estructura, notas y transpositor:
-                </p>
-                <span className="text-xs font-mono font-bold text-slate-500">
-                  {filteredSongs.length}{' '}
-                  {filteredSongs.length === 1 ? 'canción' : 'canciones'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {filteredSongs.map((song) => (
-                  <button
-                    key={song.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedSongId(song.id);
-                      setSemitoneOffset(0);
-                      setIsFullSheetExpanded(true);
-                    }}
-                    className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors truncate">
-                            {song.title}
-                          </h3>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                            {song.artist}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {songHasCloudOrInlineImage(song) && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] font-bold shrink-0">
-                              <ImageIcon className="w-3.5 h-3.5" />
-                              <span>Imagen</span>
-                            </span>
-                          )}
-                          <span
-                            className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${accent.softBgClass}`}
-                          >
-                            {song.originalKey}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
-                      <div className="flex items-center gap-1.5 font-mono">
-                        <span>{song.bpm} BPM</span>
-                        <span>·</span>
-                        <span>{song.timeSignature}</span>
-                        <span>·</span>
-                        <span className="font-sans">{song.style}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 shrink-0" />
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+            <div className="max-w-md mx-auto space-y-1.5">
+              <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                El Repertorio de este grupo está vacío
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                Tanto el Líder como los Miembros pueden subir canciones con acordes, estructura, escáner IA e imágenes en la nube para toda la banda.
+              </p>
             </div>
-          )
+            <button
+              type="button"
+              onClick={() => setShowAddSongModal(true)}
+              className={`min-h-[48px] px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 shadow-md ${accent.bgClass}`}
+            >
+              <Plus className="w-4 h-4" />
+              <span>Subir Primera Canción</span>
+            </button>
+          </div>
         ) : (
-          /* Sub-vista 2: Setlists de Eventos */
-          <div className="space-y-4">
-            {events.length === 0 ? (
-              <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 text-center">
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                  No hay eventos programados aún para mostrar su Setlist.
-                </p>
-              </div>
-            ) : (
-              <>
-                {/* Selector horizontal de evento */}
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full">
-                    {events.map((ev) => (
-                      <button
-                        key={ev.id}
-                        type="button"
-                        onClick={() => setSelectedSetlistEventId(ev.id)}
-                        className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
-                          activeSetlistEvent?.id === ev.id
-                            ? `${accent.bgClass} shadow-xs`
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                        }`}
-                      >
-                        {ev.title} ({ev.date.slice(5)})
-                      </button>
-                    ))}
-                  </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Canciones ordenadas alfabéticamente (A–Z) · Toca cualquiera para abrir cifrado y transpositor:
+              </p>
+              <span className="text-xs font-mono font-bold text-slate-500">
+                {filteredSongs.length}{' '}
+                {filteredSongs.length === 1 ? 'canción' : 'canciones'}
+              </span>
+            </div>
 
-                  {activeSetlistEvent && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      {activeSetlistEvent.songs.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const firstItem = activeSetlistEvent.songs[0];
-                            const firstSong = songs.find(
-                              (s) => s.id === firstItem.songId
-                            );
-                            if (firstSong) {
-                              setSelectedSongId(firstSong.id);
-                              const targetKey =
-                                firstItem.customKey || firstSong.originalKey;
-                              setSemitoneOffset(
-                                getSemitoneStepsBetweenKeys(
-                                  firstSong.originalKey,
-                                  targetKey
-                                )
-                              );
-                              setIsStageMode(true);
-                            }
-                          }}
-                          className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-xs"
-                        >
-                          <Maximize2 className="w-3.5 h-3.5" />
-                          <span>Modo Atril del Setlist</span>
-                        </button>
-                      )}
-
-                      {isLeader && (
-                        <button
-                          type="button"
-                          onClick={() => setShowManagePlaylistModal(true)}
-                          className={`min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5" />
-                          <span>Editar Setlist</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Lista de canciones del evento seleccionado */}
-                {activeSetlistEvent && (
-                  <div className="space-y-3">
-                    {activeSetlistEvent.rehearsals &&
-                      activeSetlistEvent.rehearsals.length > 0 && (
-                        <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/25 flex flex-wrap items-center justify-between gap-2 text-xs">
-                          <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-semibold">
-                            <Calendar className="w-4 h-4 shrink-0" />
-                            <span>
-                              Esta misma Setlist se ensaya en:{' '}
-                              <strong>
-                                {activeSetlistEvent.rehearsals
-                                  .map(
-                                    (r) =>
-                                      `${r.title} (${r.date.slice(5)} · ${r.time})`
-                                  )
-                                  .join(' · ')}
-                              </strong>
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                    {activeSetlistEvent.songs.length === 0 ? (
-                      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 text-center space-y-3">
-                        <p className="text-xs sm:text-sm text-slate-500">
-                          Este evento aún no tiene canciones asignadas en su Setlist.
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {filteredSongs.map((song) => (
+                <button
+                  key={song.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSongId(song.id);
+                    setSemitoneOffset(0);
+                    setIsFullSheetExpanded(true);
+                  }}
+                  className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors truncate">
+                          {song.title}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          {song.artist}
                         </p>
-                        {isLeader && (
-                          <button
-                            type="button"
-                            onClick={() => setShowManagePlaylistModal(true)}
-                            className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 ${accent.bgClass}`}
-                          >
-                            <Plus className="w-4 h-4" />
-                            <span>Armar Setlist del Evento</span>
-                          </button>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {songHasCloudOrInlineImage(song) && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] font-bold shrink-0">
+                            <ImageIcon className="w-3.5 h-3.5" />
+                            <span>Imagen</span>
+                          </span>
                         )}
+                        <span
+                          className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${accent.softBgClass}`}
+                        >
+                          {song.originalKey}
+                        </span>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                        {activeSetlistEvent.songs.map((evSong, index) => {
-                          const songObj = songs.find(
-                            (s) => s.id === evSong.songId
-                          );
-                          if (!songObj) return null;
-                          const targetKey =
-                            evSong.customKey || songObj.originalKey;
-                          const isKeyTransposed =
-                            targetKey !== songObj.originalKey;
-
-                          return (
-                            <button
-                              key={`${evSong.songId}-${index}`}
-                              type="button"
-                              onClick={() => {
-                                setSelectedSongId(songObj.id);
-                                setIsFullSheetExpanded(true);
-                                setSemitoneOffset(
-                                  getSemitoneStepsBetweenKeys(
-                                    songObj.originalKey,
-                                    targetKey
-                                  )
-                                );
-                              }}
-                              className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-md transition-all flex flex-col justify-between gap-3 group"
-                            >
-                              <div className="space-y-1.5">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <span className="text-[10px] font-mono font-bold text-amber-500 uppercase">
-                                      Orden #{index + 1}
-                                    </span>
-                                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-amber-500 truncate">
-                                      {songObj.title}
-                                    </h3>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    {songHasCloudOrInlineImage(songObj) && (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] font-bold shrink-0">
-                                        <ImageIcon className="w-3.5 h-3.5" />
-                                        <span>Imagen</span>
-                                      </span>
-                                    )}
-                                    <span
-                                      className={`font-mono text-xs font-extrabold px-2.5 py-1 rounded-xl shrink-0 ${
-                                        isKeyTransposed
-                                          ? 'bg-amber-500 text-slate-950'
-                                          : accent.softBgClass
-                                      }`}
-                                    >
-                                      Tono: {targetKey}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <p className="text-xs text-slate-500 truncate">
-                                  Voz: {evSong.vocalLeader || 'Por definir'}
-                                  {evSong.backingVocals &&
-                                  evSong.backingVocals.length > 0
-                                    ? ` · Coros: ${evSong.backingVocals.join(', ')}`
-                                    : ''}
-                                </p>
-                              </div>
-
-                              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] font-mono text-slate-500">
-                                <span>
-                                  {songObj.bpm} BPM · {songObj.timeSignature}
-                                </span>
-                                <span className="font-sans font-bold text-amber-500">
-                                  Abrir cifrado →
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                    </div>
                   </div>
-                )}
-              </>
-            )}
+
+                  <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <span>{song.bpm} BPM</span>
+                      <span>·</span>
+                      <span>{song.timeSignature}</span>
+                      <span>·</span>
+                      <span className="font-sans">{song.style}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-500 shrink-0" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )
       ) : (
@@ -1970,11 +1707,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               className="min-h-[40px] px-3.5 py-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 shadow-2xs"
             >
               <ArrowLeft className="w-4 h-4 text-amber-500" />
-              <span>
-                {activeSubView === 'setlists'
-                  ? 'Volver al Setlist del Evento'
-                  : 'Volver al Repertorio'}
-              </span>
+              <span>Volver al Repertorio</span>
             </button>
 
             {setlistOrderIds.length > 1 && (
@@ -2155,32 +1888,27 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <button
-                    type="button"
-                    onClick={() => setShowLyricsOnly(false)}
-                    className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      !showLyricsOnly
-                        ? `${accent.bgClass}`
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Acordes + Letra</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowLyricsOnly(true)}
-                    className={`min-h-[32px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      showLyricsOnly
-                        ? 'bg-emerald-600 text-white'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Solo Letra</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLyricsOnly((prev) => !prev)}
+                  className={`min-h-[34px] px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                    showLyricsOnly
+                      ? 'bg-emerald-600 text-white border-emerald-500'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-amber-500'
+                  }`}
+                >
+                  {showLyricsOnly ? (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Ver Acordes</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Solo Letra</span>
+                    </>
+                  )}
+                </button>
 
                 <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
                   <button
@@ -2342,31 +2070,16 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       </p>
                     </div>
                   ) : streamedImageUrl ? (
-                    <>
-                      <img
-                        src={streamedImageUrl}
-                        alt={activeSong.title}
-                        onClick={() => {
-                          setImageZoom(1);
-                          setIsImageFullscreen(true);
-                        }}
-                        className="max-w-full h-auto max-h-[70vh] rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
-                        title="Toca para ver en pantalla completa"
-                      />
-                      <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setImageZoom(1);
-                            setIsImageFullscreen(true);
-                          }}
-                          className="px-4 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-2 border border-slate-700 shadow-md"
-                        >
-                          <Maximize2 className="w-4 h-4 text-amber-400" />
-                          <span>Abrir en Pantalla Completa</span>
-                        </button>
-                      </div>
-                    </>
+                    <img
+                      src={streamedImageUrl}
+                      alt={activeSong.title}
+                      onClick={() => {
+                        setImageZoom(1);
+                        setIsImageFullscreen(true);
+                      }}
+                      className="max-w-full h-auto max-h-[70vh] rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
+                      title="Toca para ver en pantalla completa"
+                    />
                   ) : (
                     <div className="flex flex-col items-center gap-3 py-10 text-center max-w-md">
                       <CloudDownload className="w-8 h-8 text-amber-400" />
@@ -2424,6 +2137,14 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   rows={2}
                   value={groupNotesDraft}
                   onChange={(e) => setGroupNotesDraft(e.target.value)}
+                  onBlur={() => {
+                    if (
+                      activeSong &&
+                      groupNotesDraft.trim() !== (activeSong.notes || '').trim()
+                    ) {
+                      handleSaveGroupNotes();
+                    }
+                  }}
                   placeholder="Indicaciones de cortes, intensidad, entradas..."
                   className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                 />
@@ -2451,6 +2172,18 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   rows={2}
                   value={personalNotesDraft}
                   onChange={(e) => setPersonalNotesDraft(e.target.value)}
+                  onBlur={() => {
+                    const currentPersonal =
+                      (activeSong?.personalNotes &&
+                        activeSong.personalNotes[activeMember.id]) ||
+                      '';
+                    if (
+                      activeSong &&
+                      personalNotesDraft.trim() !== currentPersonal.trim()
+                    ) {
+                      handleSavePersonalNotes();
+                    }
+                  }}
                   placeholder="Tus efectos, presets, capo o recordatorios..."
                   className="w-full p-2.5 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                 />
@@ -3386,140 +3119,6 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 Sí, eliminar
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: EDITAR SETLIST DEL EVENTO DESDE EL CANCIONERO */}
-      {showManagePlaylistModal && activeSetlistEvent && isLeader && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 my-8 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Setlist para «{activeSetlistEvent.title}»
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Esta misma lista aplica para el evento y sus ensayos programados.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowManagePlaylistModal(false)}
-                className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {activeSetlistEvent.songs.length > 0 && (
-              <div className="space-y-2">
-                {activeSetlistEvent.songs.map((item, idx) => {
-                  const s = songs.find((x) => x.id === item.songId);
-                  if (!s) return null;
-                  return (
-                    <div
-                      key={`${item.songId}-${idx}`}
-                      className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/30 flex flex-wrap items-center justify-between gap-2"
-                    >
-                      <span className="text-xs font-bold text-slate-900 dark:text-white">
-                        {idx + 1}. {s.title}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          disabled={idx === 0}
-                          onClick={() => moveSetlistSongOrder(idx, -1)}
-                          className="p-1 rounded bg-slate-200 dark:bg-slate-800 text-xs disabled:opacity-30"
-                        >
-                          <ArrowUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={
-                            idx === activeSetlistEvent.songs.length - 1
-                          }
-                          onClick={() => moveSetlistSongOrder(idx, 1)}
-                          className="p-1 rounded bg-slate-200 dark:bg-slate-800 text-xs disabled:opacity-30"
-                        >
-                          <ArrowDown className="w-3.5 h-3.5" />
-                        </button>
-                        <select
-                          value={item.customKey || s.originalKey}
-                          onChange={(e) =>
-                            updateSetlistItemField(s.id, {
-                              customKey: e.target.value,
-                            })
-                          }
-                          className="px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 font-mono text-xs font-bold"
-                        >
-                          {ALL_KEYS.map((k) => (
-                            <option key={k} value={k}>
-                              Tono {k}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => toggleSongInSetlist(s)}
-                          className="text-rose-500 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="space-y-2 pt-2">
-              <input
-                type="text"
-                value={playlistSearchModal}
-                onChange={(e) => setPlaylistSearchModal(e.target.value)}
-                placeholder="Buscar canciones del repertorio para agregar..."
-                className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-              />
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {songs
-                  .filter((s) =>
-                    s.title
-                      .toLowerCase()
-                      .includes(playlistSearchModal.toLowerCase())
-                  )
-                  .map((s) => {
-                    const included = activeSetlistEvent.songs.some(
-                      (i) => i.songId === s.id
-                    );
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => toggleSongInSetlist(s)}
-                        className={`w-full px-3 py-2 rounded-xl border flex items-center justify-between text-xs font-bold ${
-                          included
-                            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                            : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 text-slate-800 dark:text-slate-200'
-                        }`}
-                      >
-                        <span>
-                          {s.title} ({s.originalKey})
-                        </span>
-                        <span>{included ? '✓ Agregada' : '+ Agregar'}</span>
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowManagePlaylistModal(false)}
-              className={`w-full min-h-[44px] rounded-2xl text-xs font-bold ${accent.bgClass}`}
-            >
-              Listo
-            </button>
           </div>
         </div>
       )}

@@ -116,9 +116,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     Boolean(initialOpenGroupScreen)
   );
   const [groupSectionTab, setGroupSectionTab] = useState<
-    'todo' | 'fechas' | 'repertorio' | 'estudio' | 'feed' | 'miembros'
+    'todo' | 'fechas' | 'estudio' | 'feed'
   >('todo');
-  const [groupSongSearch, setGroupSongSearch] = useState('');
   const [novedadesFilter, setNovedadesFilter] = useState<
     'all' | 'eventos' | 'mensajes' | 'repertorio'
   >('all');
@@ -332,8 +331,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               if (f.targetTab === 'cancionero' && f.targetId) {
                 onOpenSongInSongbook(f.targetId);
               } else {
-                handleEnterGroupScreen(grp.id);
-                setGroupSectionTab('repertorio');
+                onNavigate('cancionero');
               }
             },
           });
@@ -381,9 +379,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   // PANTALLA 2: PANTALLA PROPIA DEL GRUPO (FECHAS, FEED, MIEMBROS Y AJUSTES)
   // ===========================================================================
   if (isGroupScreenOpen) {
-    const regularMembers = members.filter((m) => !m.isGuest);
-    const guestMembers = members.filter((m) => Boolean(m.isGuest));
-
     return (
       <div className="space-y-4 w-full max-w-full min-w-0">
         {/* Barra superior de navegación para volver al Inicio Personal */}
@@ -499,25 +494,28 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
           )}
 
-          {/* Pestañas Internas del Grupo: Todo | Fechas | Repertorio | Estudios | Feed | Miembros */}
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-950/70 border border-slate-200/80 dark:border-white/5">
+          {/* Pestañas Internas del Grupo: Todo | Fechas | Canciones | Estudios | Feed */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-950/70 border border-slate-200/80 dark:border-white/5">
             {[
-              { id: 'todo', label: 'Todo del Grupo' },
+              { id: 'todo', label: 'Todo' },
               { id: 'fechas', label: `Fechas (${upcomingEvents.length})` },
-              { id: 'repertorio', label: `Canciones (${songs.length})` },
+              { id: 'canciones', label: `Canciones (${songs.length})` },
               { id: 'estudio', label: `Estudios (${devotionals.length})` },
               {
                 id: 'feed',
                 label: `Feed (${recentActivityFeed.length + alerts.length})`,
               },
-              { id: 'miembros', label: `Miembros (${members.length})` },
             ].map((t) => (
               <button
                 key={t.id}
                 type="button"
-                onClick={() =>
-                  setGroupSectionTab(t.id as typeof groupSectionTab)
-                }
+                onClick={() => {
+                  if (t.id === 'canciones') {
+                    onNavigate('cancionero');
+                  } else {
+                    setGroupSectionTab(t.id as typeof groupSectionTab);
+                  }
+                }}
                 className={`min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all truncate ${
                   groupSectionTab === t.id
                     ? `${accent.bgClass} shadow-2xs`
@@ -530,124 +528,48 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
         </div>
 
-        {/* Accesos rápidos a las herramientas de este grupo */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <button
-            type="button"
-            onClick={() => onNavigate('eventos')}
-            className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 flex items-center gap-2.5 text-left transition-all"
-          >
-            <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${accent.softBgClass}`}
-            >
-              <Calendar className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                Eventos y Roles
-              </p>
-              <p className="text-[11px] text-slate-500 font-mono">
-                {upcomingEvents.length} próximos
-              </p>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigate('cancionero')}
-            className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 flex items-center gap-2.5 text-left transition-all"
-          >
-            <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${accent.softBgClass}`}
-            >
-              <Music className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                Cancionero
-              </p>
-              <p className="text-[11px] text-slate-500 font-mono">
-                {songs.length} canciones
-              </p>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigate('chat')}
-            className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 flex items-center gap-2.5 text-left transition-all"
-          >
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-500 flex items-center justify-center shrink-0">
-              <MessageSquare className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                Chat del Grupo
-              </p>
-              <p className="text-[11px] text-slate-500 truncate">
-                Canales y avisos
-              </p>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigate('devocionales')}
-            className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 flex items-center gap-2.5 text-left transition-all"
-          >
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center shrink-0">
-              <BookOpen className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                Estudios
-              </p>
-              <p className="text-[11px] text-slate-500 font-mono">
-                {devotionals.length} estudios
-              </p>
-            </div>
-          </button>
-        </div>
-
-        {/* SECCIÓN 1 DEL GRUPO: PRÓXIMAS FECHAS Y REPERTORIO */}
+        {/* SECCIÓN 1 DEL GRUPO: RESUMEN COMPACTO DE PRÓXIMAS FECHAS */}
         {(groupSectionTab === 'todo' || groupSectionTab === 'fechas') && (
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Calendar className={`w-4 h-4 ${accent.textClass}`} />
-                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                  Fechas y Eventos de «{identity.ministryName}» ({upcomingEvents.length})
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Calendar className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                  Resumen de Eventos ({upcomingEvents.length})
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigate('eventos')}
-                className={`text-xs font-bold ${accent.textClass} hover:underline flex items-center gap-1`}
+                className={`text-xs font-bold ${accent.textClass} hover:underline flex items-center gap-1 shrink-0`}
               >
-                <span>{isLeader ? 'Administrar / Crear Fechas' : 'Abrir Eventos'}</span>
+                <span>{isLeader ? 'Administrar' : 'Ver todos'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
             {upcomingEvents.length === 0 ? (
-              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-2">
+              <div className="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  No hay fechas próximas programadas en este grupo.
+                  Sin fechas próximas programadas.
                 </p>
                 {isLeader && (
                   <button
                     type="button"
                     onClick={() => onNavigate('eventos')}
-                    className={`min-h-[36px] px-4 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 ${accent.bgClass}`}
+                    className={`px-3 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 ${accent.bgClass}`}
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Programar Fecha</span>
+                    <Plus className="w-3 h-3" />
+                    <span>Crear</span>
                   </button>
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {upcomingEvents.map((ev) => {
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                {(groupSectionTab === 'todo'
+                  ? upcomingEvents.slice(0, 3)
+                  : upcomingEvents
+                ).map((ev) => {
                   const confirmedCount = ev.assignments.filter(
                     (a) => a.rsvpStatus === 'confirmed'
                   ).length;
@@ -656,158 +578,34 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   );
 
                   return (
-                    <div
+                    <button
                       key={ev.id}
-                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-3 min-w-0"
+                      type="button"
+                      onClick={() => onNavigate('eventos')}
+                      className="w-full py-2 first:pt-0.5 last:pb-0.5 flex items-center justify-between gap-3 text-left hover:opacity-85 transition-opacity min-w-0"
                     >
-                      <div className="space-y-1.5 min-w-0">
-                        <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-slate-500">
-                          <span className="font-bold text-amber-600 dark:text-amber-400">
-                            {ev.date} · Cit: {ev.callTime} · Ini: {ev.time}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                          <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                            {ev.date} · {ev.time}
                           </span>
-                          <span>
-                            {confirmedCount}/{ev.assignments.length} conf.
+                          <span className="text-slate-300 dark:text-slate-700">·</span>
+                          <span className="font-bold text-slate-900 dark:text-white truncate">
+                            {ev.title}
                           </span>
                         </div>
-
-                        <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
-                          {ev.title}
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                          {ev.location} · {ev.songs.length}{' '}
-                          {ev.songs.length === 1 ? 'canción' : 'canciones'}
-                          {ev.rehearsals && ev.rehearsals.length > 0
-                            ? ` · ${ev.rehearsals.length} ${
-                                ev.rehearsals.length === 1 ? 'ensayo' : 'ensayos'
-                              }`
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {ev.location} · {ev.songs.length} canc. · {confirmedCount}/
+                          {ev.assignments.length} conf.
+                          {myAssign
+                            ? ` · Tu rol: ${(myAssign.roles || [myAssign.role]).join(' + ')}`
                             : ''}
                         </p>
-
-                        {ev.rehearsals && ev.rehearsals.length > 0 && (
-                          <p className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 truncate">
-                            🎵 Ensayo:{' '}
-                            {ev.rehearsals
-                              .map((r) => `${r.date.slice(5)} (${r.time})`)
-                              .join(' · ')}
-                          </p>
-                        )}
-
-                        {myAssign && (
-                          <p className="text-[11px] text-slate-600 dark:text-slate-300 pt-0.5">
-                            Tu rol:{' '}
-                            <strong className={accent.textClass}>
-                              {(myAssign.roles || [myAssign.role]).join(' + ')}
-                            </strong>{' '}
-                            (
-                            {myAssign.rsvpStatus === 'confirmed'
-                              ? 'Confirmado'
-                              : myAssign.rsvpStatus === 'declined'
-                              ? 'Declinado'
-                              : 'Pendiente'}
-                            )
-                          </p>
-                        )}
                       </div>
-
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-700/60">
-                        <span className="text-[11px] text-slate-500 truncate">
-                          Inicio: {ev.time} hrs
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => onNavigate('eventos')}
-                          className="px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 hover:border-amber-500 shrink-0"
-                        >
-                          Ver Fecha y Ensayos →
-                        </button>
-                      </div>
-                    </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    </button>
                   );
                 })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* SECCIÓN 1.5 DEL GRUPO: REPERTORIO Y CANCIONES DE ESTE GRUPO */}
-        {(groupSectionTab === 'todo' || groupSectionTab === 'repertorio') && (
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Music className={`w-4 h-4 ${accent.textClass}`} />
-                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                  Repertorio y Canciones de «{identity.ministryName}» ({songs.length})
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => onNavigate('cancionero')}
-                className={`min-h-[34px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
-              >
-                <Music className="w-3.5 h-3.5" />
-                <span>Abrir Cancionero y Setlists</span>
-              </button>
-            </div>
-
-            {songs.length > 0 && (
-              <input
-                type="text"
-                value={groupSongSearch}
-                onChange={(e) => setGroupSongSearch(e.target.value)}
-                placeholder="Buscar canción dentro del repertorio de este grupo..."
-                className="w-full min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white"
-              />
-            )}
-
-            {songs.length === 0 ? (
-              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-2">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Aún no hay canciones registradas en el repertorio de este grupo.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('cancionero')}
-                  className={`min-h-[36px] px-4 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 ${accent.bgClass}`}
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Subir Primera Canción</span>
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {songs
-                  .filter((s) => {
-                    const q = groupSongSearch.trim().toLowerCase();
-                    if (!q) return true;
-                    return (
-                      s.title.toLowerCase().includes(q) ||
-                      s.artist.toLowerCase().includes(q)
-                    );
-                  })
-                  .slice(0, groupSectionTab === 'repertorio' ? 30 : 6)
-                  .map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => onOpenSongInSongbook(s.id)}
-                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2.5 text-left transition-colors min-w-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                          {s.title}
-                        </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                          {s.artist} · {s.bpm} BPM
-                        </p>
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded-lg font-mono text-xs font-bold shrink-0 ${accent.softBgClass}`}
-                      >
-                        {s.originalKey}
-                      </span>
-                    </button>
-                  ))}
               </div>
             )}
           </div>
@@ -835,21 +633,16 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             {devotionals.length === 0 ? (
-              <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-center space-y-2">
-                <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
-                <p className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">
+              <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-center space-y-2">
+                <BookOpen className="w-7 h-7 text-slate-400 mx-auto" />
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Aún no se han publicado estudios bíblicos en este grupo.
-                </p>
-                <p className="text-[11px] text-slate-500 max-w-md mx-auto">
-                  {isLeader
-                    ? 'Como líder puedes crear series temáticas, lecciones bíblicas y lecturas para fortalecer espiritualmente a la banda.'
-                    : 'Tu líder de alabanza publicará aquí las sesiones y devocionales para el equipo.'}
                 </p>
                 {isLeader && (
                   <button
                     type="button"
                     onClick={() => onNavigate('devocionales')}
-                    className={`mt-2 min-h-[34px] px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 ${accent.bgClass}`}
+                    className={`mt-1 min-h-[32px] px-3 py-1 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 ${accent.bgClass}`}
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Crear Primer Estudio</span>
@@ -922,89 +715,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 })}
               </div>
             )}
-          </div>
-        )}
-
-        {/* SECCIÓN 2 DEL GRUPO: MIEMBROS DEL GRUPO */}
-        {(groupSectionTab === 'todo' || groupSectionTab === 'miembros') && (
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-emerald-500" />
-                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                  Miembros del Grupo ({regularMembers.length} titulares
-                  {guestMembers.length > 0
-                    ? ` · ${guestMembers.length} suplentes`
-                    : ''}
-                  )
-                </h2>
-              </div>
-
-              {!activeMember.isGuest && (
-                <button
-                  type="button"
-                  onClick={() => onOpenIdentityModal('invitaciones')}
-                  className={`min-h-[34px] px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>Administrar Miembros</span>
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {members.map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => onOpenMusicianProfile(m.id, 'perfil')}
-                  className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2.5 text-left transition-colors min-w-0"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden ${
-                        m.role === 'leader'
-                          ? 'bg-amber-500 text-slate-950'
-                          : m.isGuest
-                          ? 'bg-indigo-500 text-white'
-                          : 'bg-sky-500 text-white'
-                      }`}
-                    >
-                      {m.avatarUrl ? (
-                        <img
-                          src={m.avatarUrl}
-                          alt={m.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        m.avatarInitials
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-                          {m.name}
-                        </p>
-                        {m.role === 'leader' && (
-                          <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[9px] font-bold shrink-0">
-                            Líder
-                          </span>
-                        )}
-                        {m.isGuest && (
-                          <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-500 dark:text-indigo-300 text-[9px] font-bold shrink-0">
-                            Suplente
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                        {m.instruments.join(', ') || 'Músico'}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
@@ -1147,15 +857,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => onOpenMusicianProfile(resolvedUserId, 'perfil')}
-            className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 transition-colors"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span>Mi Perfil</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => onOpenMusicianProfile(resolvedUserId, 'amigos')}
             className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-xs font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5 transition-colors"
           >
@@ -1255,66 +956,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         </div>
       </div>
 
-      {/* 3. ACCESOS RÁPIDOS PERSONALES (SIN CANCIONERO: EL REPERTORIO VIVE DENTRO DE CADA GRUPO) */}
-      <div className="grid grid-cols-3 gap-2">
-        <button
-          type="button"
-          onClick={() => onNavigate('eventos')}
-          className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 flex items-center gap-2.5 text-left transition-transform active:scale-[0.99]"
-        >
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${accent.softBgClass}`}
-          >
-            <Calendar className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-              Eventos
-            </p>
-            <p className="text-[10px] text-slate-500 font-mono truncate">
-              {upcomingEvents.length} próximos
-            </p>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onNavigate('herramientas')}
-          className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 flex items-center gap-2.5 text-left transition-transform active:scale-[0.99]"
-        >
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center shrink-0">
-            <Sliders className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-              Herramientas
-            </p>
-            <p className="text-[10px] text-slate-500 truncate">
-              Afinador y Clic
-            </p>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onNavigate('chat')}
-          className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 flex items-center gap-2.5 text-left transition-transform active:scale-[0.99]"
-        >
-          <div className="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-500 flex items-center justify-center shrink-0">
-            <MessageSquare className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-              Chat y DM
-            </p>
-            <p className="text-[10px] text-slate-500 truncate">
-              Mensajes directos
-            </p>
-          </div>
-        </button>
-      </div>
-
-      {/* 4. DOS COLUMNAS LIMPIAS: TU AGENDA PERSONAL + NOVEDADES RESUMIDAS DE TUS GRUPOS */}
+      {/* 3. DOS COLUMNAS LIMPIAS: TU AGENDA PERSONAL + NOVEDADES RESUMIDAS DE TUS GRUPOS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Columna Izquierda (6 cols): Tu Asistencia y Próximas Fechas (en todos tus grupos) */}
         <div className="lg:col-span-6 space-y-2">

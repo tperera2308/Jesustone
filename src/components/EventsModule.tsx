@@ -1642,27 +1642,52 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               <span>Volver a las Tarjetas de Eventos</span>
             </button>
 
-            {filteredEvents.length > 1 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-                {filteredEvents.map((ev) => (
-                  <button
-                    key={ev.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedEventId(ev.id);
-                      setOpenedEventId(ev.id);
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                      activeEvent.id === ev.id
-                        ? `${accent.bgClass} shadow-xs`
-                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    {ev.title} ({ev.date.slice(5)})
-                  </button>
-                ))}
-              </div>
-            )}
+            {filteredEvents.length > 1 &&
+              (() => {
+                const currentEvIdx = filteredEvents.findIndex(
+                  (e) => e.id === activeEvent.id
+                );
+                return (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const prevIdx =
+                          (currentEvIdx - 1 + filteredEvents.length) %
+                          filteredEvents.length;
+                        const target = filteredEvents[prevIdx];
+                        if (target) {
+                          setSelectedEventId(target.id);
+                          setOpenedEventId(target.id);
+                        }
+                      }}
+                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Anterior</span>
+                    </button>
+                    <span className="text-xs font-mono font-bold text-slate-500 px-1">
+                      {currentEvIdx + 1}/{filteredEvents.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextIdx =
+                          (currentEvIdx + 1) % filteredEvents.length;
+                        const target = filteredEvents[nextIdx];
+                        if (target) {
+                          setSelectedEventId(target.id);
+                          setOpenedEventId(target.id);
+                        }
+                      }}
+                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                    >
+                      <span>Siguiente</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })()}
           </div>
 
           <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-6">
@@ -1706,19 +1731,6 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   <CalendarPlus className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span>Sincronizar Calendario</span>
                 </button>
-
-                {activeEvent.spotifyPlaylistUrl && (
-                  <a
-                    href={activeEvent.spotifyPlaylistUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 min-h-[34px] px-2.5 py-1.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs shadow-xs transition-colors"
-                    title="Escuchar playlist del evento en Spotify"
-                  >
-                    <Headphones className="w-3.5 h-3.5 text-black" />
-                    <span>Spotify</span>
-                  </a>
-                )}
 
                 {isLeader && (
                   <>
@@ -3475,6 +3487,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       (editorBpmFilter === 'fast' && song.bpm > 110);
                     return matchesQ && matchesKey && matchesBpm;
                   })
+                  .slice()
+                  .sort((a, b) =>
+                    a.title.localeCompare(b.title, 'es', {
+                      sensitivity: 'base',
+                    })
+                  )
                   .map((song) => {
                     const included = activeEvent.songs.some(
                       (s) => s.songId === song.id
@@ -4200,6 +4218,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           song.artist.toLowerCase().includes(q)
                         );
                       })
+                      .slice()
+                      .sort((a, b) =>
+                        a.title.localeCompare(b.title, 'es', {
+                          sensitivity: 'base',
+                        })
+                      )
                       .slice(
                         0,
                         songSearchCreate.trim() || createKeyFilter !== 'all'

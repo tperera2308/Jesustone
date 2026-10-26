@@ -3139,7 +3139,13 @@ export default function App() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    if (item.id === 'inicio') setReturnToGroupScreen(false);
+                    if (item.id === 'cancionero') {
+                      setSelectedSongNav({ songId: null, customKey: null });
+                    }
+                    setActiveTab(item.id);
+                  }}
                   className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
                     isActive
                       ? `text-slate-900 dark:text-white font-bold border-current ${accent.textClass}`
@@ -3495,6 +3501,9 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   if (item.id === 'inicio') setReturnToGroupScreen(false);
+                  if (item.id === 'cancionero') {
+                    setSelectedSongNav({ songId: null, customKey: null });
+                  }
                   setActiveTab(item.id);
                 }}
                 className={`min-h-[48px] flex flex-col items-center justify-center rounded-2xl transition-all ${

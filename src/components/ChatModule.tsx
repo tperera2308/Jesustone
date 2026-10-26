@@ -620,7 +620,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={onExitFullScreenChat}
-                  className="min-h-[36px] px-2.5 py-1 rounded-xl bg-[#383a40] hover:bg-[#404249] text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
+                  className="sm:hidden min-h-[36px] px-2.5 py-1 rounded-xl bg-[#383a40] hover:bg-[#404249] text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
                 >
                   <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
                   <span>Menú Principal</span>
@@ -1760,11 +1760,18 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                           Selecciona una canción para compartir copia con{' '}
                           {selectedFriend.name}...
                         </option>
-                        {songs.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.title} ({s.originalKey}) — {s.artist}
-                          </option>
-                        ))}
+                        {songs
+                          .slice()
+                          .sort((a, b) =>
+                            a.title.localeCompare(b.title, 'es', {
+                              sensitivity: 'base',
+                            })
+                          )
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.title} ({s.originalKey}) — {s.artist}
+                            </option>
+                          ))}
                       </select>
                       <button
                         type="button"
@@ -2295,12 +2302,19 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                         <option value="">
                           Selecciona una canción del Repertorio para adjuntar...
                         </option>
-                        {currentGroupSongs.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.title} ({s.originalKey}) — Subida por{' '}
-                            {s.addedByName}
-                          </option>
-                        ))}
+                        {currentGroupSongs
+                          .slice()
+                          .sort((a, b) =>
+                            a.title.localeCompare(b.title, 'es', {
+                              sensitivity: 'base',
+                            })
+                          )
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.title} ({s.originalKey}) — Subida por{' '}
+                              {s.addedByName}
+                            </option>
+                          ))}
                       </select>
                       <button
                         type="button"
