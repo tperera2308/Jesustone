@@ -14,6 +14,7 @@ import {
   BrandIconId,
   ChatChannelId,
   ChatMessage,
+  CustomChatChannel,
   Devotional,
   DirectMessage,
   EventSongItem,
@@ -62,6 +63,7 @@ import {
 } from './utils/pushNotifications';
 import {
   clearAllCloudData,
+  deleteChannelMessagesFromFirestore,
   deleteChatMessageFromFirestore,
   deleteDirectMessageFromFirestore,
   deleteNotificationFromFirestore,
@@ -188,6 +190,24 @@ function recordDeletedId(storageKey: string, id: string): void {
   }
 }
 
+function appendGroupDeletedIds(
+  existingDeletedIds: string[] | undefined,
+  ...newIds: string[]
+): string[] {
+  const combined = Array.from(
+    new Set([...(existingDeletedIds || []), ...newIds.filter(Boolean)])
+  );
+  return combined.slice(-200);
+}
+
+function isRecentlyCreatedLocally(id: string, maxAgeMs = 8000): boolean {
+  const match = id.match(/-(\d{13})\b/);
+  if (!match) return false;
+  const createdMs = Number(match[1]);
+  if (Number.isNaN(createdMs)) return false;
+  return Date.now() - createdMs < maxAgeMs;
+}
+
 function extractMentionedUsernames(text: string): string[] {
   const matches = text.match(/@([\w._-]+)/g) || [];
   return Array.from(
@@ -294,16 +314,72 @@ export default function App() {
           const deletedEvents = new Set<string>(
             loadFromStorage<string[]>(STORAGE_KEYS.DELETED_EVENT_IDS, [])
           );
+          const deletedMsgs = new Set<string>(
+            loadFromStorage<string[]>(STORAGE_KEYS.DELETED_MSG_IDS, [])
+          );
 
           setGroups((prevLocalGroups) => {
             const cloudGroupIds = new Set(cloudGroups.map((cg) => cg.id));
             const mergedGroups: WorshipGroup[] = cloudGroups.map((cloudGrp) => {
               const localGrp = prevLocalGroups.find((g) => g.id === cloudGrp.id);
-              if (!localGrp) return enrichGroupIndexes(cloudGrp);
+              const combinedDeletedList = appendGroupDeletedIds(
+                cloudGrp.deletedIds,
+                ...(localGrp?.deletedIds || [])
+              );
+              const groupDeletedSet = new Set<string>([
+                ...combinedDeletedList,
+                ...deletedSongs,
+                ...deletedEvents,
+                ...deletedMsgs,
+              ]);
+
+              // Sincronizar IDs eliminados en la nube hacia el almacenamiento local de este dispositivo
+              for (const delId of cloudGrp.deletedIds || []) {
+                if (delId.startsWith('ev-') && !deletedEvents.has(delId)) {
+                  deletedEvents.add(delId);
+                  recordDeletedId(STORAGE_KEYS.DELETED_EVENT_IDS, delId);
+                } else if (delId.startsWith('s-') && !deletedSongs.has(delId)) {
+                  deletedSongs.add(delId);
+                  recordDeletedId(STORAGE_KEYS.DELETED_SONG_IDS, delId);
+                } else if (delId.startsWith('msg-') && !deletedMsgs.has(delId)) {
+                  deletedMsgs.add(delId);
+                  recordDeletedId(STORAGE_KEYS.DELETED_MSG_IDS, delId);
+                }
+              }
+
+              if (!localGrp) {
+                return enrichGroupIndexes({
+                  ...cloudGrp,
+                  songs: (cloudGrp.songs || []).filter(
+                    (s) => !groupDeletedSet.has(s.id)
+                  ),
+                  events: (cloudGrp.events || []).filter(
+                    (e) => !groupDeletedSet.has(e.id)
+                  ),
+                  devotionals: (cloudGrp.devotionals || []).filter(
+                    (d) => !groupDeletedSet.has(d.id)
+                  ),
+                  alerts: (cloudGrp.alerts || []).filter(
+                    (a) => !groupDeletedSet.has(a.id)
+                  ),
+                  availabilityRecords: (
+                    cloudGrp.availabilityRecords || []
+                  ).filter((r) => !groupDeletedSet.has(r.id)),
+                  customChannels: (cloudGrp.customChannels || []).filter(
+                    (ch) => !groupDeletedSet.has(ch.id)
+                  ),
+                  chatMessages: (cloudGrp.chatMessages || []).filter(
+                    (m) =>
+                      !groupDeletedSet.has(m.id) &&
+                      !groupDeletedSet.has(m.channel)
+                  ),
+                  deletedIds: combinedDeletedList,
+                });
+              }
 
               const cloudSongMap = new Map(
                 (cloudGrp.songs || [])
-                  .filter((s) => !deletedSongs.has(s.id))
+                  .filter((s) => !groupDeletedSet.has(s.id))
                   .map((s) => [s.id, s])
               );
 
@@ -311,10 +387,13 @@ export default function App() {
               const mergedSongs: Song[] = [];
               const seenSongIds = new Set<string>();
 
-              // 1. Conservar canciones agregadas localmente que aún no estaban en el snapshot de la nube
+              // 1. Conservar únicamente canciones recién creadas localmente (<8s) cuyo envío a la nube esté en vuelo
               for (const localSong of localGrp.songs || []) {
-                if (deletedSongs.has(localSong.id)) continue;
-                if (!cloudSongMap.has(localSong.id)) {
+                if (groupDeletedSet.has(localSong.id)) continue;
+                if (
+                  !cloudSongMap.has(localSong.id) &&
+                  isRecentlyCreatedLocally(localSong.id)
+                ) {
                   mergedSongs.push(localSong);
                   seenSongIds.add(localSong.id);
                   needsResync = true;
@@ -325,7 +404,7 @@ export default function App() {
               // 2. Añadir canciones de la nube (conservando adjuntos locales si el documento de grupo fue compactado)
               for (const cloudSong of cloudGrp.songs || []) {
                 if (
-                  deletedSongs.has(cloudSong.id) ||
+                  groupDeletedSet.has(cloudSong.id) ||
                   seenSongIds.has(cloudSong.id)
                 ) {
                   continue;
@@ -342,22 +421,25 @@ export default function App() {
                 seenSongIds.add(cloudSong.id);
               }
 
-              if ((cloudGrp.songs || []).some((s) => deletedSongs.has(s.id))) {
+              if ((cloudGrp.songs || []).some((s) => groupDeletedSet.has(s.id))) {
                 needsResync = true;
               }
 
-              // 3. Conservar eventos locales + eventos de la nube
+              // 3. Eventos: la nube es autoritativa; solo conservar eventos locales creados hace <8s en vuelo
               const cloudEventMap = new Map(
                 (cloudGrp.events || [])
-                  .filter((e) => !deletedEvents.has(e.id))
+                  .filter((e) => !groupDeletedSet.has(e.id))
                   .map((e) => [e.id, e])
               );
               const mergedEvents: WorshipEvent[] = [];
               const seenEventIds = new Set<string>();
 
               for (const localEv of localGrp.events || []) {
-                if (deletedEvents.has(localEv.id)) continue;
-                if (!cloudEventMap.has(localEv.id)) {
+                if (groupDeletedSet.has(localEv.id)) continue;
+                if (
+                  !cloudEventMap.has(localEv.id) &&
+                  isRecentlyCreatedLocally(localEv.id)
+                ) {
                   mergedEvents.push(localEv);
                   seenEventIds.add(localEv.id);
                   needsResync = true;
@@ -366,23 +448,58 @@ export default function App() {
 
               for (const cloudEv of cloudGrp.events || []) {
                 if (
-                  deletedEvents.has(cloudEv.id) ||
+                  groupDeletedSet.has(cloudEv.id) ||
                   seenEventIds.has(cloudEv.id)
                 ) {
                   continue;
                 }
-                mergedEvents.push(cloudEv);
+                mergedEvents.push({
+                  ...cloudEv,
+                  songs: (cloudEv.songs || []).filter(
+                    (item) => !groupDeletedSet.has(item.songId)
+                  ),
+                });
                 seenEventIds.add(cloudEv.id);
+              }
+
+              if ((cloudGrp.events || []).some((e) => groupDeletedSet.has(e.id))) {
+                needsResync = true;
               }
 
               if (!cloudGrp.memberIds || cloudGrp.memberIds.length === 0) {
                 needsResync = true;
               }
 
+              const mergedCustomChannels = (
+                cloudGrp.customChannels || []
+              ).filter((ch) => !groupDeletedSet.has(ch.id));
+
+              const validChannelIds = new Set<string>([
+                'general',
+                ...mergedCustomChannels.map((ch) => ch.id),
+              ]);
+
               const mergedGroup: WorshipGroup = enrichGroupIndexes({
                 ...cloudGrp,
                 songs: mergedSongs,
                 events: mergedEvents,
+                devotionals: (cloudGrp.devotionals || []).filter(
+                  (d) => !groupDeletedSet.has(d.id)
+                ),
+                alerts: (cloudGrp.alerts || []).filter(
+                  (a) => !groupDeletedSet.has(a.id)
+                ),
+                availabilityRecords: (
+                  cloudGrp.availabilityRecords || []
+                ).filter((r) => !groupDeletedSet.has(r.id)),
+                customChannels: mergedCustomChannels,
+                chatMessages: (cloudGrp.chatMessages || []).filter(
+                  (m) =>
+                    !groupDeletedSet.has(m.id) &&
+                    !groupDeletedSet.has(m.channel) &&
+                    validChannelIds.has(m.channel)
+                ),
+                deletedIds: combinedDeletedList,
               });
 
               if (needsResync) {
@@ -392,9 +509,9 @@ export default function App() {
               return mergedGroup;
             });
 
-            // Conservar grupos locales del usuario que aún no hayan subido o que no vinieron en el filtro
+            // Conservar grupos locales recién creados (<8s) que aún estén subiendo
             for (const localG of prevLocalGroups) {
-              if (!cloudGroupIds.has(localG.id)) {
+              if (!cloudGroupIds.has(localG.id) && isRecentlyCreatedLocally(localG.id, 15000)) {
                 const enrichedLocal = enrichGroupIndexes(localG);
                 mergedGroups.push(enrichedLocal);
                 if (
@@ -415,14 +532,24 @@ export default function App() {
           );
           setGroups((prevGroups) =>
             prevGroups.map((grp) => {
-              const extraSongs = (songsByGroup[grp.id] || []).filter(
-                (s) => !deletedSongs.has(s.id)
+              const groupDeletedSet = new Set<string>([
+                ...deletedSongs,
+                ...(grp.deletedIds || []),
+              ]);
+              const cloudGroupSongs = songsByGroup[grp.id];
+              const extraSongs = (cloudGroupSongs || []).filter(
+                (s) => !groupDeletedSet.has(s.id)
               );
-              if (extraSongs.length === 0) return grp;
 
-              const existingMap = new Map(grp.songs.map((s) => [s.id, s]));
-              let changed = false;
-              const nextSongs = [...grp.songs];
+              // Filtrar cualquier canción que haya sido marcada como eliminada
+              const filteredExisting = grp.songs.filter(
+                (s) => !groupDeletedSet.has(s.id)
+              );
+              let changed = filteredExisting.length !== grp.songs.length;
+              const existingMap = new Map(
+                filteredExisting.map((s) => [s.id, s])
+              );
+              const nextSongs = [...filteredExisting];
 
               for (const extSong of extraSongs) {
                 const existing = existingMap.get(extSong.id);
@@ -455,17 +582,37 @@ export default function App() {
           setGroups((prevGroups) =>
             prevGroups.map((grp) => {
               if (grp.id !== groupId) return grp;
+              const groupDeletedSet = new Set<string>([
+                ...deletedMsgs,
+                ...(grp.deletedIds || []),
+              ]);
+              const validChannelIds = new Set<string>([
+                'general',
+                ...(grp.customChannels || []).map((c) => c.id),
+              ]);
               const validCloud = cloudMessages.filter(
-                (m) => !deletedMsgs.has(m.id)
+                (m) =>
+                  !groupDeletedSet.has(m.id) &&
+                  !groupDeletedSet.has(m.channel) &&
+                  validChannelIds.has(m.channel)
               );
-              if (validCloud.length === 0) return grp;
 
               const cloudMap = new Map(validCloud.map((m) => [m.id, m]));
               const combined: ChatMessage[] = [...validCloud];
 
               for (const localMsg of grp.chatMessages || []) {
-                if (deletedMsgs.has(localMsg.id)) continue;
-                if (!cloudMap.has(localMsg.id)) {
+                if (
+                  groupDeletedSet.has(localMsg.id) ||
+                  groupDeletedSet.has(localMsg.channel) ||
+                  !validChannelIds.has(localMsg.channel)
+                ) {
+                  continue;
+                }
+                const isRecentLocal =
+                  (localMsg.createdAtMs &&
+                    Date.now() - localMsg.createdAtMs < 8000) ||
+                  isRecentlyCreatedLocally(localMsg.id);
+                if (!cloudMap.has(localMsg.id) && isRecentLocal) {
                   combined.push(localMsg);
                   syncChatMessageToFirestore(groupId, localMsg);
                 }
@@ -2199,7 +2346,28 @@ export default function App() {
     updateActiveGroup((g) => ({
       ...g,
       events: g.events.filter((e) => e.id !== eventId),
+      members: g.members.map((m) =>
+        m.guestEventIds?.includes(eventId)
+          ? {
+              ...m,
+              guestEventIds: m.guestEventIds.filter((id) => id !== eventId),
+            }
+          : m
+      ),
+      activityFeed: (g.activityFeed || []).filter(
+        (f) => f.targetId !== eventId
+      ),
+      deletedIds: appendGroupDeletedIds(g.deletedIds, eventId),
     }));
+    // Purgar notificaciones asociadas al evento eliminado para todos los participantes
+    setNotifications((prev) => {
+      prev.forEach((n) => {
+        if (n.targetId === eventId) {
+          deleteNotificationFromFirestore(n.id);
+        }
+      });
+      return prev.filter((n) => n.targetId !== eventId);
+    });
   };
 
   const handleAddAlert = (newAlert: Omit<NoticeAlert, 'id' | 'createdAt'>) => {
@@ -2234,6 +2402,7 @@ export default function App() {
     updateActiveGroup((g) => ({
       ...g,
       alerts: g.alerts.filter((a) => a.id !== alertId),
+      deletedIds: appendGroupDeletedIds(g.deletedIds, alertId),
     }));
   };
 
@@ -2272,6 +2441,7 @@ export default function App() {
       availabilityRecords: (g.availabilityRecords || []).filter(
         (r) => r.id !== recordId
       ),
+      deletedIds: appendGroupDeletedIds(g.deletedIds, recordId),
     }));
   };
 
@@ -2349,7 +2519,17 @@ export default function App() {
         ...ev,
         songs: ev.songs.filter((item) => item.songId !== songId),
       })),
+      activityFeed: (g.activityFeed || []).filter((f) => f.targetId !== songId),
+      deletedIds: appendGroupDeletedIds(g.deletedIds, songId),
     }));
+    setNotifications((prev) => {
+      prev.forEach((n) => {
+        if (n.targetId === songId) {
+          deleteNotificationFromFirestore(n.id);
+        }
+      });
+      return prev.filter((n) => n.targetId !== songId);
+    });
   };
 
   const handleOpenSongInSongbook = (
@@ -2543,7 +2723,17 @@ export default function App() {
     updateActiveGroup((g) => ({
       ...g,
       devotionals: g.devotionals.filter((d) => d.id !== devId),
+      activityFeed: (g.activityFeed || []).filter((f) => f.targetId !== devId),
+      deletedIds: appendGroupDeletedIds(g.deletedIds, devId),
     }));
+    setNotifications((prev) => {
+      prev.forEach((n) => {
+        if (n.targetId === devId) {
+          deleteNotificationFromFirestore(n.id);
+        }
+      });
+      return prev.filter((n) => n.targetId !== devId);
+    });
   };
 
   const handleSendChatMessage = (
@@ -2681,16 +2871,141 @@ export default function App() {
     messageId: string,
     targetGroupId?: string
   ) => {
+    const resolvedGroupId = targetGroupId || activeGroup.id;
+    const targetGrp = groups.find((g) => g.id === resolvedGroupId);
+    const targetMsg = targetGrp?.chatMessages.find((m) => m.id === messageId);
+    if (targetMsg?.voiceClipUrl && targetMsg.voiceClipUrl.startsWith('http')) {
+      deleteMediaFromStorage(targetMsg.voiceClipUrl);
+    }
     recordDeletedId(STORAGE_KEYS.DELETED_MSG_IDS, messageId);
     deleteChatMessageFromFirestore(messageId);
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== resolvedGroupId) return g;
+        const updatedGroup: WorshipGroup = {
+          ...g,
+          chatMessages: (g.chatMessages || []).filter(
+            (m) => m.id !== messageId
+          ),
+          deletedIds: appendGroupDeletedIds(g.deletedIds, messageId),
+        };
+        syncGroupToFirestore(updatedGroup);
+        return updatedGroup;
+      })
+    );
+  };
+
+  const handleTogglePinChatMessage = (
+    messageId: string,
+    targetGroupId?: string
+  ) => {
     const resolvedGroupId = targetGroupId || activeGroup.id;
     setGroups((prev) =>
       prev.map((g) => {
         if (g.id !== resolvedGroupId) return g;
-        return {
+        const updatedGroup: WorshipGroup = {
           ...g,
-          chatMessages: (g.chatMessages || []).filter((m) => m.id !== messageId),
+          chatMessages: (g.chatMessages || []).map((m) => {
+            if (m.id !== messageId) return m;
+            const updatedMsg: ChatMessage = {
+              ...m,
+              isPinned: !m.isPinned,
+            };
+            syncChatMessageToFirestore(g.id, updatedMsg);
+            return updatedMsg;
+          }),
         };
+        syncGroupToFirestore(updatedGroup);
+        return updatedGroup;
+      })
+    );
+  };
+
+  const handleCreateCustomChannel = (
+    groupId: string,
+    rawName: string,
+    description?: string
+  ): string | null => {
+    const cleanName = rawName
+      .trim()
+      .toLowerCase()
+      .replace(/^#+/, '')
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-_áéíóúñü]/gi, '')
+      .slice(0, 32);
+
+    if (!cleanName || cleanName === 'general') return null;
+
+    const channelId = `ch-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 6)}`;
+    const newChannel: CustomChatChannel = {
+      id: channelId,
+      name: cleanName,
+      description:
+        description?.trim() ||
+        `Canal personalizado #${cleanName} creado por el Líder`,
+      createdBy: activeMember.name,
+      createdAt: new Date().toISOString(),
+    };
+
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== groupId) return g;
+        const existing = g.customChannels || [];
+        if (
+          existing.some(
+            (c) => c.name.toLowerCase() === cleanName.toLowerCase()
+          )
+        ) {
+          return g;
+        }
+        const updatedGroup: WorshipGroup = {
+          ...g,
+          customChannels: [...existing, newChannel],
+        };
+        syncGroupToFirestore(updatedGroup);
+        return updatedGroup;
+      })
+    );
+
+    return channelId;
+  };
+
+  const handleDeleteCustomChannel = (groupId: string, channelId: string) => {
+    if (!channelId || channelId === 'general') return;
+    deleteChannelMessagesFromFirestore(groupId, channelId);
+
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.id !== groupId) return g;
+        const msgsInChannel = (g.chatMessages || []).filter(
+          (m) => m.channel === channelId
+        );
+        msgsInChannel.forEach((m) => {
+          if (m.voiceClipUrl && m.voiceClipUrl.startsWith('http')) {
+            deleteMediaFromStorage(m.voiceClipUrl);
+          }
+          recordDeletedId(STORAGE_KEYS.DELETED_MSG_IDS, m.id);
+          deleteChatMessageFromFirestore(m.id);
+        });
+        const msgIdsToDelete = msgsInChannel.map((m) => m.id);
+        const updatedGroup: WorshipGroup = {
+          ...g,
+          customChannels: (g.customChannels || []).filter(
+            (c) => c.id !== channelId
+          ),
+          chatMessages: (g.chatMessages || []).filter(
+            (m) => m.channel !== channelId
+          ),
+          deletedIds: appendGroupDeletedIds(
+            g.deletedIds,
+            channelId,
+            ...msgIdsToDelete
+          ),
+        };
+        syncGroupToFirestore(updatedGroup);
+        return updatedGroup;
       })
     );
   };
@@ -3159,6 +3474,9 @@ export default function App() {
               }
               onSendMessage={handleSendChatMessage}
               onDeleteMessage={handleDeleteChatMessage}
+              onTogglePinMessage={handleTogglePinChatMessage}
+              onCreateChannel={handleCreateCustomChannel}
+              onDeleteChannel={handleDeleteCustomChannel}
               onTogglePrayerReaction={handleTogglePrayerReaction}
               onOpenSongFromChat={(songId) => handleOpenSongInSongbook(songId)}
               onExitFullScreenChat={() => {

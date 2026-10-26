@@ -61,6 +61,9 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
   );
   const [commentInput, setCommentInput] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [confirmDeleteDevId, setConfirmDeleteDevId] = useState<string | null>(
+    null
+  );
 
   // New Study (Multi-Session) Form State
   const [newTitle, setNewTitle] = useState('');
@@ -398,14 +401,39 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
                       </button>
 
                       {userRole === 'leader' && onDeleteDevotional && (
-                        <button
-                          type="button"
-                          onClick={() => onDeleteDevotional(activeDev.id)}
-                          className="min-h-[44px] px-3 py-2 rounded-2xl border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
-                          title="Eliminar estudio"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        confirmDeleteDevId === activeDev.id ? (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-rose-500/10 border border-rose-500/30">
+                            <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                              ¿Eliminar para todos?
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onDeleteDevotional(activeDev.id);
+                                setConfirmDeleteDevId(null);
+                              }}
+                              className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold"
+                            >
+                              Sí
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteDevId(null)}
+                              className="px-2 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteDevId(activeDev.id)}
+                            className="min-h-[44px] px-3 py-2 rounded-2xl border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
+                            title="Eliminar estudio"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )
                       )}
                     </div>
                   </div>

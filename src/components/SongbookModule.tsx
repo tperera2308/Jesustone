@@ -271,9 +271,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
   // Auto-scroll en Modo Escenario (Atril en Vivo)
   const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
-  const [scrollSpeed, setScrollSpeed] = useState<'slow' | 'medium' | 'fast'>(
-    'medium'
-  );
+  const [scrollSpeed, setScrollSpeed] = useState<
+    'slow' | 'bpm' | 'medium' | 'fast'
+  >('bpm');
   const stageScrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Metrónomo rápido en vivo dentro del Modo Escenario
@@ -402,14 +402,22 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     setSavedFeedbackMessage(null);
   }, [activeSong?.id, activeMember.id]);
 
-  // Auto-scroll effect in Stage Mode
+  // Auto-scroll effect in Stage Mode (con sincronización a BPM de la canción)
   useEffect(() => {
     if (!isStageMode || !isAutoScrolling) return;
     const container = stageScrollContainerRef.current;
     if (!container) return;
 
+    const songBpm = Math.max(45, Math.min(200, activeSong?.bpm || 75));
+    const bpmSyncedMs = Math.max(22, Math.min(85, Math.round(4200 / songBpm)));
     const intervalMs =
-      scrollSpeed === 'slow' ? 75 : scrollSpeed === 'medium' ? 45 : 25;
+      scrollSpeed === 'slow'
+        ? 75
+        : scrollSpeed === 'bpm'
+        ? bpmSyncedMs
+        : scrollSpeed === 'medium'
+        ? 45
+        : 25;
     const timer = window.setInterval(() => {
       if (container) {
         container.scrollBy({ top: 1, behavior: 'auto' });
@@ -417,7 +425,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     }, intervalMs);
 
     return () => window.clearInterval(timer);
-  }, [isStageMode, isAutoScrolling, scrollSpeed]);
+  }, [isStageMode, isAutoScrolling, scrollSpeed, activeSong?.bpm]);
 
   // Metrónomo en vivo dentro de Modo Escenario
   useEffect(() => {
@@ -512,6 +520,46 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
       stageScrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
+
+  // Atajos de teclado de accesibilidad (Escape para salir de Modo Atril o Imagen Fullscreen, Flechas ←/→ para cambiar canción en vivo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable);
+
+      if (e.key === 'Escape') {
+        if (isImageFullscreen) {
+          setImageZoom(1);
+          setIsImageFullscreen(false);
+          return;
+        }
+        if (isStageMode) {
+          setIsStageMode(false);
+          setIsAutoScrolling(false);
+          setIsStageClickPlaying(false);
+          return;
+        }
+      }
+
+      if (isStageMode && !isTyping) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          handleNavigateAdjacentSong(-1);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          handleNavigateAdjacentSong(1);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isStageMode, isImageFullscreen, currentIndexInOrder, setlistOrderIds.length]);
 
   const handleTapTempo = (mode: 'create' | 'edit') => {
     const now = performance.now();
@@ -963,11 +1011,12 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   value={scrollSpeed}
                   onChange={(e) =>
                     setScrollSpeed(
-                      e.target.value as 'slow' | 'medium' | 'fast'
+                      e.target.value as 'slow' | 'bpm' | 'medium' | 'fast'
                     )
                   }
                   className="bg-slate-900 text-amber-400 text-xs font-bold px-2 py-1 rounded-lg border border-slate-700"
                 >
+                  <option value="bpm">Sync ({activeSong.bpm} BPM)</option>
                   <option value="slow">Lento</option>
                   <option value="medium">Medio</option>
                   <option value="fast">Rápido</option>
@@ -1818,13 +1867,13 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                   Estructura / Orden de Secciones:
                 </span>
-                <div className="flex flex-wrap items-center gap-1">
+                <div className="flex items-center gap-1 overflow-x-auto max-w-full pb-1">
                   {QUICK_STRUCTURE_CHIPS.slice(0, 6).map((chip) => (
                     <button
                       key={chip}
                       type="button"
                       onClick={() => handleAddStructureSection(chip)}
-                      className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/20 text-[10px] font-bold text-slate-600 dark:text-slate-300"
+                      className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/20 text-[10px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap shrink-0"
                     >
                       + {chip}
                     </button>
@@ -2173,7 +2222,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex items-center sm:flex-wrap gap-1.5 overflow-x-auto pb-1">
                   {QUICK_STRUCTURE_CHIPS.map((chip) => (
                     <button
                       key={chip}
@@ -2181,7 +2230,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       onClick={() =>
                         setNewStructureList((prev) => [...prev, chip])
                       }
-                      className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors"
+                      className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap shrink-0"
                     >
                       + {chip}
                     </button>
@@ -2511,7 +2560,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex items-center sm:flex-wrap gap-1.5 overflow-x-auto pb-1">
                   {QUICK_STRUCTURE_CHIPS.map((chip) => (
                     <button
                       key={chip}
@@ -2519,7 +2568,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       onClick={() =>
                         setEditStructureList((prev) => [...prev, chip])
                       }
-                      className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors"
+                      className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap shrink-0"
                     >
                       + {chip}
                     </button>

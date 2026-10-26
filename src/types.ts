@@ -297,7 +297,15 @@ export interface Devotional {
   comments: DevotionalComment[];
 }
 
-export type ChatChannelId = 'avisos' | 'general' | 'ensayos' | 'sugerencias' | 'oracion';
+export type ChatChannelId = string;
+
+export interface CustomChatChannel {
+  id: string;
+  name: string;
+  description?: string;
+  createdBy?: string;
+  createdAt?: string;
+}
 
 export interface ChatMessage {
   id: string;
@@ -388,6 +396,8 @@ export interface WorshipGroup {
   songs: Song[];
   devotionals: Devotional[];
   chatMessages: ChatMessage[];
+  customChannels?: CustomChatChannel[];
+  deletedIds?: string[];
   alerts: NoticeAlert[];
   activityFeed: ActivityFeedItem[];
   availabilityRecords?: MemberAvailabilityRecord[];

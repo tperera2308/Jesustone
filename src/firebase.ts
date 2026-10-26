@@ -379,6 +379,8 @@ function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
     ...indexedGroup,
     songs: lightSongs,
     chatMessages: recentChatMessages,
+    customChannels: indexedGroup.customChannels || [],
+    deletedIds: (indexedGroup.deletedIds || []).slice(-200),
     activityFeed: (indexedGroup.activityFeed || []).slice(0, 5),
     invitations: (indexedGroup.invitations || []).slice(0, 30),
   });
@@ -470,6 +472,31 @@ export async function deleteChatMessageFromFirestore(
   const path = `jesustone_messages/${messageId}`;
   try {
     await deleteDoc(doc(db, 'jesustone_messages', messageId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path, false);
+  }
+}
+
+export async function deleteChannelMessagesFromFirestore(
+  groupId: string,
+  channelId: string
+): Promise<void> {
+  const path = `jesustone_messages/byChannel/${groupId}/${channelId}`;
+  try {
+    const q = query(
+      collection(db, 'jesustone_messages'),
+      where('groupId', '==', groupId)
+    );
+    const snap = await getDocs(q);
+    for (const d of snap.docs) {
+      const data = d.data() as ChatMessage;
+      if (data.channel === channelId) {
+        if (data.voiceClipUrl && data.voiceClipUrl.startsWith('http')) {
+          deleteMediaFromStorage(data.voiceClipUrl);
+        }
+        await deleteDoc(doc(db, 'jesustone_messages', d.id));
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path, false);
   }
@@ -757,9 +784,7 @@ export function subscribeToJesustoneCloud(
         }
 
         const trimmed = msgs.slice(-MAX_CHAT_MESSAGES_PER_GROUP);
-        if (trimmed.length > 0) {
-          callbacks.onMessagesSnapshot?.(targetGroupId, trimmed);
-        }
+        callbacks.onMessagesSnapshot?.(targetGroupId, trimmed);
       },
       () => {
         // Ignore if auxiliary collection is empty or restricted
@@ -788,9 +813,7 @@ export function subscribeToJesustoneCloud(
       }
 
       const trimmedNotifs = sortedNotifs.slice(0, MAX_NOTIFICATIONS);
-      if (trimmedNotifs.length > 0) {
-        callbacks.onNotificationsSnapshot(trimmedNotifs);
-      }
+      callbacks.onNotificationsSnapshot(trimmedNotifs);
     },
     (error) => {
       callbacks.onSyncStatusChange('local_only');
@@ -813,9 +836,7 @@ export function subscribeToJesustoneCloud(
     (snapshot) => {
       if (!callbacks.onFriendRequestsSnapshot) return;
       const reqs = snapshot.docs.map((d) => d.data() as FriendRequest);
-      if (reqs.length > 0) {
-        callbacks.onFriendRequestsSnapshot(reqs);
-      }
+      callbacks.onFriendRequestsSnapshot(reqs);
     },
     () => {
       // Optional auxiliary collection
@@ -864,9 +885,7 @@ export function subscribeToJesustoneCloud(
       });
 
       keptDms.sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
-      if (keptDms.length > 0) {
-        callbacks.onDirectMessagesSnapshot(keptDms);
-      }
+      callbacks.onDirectMessagesSnapshot(keptDms);
     },
     () => {
       // Optional auxiliary collection

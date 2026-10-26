@@ -687,6 +687,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   const [showAddMemberInDetail, setShowAddMemberInDetail] = useState(false);
   const [showAddRehearsalInDetail, setShowAddRehearsalInDetail] = useState(false);
   const [subSearchAssignmentIdx, setSubSearchAssignmentIdx] = useState<number | null>(null);
+  const [confirmDeleteEventId, setConfirmDeleteEventId] = useState<string | null>(null);
+  const [confirmDeleteRehearsalId, setConfirmDeleteRehearsalId] = useState<string | null>(null);
+  const [createKeyFilter, setCreateKeyFilter] = useState<string>('all');
 
   // Rehearsal form state inside Event Detail
   const [rehTitleDraft, setRehTitleDraft] = useState('Ensayo General del Evento');
@@ -1152,6 +1155,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       songs: ev.songs.map((s) => ({ ...s })),
       assignments,
     });
+    setEventNotesSavedNotice(
+      `Evento «${ev.title}» duplicado para el ${formatReadableDateEs(nextDate)} con sus roles, ensayos y setlist.`
+    );
+    window.setTimeout(() => setEventNotesSavedNotice(''), 4000);
   };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -1722,20 +1729,43 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       title="Duplicar este evento para la próxima semana (+7 días)"
                     >
                       <Copy className="w-3.5 h-3.5 text-amber-500" />
-                      <span>+7 días</span>
+                      <span>Duplicar (+7d)</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onDeleteEvent(activeEvent.id);
-                        setOpenedEventId(null);
-                      }}
-                      className="min-h-[34px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400"
-                      title="Eliminar evento"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {confirmDeleteEventId === activeEvent.id ? (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                        <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                          ¿Eliminar para todos?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onDeleteEvent(activeEvent.id);
+                            setConfirmDeleteEventId(null);
+                            setOpenedEventId(null);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold"
+                        >
+                          Sí
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteEventId(null)}
+                          className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteEventId(activeEvent.id)}
+                        className="min-h-[34px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
+                        title="Eliminar evento"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -2020,16 +2050,45 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 {confirmedRehCount}/{activeEvent.assignments.length} conf.
                               </span>
                               {isLeader && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleRemoveRehearsalFromActiveEvent(reh.id)
-                                  }
-                                  className="text-slate-400 hover:text-rose-500 p-1"
-                                  title="Eliminar fecha de ensayo"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                confirmDeleteRehearsalId === reh.id ? (
+                                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/30">
+                                    <span className="text-[10px] font-bold text-rose-500">
+                                      ¿Borrar?
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleRemoveRehearsalFromActiveEvent(
+                                          reh.id
+                                        );
+                                        setConfirmDeleteRehearsalId(null);
+                                      }}
+                                      className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[10px] font-bold"
+                                    >
+                                      Sí
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setConfirmDeleteRehearsalId(null)
+                                      }
+                                      className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-bold"
+                                    >
+                                      No
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setConfirmDeleteRehearsalId(reh.id)
+                                    }
+                                    className="text-slate-400 hover:text-rose-500 p-1"
+                                    title="Eliminar fecha de ensayo"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )
                               )}
                             </div>
                           </div>
@@ -4049,25 +4108,50 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   )}
                 </div>
 
-                {/* Buscador para filtrar canciones conforme se escribe */}
-                <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={songSearchCreate}
-                    onChange={(e) => setSongSearchCreate(e.target.value)}
-                    placeholder="Buscar canción por nombre o artista para agregar..."
-                    className="w-full min-h-[40px] pl-9 pr-8 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                  />
-                  {songSearchCreate && (
-                    <button
-                      type="button"
-                      onClick={() => setSongSearchCreate('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                {/* Buscador para filtrar canciones conforme se escribe + Filtro rápido por Tonalidad */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={songSearchCreate}
+                      onChange={(e) => setSongSearchCreate(e.target.value)}
+                      placeholder="Buscar canción por nombre o artista para agregar..."
+                      className="w-full min-h-[40px] pl-9 pr-8 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                    {songSearchCreate && (
+                      <button
+                        type="button"
+                        onClick={() => setSongSearchCreate('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <select
+                    value={createKeyFilter}
+                    onChange={(e) => setCreateKeyFilter(e.target.value)}
+                    className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-xs font-bold text-slate-900 dark:text-white shrink-0"
+                    title="Filtrar repertorio por tonalidad"
+                  >
+                    <option value="all">Todos los tonos</option>
+                    <optgroup label="Tonalidades Mayores">
+                      {MAJOR_KEYS.map((k) => (
+                        <option key={k} value={k}>
+                          Tono {k} Mayor
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Tonalidades Menores">
+                      {MINOR_KEYS.map((k) => (
+                        <option key={k} value={k}>
+                          Tono {k}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
                 </div>
 
                 {/* Resultados de búsqueda (o sugerencias rápidas) */}
@@ -4080,13 +4164,27 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     {songs
                       .filter((song) => {
                         const q = songSearchCreate.trim().toLowerCase();
-                        if (!q) return !selectedSongItems.some((i) => i.songId === song.id);
+                        const matchesKey =
+                          createKeyFilter === 'all' ||
+                          song.originalKey === createKeyFilter;
+                        if (!matchesKey) return false;
+                        if (!q) {
+                          return (
+                            createKeyFilter !== 'all' ||
+                            !selectedSongItems.some((i) => i.songId === song.id)
+                          );
+                        }
                         return (
                           song.title.toLowerCase().includes(q) ||
                           song.artist.toLowerCase().includes(q)
                         );
                       })
-                      .slice(0, songSearchCreate.trim() ? 30 : 8)
+                      .slice(
+                        0,
+                        songSearchCreate.trim() || createKeyFilter !== 'all'
+                          ? 30
+                          : 8
+                      )
                       .map((song) => {
                         const checked = selectedSongItems.some(
                           (i) => i.songId === song.id
@@ -4122,7 +4220,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
                               {song.title}{' '}
                               <span className="text-slate-400 font-normal">
-                                · {song.artist} ({song.originalKey})
+                                · {song.artist} ({song.originalKey} · {song.bpm} BPM)
                               </span>
                             </span>
                             <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
@@ -4134,9 +4232,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   </div>
                 )}
 
-                {/* Lista de canciones ya seleccionadas para este evento con su selector de Tono */}
+                {/* Lista de canciones ya seleccionadas para este evento con su selector de Tono y orden ↑/↓ */}
                 {selectedSongItems.length > 0 && (
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto p-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto p-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
                     {selectedSongItems.map((itemObj, idx) => {
                       const song = songs.find((s) => s.id === itemObj.songId);
                       if (!song) return null;
@@ -4154,7 +4252,45 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() =>
+                                setSelectedSongItems((prev) => {
+                                  if (idx <= 0) return prev;
+                                  const next = [...prev];
+                                  [next[idx - 1], next[idx]] = [
+                                    next[idx],
+                                    next[idx - 1],
+                                  ];
+                                  return next;
+                                })
+                              }
+                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30"
+                              title="Subir en el orden"
+                            >
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === selectedSongItems.length - 1}
+                              onClick={() =>
+                                setSelectedSongItems((prev) => {
+                                  if (idx >= prev.length - 1) return prev;
+                                  const next = [...prev];
+                                  [next[idx + 1], next[idx]] = [
+                                    next[idx],
+                                    next[idx + 1],
+                                  ];
+                                  return next;
+                                })
+                              }
+                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30"
+                              title="Bajar en el orden"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
                             <select
                               value={itemObj.customKey || song.originalKey}
                               onChange={(e) => {

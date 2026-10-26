@@ -72,6 +72,13 @@ interface ChatModuleProps {
     targetGroupId?: string
   ) => void;
   onDeleteMessage?: (messageId: string, targetGroupId?: string) => void;
+  onTogglePinMessage?: (messageId: string, targetGroupId?: string) => void;
+  onCreateChannel?: (
+    groupId: string,
+    name: string,
+    description?: string
+  ) => string | null;
+  onDeleteChannel?: (groupId: string, channelId: string) => void;
   onTogglePrayerReaction: (messageId: string, targetGroupId?: string) => void;
   onOpenSongFromChat: (songId: string) => void;
   onSendFriendRequest?: (targetUser: AppUser) => { ok: boolean; message: string };
@@ -93,57 +100,28 @@ interface ChatModuleProps {
   onExitFullScreenChat: () => void;
 }
 
-const CHANNEL_CATEGORIES: {
-  category: string;
-  channels: {
-    id: ChatChannelId;
-    name: string;
-    description: string;
-  }[];
-}[] = [
-  {
-    category: 'IMPORTANTE',
-    channels: [
-      {
-        id: 'avisos',
-        name: 'avisos-oficiales',
-        description:
-          'Comunicados del Líder, horarios de citación y playlists dominicales',
-      },
-    ],
-  },
-  {
-    category: 'CANALES DE TEXTO',
-    channels: [
-      {
-        id: 'general',
-        name: 'general',
-        description: 'Conversación general del grupo de alabanza jesustone',
-      },
-      {
-        id: 'ensayos',
-        name: 'ensayos-y-tonos',
-        description: 'Coordinación de tonalidades, secuencias, in-ears y arreglos',
-      },
-      {
-        id: 'sugerencias',
-        name: 'sugerencias-repertorio',
-        description: 'Comparte nuevas canciones subidas al Repertorio Base',
-      },
-    ],
-  },
-  {
-    category: 'ESPIRITUAL',
-    channels: [
-      {
-        id: 'oracion',
-        name: 'altar-de-oracion',
-        description:
-          'Peticiones de oración e intercesión por el equipo y la iglesia',
-      },
-    ],
-  },
-];
+const DEFAULT_GENERAL_CHANNEL = {
+  id: 'general',
+  name: 'general',
+  description: 'Canal general del grupo de alabanza',
+};
+
+function getGroupChannels(group?: WorshipGroup): {
+  id: ChatChannelId;
+  name: string;
+  description: string;
+  isCustom?: boolean;
+}[] {
+  return [
+    { ...DEFAULT_GENERAL_CHANNEL, isCustom: false },
+    ...(group?.customChannels || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description || `Canal personalizado #${c.name}`,
+      isCustom: true,
+    })),
+  ];
+}
 
 export const ChatModule: React.FC<ChatModuleProps> = ({
   identity,
@@ -163,6 +141,9 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
   onSelectGroup,
   onSendMessage,
   onDeleteMessage,
+  onTogglePinMessage,
+  onCreateChannel,
+  onDeleteChannel,
   onTogglePrayerReaction,
   onOpenSongFromChat,
   onSendFriendRequest,
@@ -241,12 +222,32 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
   const [importedSongIds, setImportedSongIds] = useState<string[]>([]);
 
   const [activeChannel, setActiveChannel] = useState<ChatChannelId>('general');
+  const [creatingChannelForGroupId, setCreatingChannelForGroupId] = useState<
+    string | null
+  >(null);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelDesc, setNewChannelDesc] = useState('');
+  const [confirmDeleteChannel, setConfirmDeleteChannel] = useState<{
+    groupId: string;
+    channelId: string;
+    name: string;
+  } | null>(null);
   const [messageText, setMessageText] = useState('');
   const [attachedSongId, setAttachedSongId] = useState<string>('');
   const [showSongPicker, setShowSongPicker] = useState(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [mobileMembersOpen, setMobileMembersOpen] = useState(false);
+  const [lastReadByChannel, setLastReadByChannel] = useState<
+    Record<string, number>
+  >(() => {
+    try {
+      const raw = localStorage.getItem('jesustone_chat_last_read_v4');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
 
   // Voice Note Recording State in Chat / DM
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -279,13 +280,39 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
     }
   }, [friends, selectedFriendId]);
 
-  const allChannels = CHANNEL_CATEGORIES.flatMap((c) => c.channels);
+  const allChannels = getGroupChannels(currentGroup);
+
+  useEffect(() => {
+    const channelExists = allChannels.some((c) => c.id === activeChannel);
+    if (!channelExists) {
+      setActiveChannel('general');
+    }
+  }, [currentGroup.id, allChannels, activeChannel]);
+
   const channelMeta =
     allChannels.find((c) => c.id === activeChannel) || allChannels[0];
   const channelMessages = currentGroupMessages
     .filter((m) => m.channel === activeChannel)
     .slice(-100);
+  const pinnedChannelMessages = channelMessages.filter((m) => m.isPinned);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Marcar canal actual como leído cuando se abre o llegan mensajes estando dentro
+  useEffect(() => {
+    if (chatMode !== 'group' || !currentGroup?.id || !activeChannel) return;
+    const key = `${currentGroup.id}::${activeChannel}`;
+    const latestCount = channelMessages.length;
+    setLastReadByChannel((prev) => {
+      if (prev[key] === latestCount) return prev;
+      const next = { ...prev, [key]: latestCount };
+      try {
+        localStorage.setItem('jesustone_chat_last_read_v4', JSON.stringify(next));
+      } catch {
+        // Ignore quota errors
+      }
+      return next;
+    });
+  }, [chatMode, currentGroup?.id, activeChannel, channelMessages.length]);
 
   const selectedFriend =
     friends.find((f) => f.id === selectedFriendId) ||
@@ -655,8 +682,19 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                   const isCurrentGrp = grp.id === currentGroup.id;
                   const grpAccent = getAccentClasses(grp.identity.accentColor);
                   const grpMessages = grp.chatMessages || [];
-                  const grpMember = grp.members?.find((m) => m.id === currentUser?.id);
+                  const grpMember = grp.members?.find(
+                    (m) =>
+                      m.id === currentUser?.id ||
+                      m.email === currentUser?.email ||
+                      m.username === currentUser?.username
+                  );
                   const isGrpGuest = Boolean(grpMember?.isGuest);
+                  const isGrpLeader =
+                    grp.leaderUserId === currentUser?.id ||
+                    grpMember?.role === 'leader' ||
+                    Boolean(grpMember?.isLeader);
+                  const grpChannels = getGroupChannels(grp);
+                  const isCreatingHere = creatingChannelForGroupId === grp.id;
 
                   return (
                     <div
@@ -668,91 +706,280 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                       } p-2 space-y-1.5`}
                     >
                       {/* Cabecera del Grupo */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedGroupId(grp.id);
-                          if (onSelectGroup) onSelectGroup(grp.id);
-                        }}
-                        className="w-full flex items-center justify-between gap-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors text-left"
-                        title={`Cambiar a ${grp.identity.ministryName}`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 overflow-hidden text-xs font-bold ${grpAccent.bgClass}`}
+                      <div className="flex items-center justify-between gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedGroupId(grp.id);
+                            if (onSelectGroup) onSelectGroup(grp.id);
+                          }}
+                          className="flex-1 flex items-center justify-between gap-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors text-left min-w-0"
+                          title={`Cambiar a ${grp.identity.ministryName}`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 overflow-hidden text-xs font-bold ${grpAccent.bgClass}`}
+                            >
+                              <BrandIconDisplay
+                                iconId={grp.identity.iconId}
+                                customImageUrl={grp.identity.customImageUrl}
+                                className="w-4 h-4"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-white truncate">
+                                {grp.identity.ministryName}
+                              </p>
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {isGrpLeader
+                                  ? 'Líder / Admin'
+                                  : isGrpGuest
+                                  ? 'Suplente'
+                                  : 'Miembro'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {isCurrentGrp ? (
+                            <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold shrink-0">
+                              Activo
+                            </span>
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                          )}
+                        </button>
+
+                        {/* Botón rápido del Líder para crear canal personalizado en este grupo */}
+                        {isGrpLeader && onCreateChannel && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedGroupId(grp.id);
+                              if (onSelectGroup) onSelectGroup(grp.id);
+                              setCreatingChannelForGroupId(
+                                isCreatingHere ? null : grp.id
+                              );
+                              setNewChannelName('');
+                              setNewChannelDesc('');
+                            }}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 transition-colors shrink-0"
+                            title="Crear canal personalizado para el grupo"
+                            aria-label="Crear canal personalizado"
                           >
-                            <BrandIconDisplay
-                              iconId={grp.identity.iconId}
-                              customImageUrl={grp.identity.customImageUrl}
-                              className="w-4 h-4"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-white truncate">
-                              {grp.identity.ministryName}
-                            </p>
-                            <p className="text-[10px] text-slate-400 truncate">
-                              {grpMember?.role === 'leader'
-                                ? 'Líder / Admin'
-                                : isGrpGuest
-                                ? 'Suplente'
-                                : 'Miembro'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {isCurrentGrp ? (
-                          <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold">
-                            Activo
-                          </span>
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
                         )}
-                      </button>
+                      </div>
 
-                      {/* Canales correspondientes a este grupo */}
+                      {/* Formulario inline para que el Líder cree un canal personalizado */}
+                      {isCreatingHere && isGrpLeader && onCreateChannel && (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (!newChannelName.trim()) return;
+                            const createdId = onCreateChannel(
+                              grp.id,
+                              newChannelName,
+                              newChannelDesc
+                            );
+                            if (createdId) {
+                              setSelectedGroupId(grp.id);
+                              if (onSelectGroup) onSelectGroup(grp.id);
+                              setActiveChannel(createdId);
+                            }
+                            setNewChannelName('');
+                            setNewChannelDesc('');
+                            setCreatingChannelForGroupId(null);
+                          }}
+                          className="p-2 rounded-xl bg-[#2b2d31] border border-amber-500/30 space-y-1.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                              Nuevo Canal Personalizado
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setCreatingChannelForGroupId(null)}
+                              className="text-slate-400 hover:text-white"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={newChannelName}
+                            onChange={(e) => setNewChannelName(e.target.value)}
+                            placeholder="ej. ensayos, voces, avisos..."
+                            maxLength={32}
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-[#1e1f22] border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/60"
+                            autoFocus
+                          />
+                          <input
+                            type="text"
+                            value={newChannelDesc}
+                            onChange={(e) => setNewChannelDesc(e.target.value)}
+                            placeholder="Descripción breve (opcional)"
+                            maxLength={80}
+                            className="w-full px-2.5 py-1 rounded-lg bg-[#1e1f22] border border-white/10 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none"
+                          />
+                          <div className="flex items-center justify-end gap-1.5 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => setCreatingChannelForGroupId(null)}
+                              className="px-2 py-1 rounded-lg text-[10px] font-bold text-slate-400 hover:text-white"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={!newChannelName.trim()}
+                              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 text-[10px] font-bold"
+                            >
+                              Crear Canal
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      {/* Canales correspondientes a este grupo (#general + canales personalizados del Líder) */}
                       <div className="space-y-0.5 pl-2 border-l border-white/10 ml-3">
-                        {CHANNEL_CATEGORIES.flatMap((c) => c.channels).map((ch) => {
+                        {grpChannels.map((ch) => {
                           const isSelected =
                             isCurrentGrp && ch.id === activeChannel;
                           const msgCount = grpMessages.filter(
                             (m) => m.channel === ch.id
                           ).length;
+                          const readKey = `${grp.id}::${ch.id}`;
+                          const lastSeenCount =
+                            lastReadByChannel[readKey] ?? msgCount;
+                          const unreadCount = isSelected
+                            ? 0
+                            : Math.max(0, msgCount - lastSeenCount);
+                          const isConfirmingDelete =
+                            confirmDeleteChannel?.groupId === grp.id &&
+                            confirmDeleteChannel?.channelId === ch.id;
+
+                          if (isConfirmingDelete) {
+                            return (
+                              <div
+                                key={`${grp.id}-${ch.id}-confirm`}
+                                className="px-2 py-1.5 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-between gap-1.5 text-[11px]"
+                              >
+                                <span className="text-rose-200 font-bold truncate">
+                                  ¿Eliminar #{ch.name}?
+                                </span>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (onDeleteChannel) {
+                                        onDeleteChannel(grp.id, ch.id);
+                                      }
+                                      if (activeChannel === ch.id) {
+                                        setActiveChannel('general');
+                                      }
+                                      setConfirmDeleteChannel(null);
+                                    }}
+                                    className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold"
+                                  >
+                                    Sí
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setConfirmDeleteChannel(null)
+                                    }
+                                    className="px-1.5 py-0.5 rounded bg-white/10 text-slate-300 text-[10px] font-bold"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
 
                           return (
-                            <button
+                            <div
                               key={`${grp.id}-${ch.id}`}
-                              type="button"
-                              onClick={() => {
-                                setSelectedGroupId(grp.id);
-                                if (onSelectGroup) onSelectGroup(grp.id);
-                                setActiveChannel(ch.id);
-                                setMobileDrawerOpen(false);
-                              }}
-                              className={`w-full min-h-[34px] px-2 py-1 rounded-lg flex items-center justify-between gap-1.5 text-xs font-medium transition-colors ${
-                                isSelected
-                                  ? 'bg-[#404249] text-white font-semibold'
-                                  : 'text-slate-400 hover:bg-[#35373c] hover:text-slate-200'
-                              }`}
+                              className="group/ch flex items-center gap-1"
                             >
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <Hash
-                                  className={`w-3.5 h-3.5 shrink-0 ${
-                                    isSelected
-                                      ? 'text-amber-400'
-                                      : 'text-slate-500'
-                                  }`}
-                                />
-                                <span className="truncate">{ch.name}</span>
-                              </div>
-                              {msgCount > 0 && (
-                                <span className="font-mono text-[10px] text-slate-400">
-                                  {msgCount}
-                                </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedGroupId(grp.id);
+                                  if (onSelectGroup) onSelectGroup(grp.id);
+                                  setActiveChannel(ch.id);
+                                  setMobileDrawerOpen(false);
+                                }}
+                                className={`flex-1 min-h-[34px] px-2 py-1 rounded-lg flex items-center justify-between gap-1.5 text-xs font-medium transition-colors min-w-0 ${
+                                  isSelected
+                                    ? 'bg-[#404249] text-white font-semibold'
+                                    : unreadCount > 0
+                                    ? 'bg-amber-500/10 text-white font-bold'
+                                    : 'text-slate-400 hover:bg-[#35373c] hover:text-slate-200'
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <Hash
+                                    className={`w-3.5 h-3.5 shrink-0 ${
+                                      isSelected || unreadCount > 0
+                                        ? 'text-amber-400'
+                                        : 'text-slate-500'
+                                    }`}
+                                  />
+                                  <span className="truncate">{ch.name}</span>
+                                </div>
+                                {unreadCount > 0 ? (
+                                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-mono text-[10px] font-extrabold shrink-0">
+                                    +{unreadCount}
+                                  </span>
+                                ) : (
+                                  msgCount > 0 && (
+                                    <span className="font-mono text-[10px] text-slate-400 shrink-0">
+                                      {msgCount}
+                                    </span>
+                                  )
+                                )}
+                              </button>
+
+                              {ch.isCustom && isGrpLeader && onDeleteChannel && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirmDeleteChannel({
+                                      groupId: grp.id,
+                                      channelId: ch.id,
+                                      name: ch.name,
+                                    });
+                                  }}
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors shrink-0"
+                                  title={`Eliminar canal #${ch.name}`}
+                                  aria-label={`Eliminar canal ${ch.name}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               )}
-                            </button>
+                            </div>
                           );
                         })}
+
+                        {isGrpLeader && onCreateChannel && !isCreatingHere && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedGroupId(grp.id);
+                              if (onSelectGroup) onSelectGroup(grp.id);
+                              setCreatingChannelForGroupId(grp.id);
+                              setNewChannelName('');
+                              setNewChannelDesc('');
+                            }}
+                            className="w-full min-h-[30px] px-2 py-1 rounded-lg flex items-center gap-1.5 text-[11px] font-bold text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10 transition-colors"
+                          >
+                            <Plus className="w-3.5 h-3.5 shrink-0" />
+                            <span>Crear canal personalizado</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -1799,6 +2026,46 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                     </p>
                   </div>
 
+                  {pinnedChannelMessages.length > 0 && (
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-xs font-bold text-amber-400">
+                        <span className="flex items-center gap-1.5">
+                          <Pin className="w-3.5 h-3.5" />
+                          Mensajes Fijados en #{channelMeta.name} (
+                          {pinnedChannelMessages.length})
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {pinnedChannelMessages.map((pm) => (
+                          <div
+                            key={`pin-banner-${pm.id}`}
+                            className="flex items-center justify-between gap-2 text-xs text-slate-200 bg-[#2b2d31]/80 px-2.5 py-1.5 rounded-xl"
+                          >
+                            <p className="truncate">
+                              <span className="font-bold text-amber-300">
+                                {pm.senderName}:
+                              </span>{' '}
+                              {pm.text}
+                            </p>
+                            {onTogglePinMessage &&
+                              currentGroupActiveMember.role === 'leader' && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onTogglePinMessage(pm.id, currentGroup.id)
+                                  }
+                                  className="text-[10px] font-bold text-slate-400 hover:text-white shrink-0"
+                                  title="Desfijar mensaje"
+                                >
+                                  Quitar
+                                </button>
+                              )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {channelMessages.map((msg) => {
                     const attachedSong = msg.attachedSongId
                       ? songs.find((s) => s.id === msg.attachedSongId)
@@ -1858,19 +2125,45 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                                 Fijado
                               </span>
                             )}
-                            {onDeleteMessage &&
-                              (msg.senderId === activeMember.id ||
-                                activeMember.role === 'leader') && (
-                                <button
-                                  type="button"
-                                  onClick={() => onDeleteMessage(msg.id, currentGroup.id)}
-                                  className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                                  title="Eliminar mensaje"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  <span>Eliminar</span>
-                                </button>
-                              )}
+                            <div className="ml-auto flex items-center gap-1">
+                              {onTogglePinMessage &&
+                                currentGroupActiveMember.role === 'leader' && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onTogglePinMessage(msg.id, currentGroup.id)
+                                    }
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold transition-colors ${
+                                      msg.isPinned
+                                        ? 'text-amber-400 bg-amber-500/15 hover:bg-amber-500/25'
+                                        : 'text-slate-400 hover:text-amber-300 hover:bg-white/5'
+                                    }`}
+                                    title={
+                                      msg.isPinned
+                                        ? 'Desfijar mensaje'
+                                        : 'Fijar mensaje importante en el canal'
+                                    }
+                                  >
+                                    <Pin className="w-3 h-3" />
+                                    <span>{msg.isPinned ? 'Desfijar' : 'Fijar'}</span>
+                                  </button>
+                                )}
+                              {onDeleteMessage &&
+                                (msg.senderId === activeMember.id ||
+                                  currentGroupActiveMember.role === 'leader') && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onDeleteMessage(msg.id, currentGroup.id)
+                                    }
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                    title="Eliminar mensaje"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Eliminar</span>
+                                  </button>
+                                )}
+                            </div>
                           </div>
 
                           <p className="text-sm text-slate-200 mt-1 leading-relaxed">
