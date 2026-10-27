@@ -364,7 +364,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       (item) =>
         novedadesFilter === 'all' || item.category === novedadesFilter
     )
-    .slice(0, 8);
+    .slice(0, 4);
 
   const handleEnterGroupScreen = (targetGroupId?: string) => {
     if (targetGroupId && onSelectGroup && targetGroupId !== activeGroupId) {
@@ -382,18 +382,18 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     return (
       <div className="space-y-4 w-full max-w-full min-w-0">
         {/* Barra superior de navegación para volver al Inicio Personal */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => setIsGroupScreenOpen(false)}
-            className="min-h-[40px] px-3.5 py-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 shadow-2xs transition-colors"
+            className="min-h-[34px] px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/60 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shadow-2xs transition-colors shrink-0 whitespace-nowrap"
           >
-            <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>Volver a Inicio Personal</span>
+            <ArrowLeft className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span>Inicio Personal</span>
           </button>
 
           {userGroups.length > 1 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full py-0.5">
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full py-0.5">
               {userGroups.map((g) => {
                 const isCurrent = g.id === activeGroupId;
                 return (
@@ -403,7 +403,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     onClick={() => {
                       if (onSelectGroup) onSelectGroup(g.id);
                     }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
+                    className={`min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap shrink-0 transition-all ${
                       isCurrent
                         ? `${accent.bgClass} shadow-2xs`
                         : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
@@ -417,25 +417,25 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           )}
         </div>
 
-        {/* CABECERA EXCLUSIVA DEL GRUPO CON "MIEMBROS" Y "DATOS DEL GRUPO" */}
-        <div className="rounded-3xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-xs dark:shadow-md space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-            <div className="flex items-center gap-3.5 min-w-0">
+        {/* CABECERA EXCLUSIVA DEL GRUPO CON "CANCIONERO", "MIEMBROS" Y "⚙️" EN UNA SOLA LÍNEA */}
+        <div className="rounded-3xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-4 shadow-xs dark:shadow-md space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-3 min-w-0">
               <div
-                className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shadow-md shrink-0 overflow-hidden ${accent.bgClass}`}
+                className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shadow-md shrink-0 overflow-hidden ${accent.bgClass}`}
               >
                 <BrandIconDisplay
                   iconId={identity.iconId}
                   customImageUrl={identity.customImageUrl}
                   className={
-                    identity.customImageUrl ? 'w-full h-full' : 'w-6 h-6'
+                    identity.customImageUrl ? 'w-full h-full' : 'w-5 h-5'
                   }
                 />
               </div>
 
               <div className="min-w-0 space-y-0.5">
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
+                  <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
                     {isLeader
                       ? 'Líder / Admin'
                       : activeMember.isGuest
@@ -453,38 +453,50 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     </>
                   )}
                 </div>
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-950 dark:text-white truncate">
+                <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-950 dark:text-white truncate">
                   {identity.ministryName}
                 </h1>
               </div>
             </div>
 
-            {/* Botones exclusivos dentro de la Pantalla del Grupo: Miembros y Datos del Grupo */}
-            {!activeMember.isGuest && (
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onOpenIdentityModal('invitaciones')}
-                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-white transition-colors"
-                >
-                  <Users className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                  <span>Miembros ({members.length})</span>
-                </button>
+            {/* Tres botones compactos en una sola línea: Cancionero, Miembros y Engrane ⚙️ */}
+            <div className="flex items-center gap-1.5 flex-nowrap shrink-0 overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                onClick={() => onNavigate('cancionero')}
+                className={`min-h-[34px] px-2.5 sm:px-3 py-1 rounded-xl flex items-center gap-1.5 text-[11px] sm:text-xs font-bold shadow-xs transition-all whitespace-nowrap shrink-0 ${accent.bgClass}`}
+              >
+                <Music className="w-3.5 h-3.5 shrink-0" />
+                <span>Cancionero ({songs.length})</span>
+              </button>
 
-                <button
-                  type="button"
-                  onClick={() => onOpenIdentityModal('grupo')}
-                  className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/15 border border-slate-200 dark:border-white/10 flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors"
-                >
-                  <Settings className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
-                  <span>Datos del Grupo</span>
-                </button>
-              </div>
-            )}
+              {!activeMember.isGuest && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onOpenIdentityModal('invitaciones')}
+                    className="min-h-[34px] px-2.5 sm:px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-slate-800 dark:text-white transition-colors whitespace-nowrap shrink-0"
+                  >
+                    <Users className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                    <span>Miembros ({members.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenIdentityModal('grupo')}
+                    title="Datos del Grupo"
+                    aria-label="Datos del Grupo"
+                    className="min-h-[34px] w-[34px] p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/15 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-colors shrink-0"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {activeMember.isGuest && (
-            <div className="px-3.5 py-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-200">
+            <div className="px-3 py-2 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-200">
               <span>
                 <strong>Pase de Músico Invitado:</strong> Solo ves las fechas y el repertorio de los eventos donde participas en este grupo.
               </span>
@@ -494,12 +506,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
           )}
 
-          {/* Pestañas Internas del Grupo: Todo | Fechas | Canciones | Estudios | Feed */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-950/70 border border-slate-200/80 dark:border-white/5">
+          {/* Pestañas Internas del Grupo en una sola línea (4 columnas): Todo | Fechas | Estudios | Feed */}
+          <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-950/70 border border-slate-200/80 dark:border-white/5">
             {[
               { id: 'todo', label: 'Todo' },
               { id: 'fechas', label: `Fechas (${upcomingEvents.length})` },
-              { id: 'canciones', label: `Canciones (${songs.length})` },
               { id: 'estudio', label: `Estudios (${devotionals.length})` },
               {
                 id: 'feed',
@@ -509,14 +520,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <button
                 key={t.id}
                 type="button"
-                onClick={() => {
-                  if (t.id === 'canciones') {
-                    onNavigate('cancionero');
-                  } else {
-                    setGroupSectionTab(t.id as typeof groupSectionTab);
-                  }
-                }}
-                className={`min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all truncate ${
+                onClick={() =>
+                  setGroupSectionTab(t.id as typeof groupSectionTab)
+                }
+                className={`min-h-[32px] px-1.5 sm:px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold transition-all truncate ${
                   groupSectionTab === t.id
                     ? `${accent.bgClass} shadow-2xs`
                     : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'
@@ -613,22 +620,22 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
         {/* SECCIÓN DEL GRUPO: ESTUDIOS BÍBLICOS Y DEVOCIONALES */}
         {(groupSectionTab === 'todo' || groupSectionTab === 'estudio') && (
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <BookOpen className="w-4 h-4 text-emerald-500 shrink-0" />
-                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                  Estudios Bíblicos y Devocionales ({devotionals.length})
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                  Estudios Bíblicos ({devotionals.length})
                 </h2>
               </div>
 
               <button
                 type="button"
                 onClick={() => onNavigate('devocionales')}
-                className={`min-h-[34px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                className={`min-h-[30px] px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shrink-0 whitespace-nowrap ${accent.bgClass}`}
               >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Abrir Módulo de Estudio</span>
+                <BookOpen className="w-3 h-3 shrink-0" />
+                <span>Ver Estudios</span>
               </button>
             </div>
 
@@ -718,96 +725,99 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
         )}
 
-        {/* SECCIÓN 3 DEL GRUPO: FEED Y AVISOS DEL GRUPO */}
+        {/* SECCIÓN 3 DEL GRUPO: RESUMEN COMPACTO DE FEED Y AVISOS DEL GRUPO */}
         {(groupSectionTab === 'todo' || groupSectionTab === 'feed') && (
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3.5">
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Activity className={`w-4 h-4 ${accent.textClass}`} />
-                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-                  Feed y Avisos de «{identity.ministryName}»
+              <div className="flex items-center gap-2 min-w-0">
+                <Activity className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                  Feed y Avisos ({alerts.length + recentActivityFeed.length})
                 </h2>
               </div>
-              <span className="text-[11px] text-slate-500">
-                Actividad del grupo
-              </span>
+              {groupSectionTab === 'todo' &&
+                recentActivityFeed.length + alerts.length > 3 && (
+                  <button
+                    type="button"
+                    onClick={() => setGroupSectionTab('feed')}
+                    className={`text-xs font-bold ${accent.textClass} hover:underline flex items-center gap-1 shrink-0`}
+                  >
+                    <span>Ver todos</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
             </div>
 
-            {alerts.map((al) => (
-              <div
-                key={al.id}
-                className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-start justify-between gap-3"
-              >
-                <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                      {al.title}
-                    </p>
-                    <p className="text-xs text-slate-700 dark:text-slate-300 mt-0.5">
-                      {al.message}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('eventos')}
-                  className="min-h-[32px] px-3 py-1 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold shrink-0"
-                >
-                  Ver Evento
-                </button>
+            {alerts.length > 0 && (
+              <div className="space-y-1.5">
+                {(groupSectionTab === 'todo' ? alerts.slice(0, 2) : alerts).map(
+                  (al) => (
+                    <button
+                      key={al.id}
+                      type="button"
+                      onClick={() => onNavigate('eventos')}
+                      className="w-full px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2.5 text-left hover:bg-amber-500/15 transition-colors min-w-0"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <p className="text-xs text-slate-800 dark:text-slate-200 truncate">
+                          <strong className="font-bold text-slate-950 dark:text-white">
+                            {al.title}:
+                          </strong>{' '}
+                          {al.message}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                        Ver →
+                      </span>
+                    </button>
+                  )
+                )}
               </div>
-            ))}
+            )}
 
             {recentActivityFeed.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {recentActivityFeed.map((item) => (
-                  <div
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                {(groupSectionTab === 'todo'
+                  ? recentActivityFeed.slice(0, 3)
+                  : recentActivityFeed
+                ).map((item) => (
+                  <button
                     key={item.id}
-                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-2.5"
+                    type="button"
+                    onClick={() => {
+                      if (item.targetTab === 'cancionero' && item.targetId) {
+                        onOpenSongInSongbook(item.targetId);
+                      } else {
+                        onNavigate(item.targetTab);
+                      }
+                    }}
+                    className="w-full py-2 first:pt-0.5 last:pb-0.5 flex items-center justify-between gap-3 text-left hover:opacity-85 transition-opacity min-w-0"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 text-[11px]">
                         <span className="font-bold text-slate-900 dark:text-white truncate">
-                          {item.actorName}
+                          {item.title}
                         </span>
-                        <span className="font-mono shrink-0">
-                          {item.timestamp}
+                        <span className="text-slate-300 dark:text-slate-700">·</span>
+                        <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                          {item.actorName} ({item.timestamp})
                         </span>
                       </div>
-                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
-                        {item.title}
-                      </h3>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                         {item.description}
                       </p>
                     </div>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (
-                            item.targetTab === 'cancionero' &&
-                            item.targetId
-                          ) {
-                            onOpenSongInSongbook(item.targetId);
-                          } else {
-                            onNavigate(item.targetTab);
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
-                      >
-                        <span>Abrir</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                  </button>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-500 text-center py-4">
-                Aún no hay actividad reciente registrada en este grupo.
-              </p>
+              alerts.length === 0 && (
+                <p className="text-xs text-slate-500 py-1.5">
+                  Sin avisos ni actividad reciente en este grupo.
+                </p>
+              )
             )}
           </div>
         )}
@@ -820,13 +830,13 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   // ===========================================================================
   return (
     <div className="space-y-4 w-full max-w-full min-w-0">
-      {/* 1. BIENVENIDA PERSONAL MINIMALISTA + RED DE AMIGOS */}
-      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-        <div className="flex items-center gap-3 min-w-0">
+      {/* 1. BIENVENIDA PERSONAL MINIMALISTA + RED DE AMIGOS EN UNA SOLA LÍNEA */}
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-3 sm:px-4 sm:py-3.5 shadow-2xs flex items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
             onClick={() => onOpenMusicianProfile(resolvedUserId, 'perfil')}
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden shadow-xs ${accent.bgClass}`}
+            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 overflow-hidden shadow-xs ${accent.bgClass}`}
             title="Ver Mi Perfil de Músico"
           >
             {activeMember.avatarUrl ? (
@@ -841,34 +851,32 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </button>
 
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-              <span className="font-bold text-amber-500">Inicio Personal</span>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="font-bold text-amber-500 shrink-0">Inicio Personal</span>
               <span>·</span>
               <span className="truncate">
                 {activeMember.instruments.slice(0, 2).join(', ') || 'Músico'}
               </span>
             </div>
-            <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
+            <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
               Hola, {activeMember.name.split(' ')[0]}
             </h1>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => onOpenMusicianProfile(resolvedUserId, 'amigos')}
-            className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-xs font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5 transition-colors"
-          >
-            <Users className="w-3.5 h-3.5 shrink-0" />
-            <span>Amigos ({friendsCount})</span>
-            {pendingFriendRequestsCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold">
-                {pendingFriendRequestsCount}
-              </span>
-            )}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => onOpenMusicianProfile(resolvedUserId, 'amigos')}
+          className="min-h-[34px] px-3 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[11px] sm:text-xs font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
+        >
+          <Users className="w-3.5 h-3.5 shrink-0" />
+          <span>Amigos ({friendsCount})</span>
+          {pendingFriendRequestsCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+              {pendingFriendRequestsCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* 2. MIS GRUPOS MUSICALES: PRESIONA EL NOMBRE DEL GRUPO PARA ENTRAR A SU PANTALLA */}

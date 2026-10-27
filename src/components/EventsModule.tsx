@@ -1345,9 +1345,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         </div>
       )}
 
-      {/* Barra compacta de Filtros + Acciones en fila ordenada */}
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full">
+      {/* Barra compacta de Filtros + Acciones en fila ordenada sin desbordar márgenes */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs w-full max-w-full overflow-hidden">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full min-w-0">
           {[
             { id: 'all', label: 'Próximos' },
             { id: 'sunday', label: 'Domingos' },
@@ -1361,7 +1361,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               key={tab.id}
               type="button"
               onClick={() => setFilterType(tab.id as typeof filterType)}
-              className={`min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
+              className={`h-8 px-2.5 rounded-xl text-[11px] font-bold transition-colors whitespace-nowrap shrink-0 ${
                 filterType === tab.id
                   ? `${accent.bgClass} shadow-xs`
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1374,7 +1374,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           <button
             type="button"
             onClick={() => setOnlyMyEvents((prev) => !prev)}
-            className={`min-h-[34px] px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1 ${
+            className={`h-8 px-2.5 rounded-xl text-[11px] font-bold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1 ${
               onlyMyEvents
                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                 : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1386,17 +1386,17 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+        <div className="flex items-center gap-1 w-full sm:w-auto min-w-0 max-w-full">
           <button
             type="button"
             onClick={() => setShowAvailabilityModal(true)}
-            className="min-h-[34px] flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500/50 transition-colors whitespace-nowrap shrink-0"
+            className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500/50 transition-colors flex-1 sm:flex-initial min-w-0 truncate"
             title="Mi Disponibilidad / Bloquear Fechas"
           >
             <CalendarOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-            <span>Disponibilidad</span>
+            <span className="truncate">Disponibilidad</span>
             {availabilityRecords.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 font-mono text-[10px]">
+              <span className="px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 font-mono text-[10px] shrink-0">
                 {availabilityRecords.length}
               </span>
             )}
@@ -1407,11 +1407,11 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAlertModal(true)}
-                className="min-h-[34px] flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap shrink-0"
+                className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex-1 sm:flex-initial min-w-0 truncate"
                 title="Publicar Aviso"
               >
                 <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span>Aviso</span>
+                <span className="truncate">Aviso</span>
               </button>
               <button
                 type="button"
@@ -1419,10 +1419,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   setSongSearchCreate('');
                   setShowCreateModal(true);
                 }}
-                className={`min-h-[34px] flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] sm:text-xs font-bold shadow-xs whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                className={`h-8 flex items-center justify-center gap-1 px-2.5 sm:px-3 rounded-xl text-[11px] font-bold shadow-xs flex-1 sm:flex-initial min-w-0 truncate ${accent.bgClass}`}
               >
                 <Plus className="w-3.5 h-3.5 shrink-0" />
-                <span>Nuevo Evento</span>
+                <span className="truncate">Nuevo Evento</span>
               </button>
             </>
           )}
@@ -1603,9 +1603,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         ? ` · ${ev.rehearsals.length} ens.`
                         : ''}
                     </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                        {confirmedCount}/{ev.assignments.length} confirmados
+                        {confirmedCount}/{ev.assignments.length} conf.
                       </span>
                       <button
                         type="button"
@@ -1619,6 +1619,49 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       >
                         <CalendarPlus className="w-3.5 h-3.5" />
                       </button>
+                      {isLeader && (
+                        confirmDeleteEventId === ev.id ? (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-xl bg-rose-500/15 border border-rose-500/40"
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteEvent(ev.id);
+                                setConfirmDeleteEventId(null);
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-sans font-bold"
+                            >
+                              Borrar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmDeleteEventId(null);
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-sans font-bold"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeleteEventId(ev.id);
+                            }}
+                            className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/25 transition-colors shrink-0"
+                            title="Eliminar evento definitivamente para todos"
+                            aria-label="Eliminar evento"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1630,16 +1673,16 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         /* =====================================================================
            VISTA DETALLE COMPLETO DEL EVENTO SELECCIONADO
            ===================================================================== */
-        <div className="space-y-4">
-          {/* Barra superior para volver a las tarjetas de eventos */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-3 w-full max-w-full min-w-0">
+          {/* Barra superior compacta para volver a las tarjetas de eventos */}
+          <div className="flex items-center justify-between gap-2 w-full min-w-0">
             <button
               type="button"
               onClick={() => setOpenedEventId(null)}
-              className="min-h-[44px] px-4 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center gap-2 shadow-xs"
+              className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center gap-1.5 shadow-2xs shrink-0"
             >
-              <ArrowLeft className="w-4 h-4 text-amber-500" />
-              <span>Volver a las Tarjetas de Eventos</span>
+              <ArrowLeft className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>Eventos</span>
             </button>
 
             {filteredEvents.length > 1 &&
@@ -1648,7 +1691,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   (e) => e.id === activeEvent.id
                 );
                 return (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 shrink-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -1661,12 +1704,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           setOpenedEventId(target.id);
                         }
                       }}
-                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                      className="h-8 px-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
                     >
-                      <ChevronLeft className="w-4 h-4" />
-                      <span>Anterior</span>
+                      <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
+                      <span className="hidden sm:inline">Anterior</span>
                     </button>
-                    <span className="text-xs font-mono font-bold text-slate-500 px-1">
+                    <span className="text-[11px] font-mono font-bold text-slate-500 px-1">
                       {currentEvIdx + 1}/{filteredEvents.length}
                     </span>
                     <button
@@ -1680,21 +1723,21 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           setOpenedEventId(target.id);
                         }
                       }}
-                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                      className="h-8 px-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
                     >
-                      <span>Siguiente</span>
-                      <ChevronRight className="w-4 h-4" />
+                      <span className="hidden sm:inline">Siguiente</span>
+                      <ChevronRight className="w-3.5 h-3.5 shrink-0" />
                     </button>
                   </div>
                 );
               })()}
           </div>
 
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-6">
-            {/* Cabecera del Evento + Botones de Editar / Duplicar / Eliminar para Líder */}
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 space-y-5 w-full max-w-full overflow-hidden">
+            {/* Cabecera del Evento + Botones compactos y proporcionados dentro del margen */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-3.5 border-b border-slate-200 dark:border-slate-800 min-w-0 w-full">
+              <div className="space-y-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                   <span className={`font-bold ${accent.textClass}`}>
                     {getEventTypeLabel(activeEvent.type)}
                   </span>
@@ -1709,7 +1752,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     Cit: {activeEvent.callTime} / Ini: {activeEvent.time}
                   </span>
                 </div>
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                <h2 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white truncate">
                   {activeEvent.title}
                 </h2>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
@@ -1721,15 +1764,15 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 self-start shrink-0">
+              <div className="flex items-center gap-1 w-full lg:w-auto min-w-0 max-w-full">
                 <button
                   type="button"
                   onClick={() => setSyncCalendarEvent(activeEvent)}
-                  className="min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-xs font-bold text-amber-600 dark:text-amber-400 transition-colors shadow-2xs"
+                  className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-[11px] font-bold text-amber-600 dark:text-amber-400 transition-colors shadow-2xs flex-1 lg:flex-initial min-w-0 truncate"
                   title="Sincronizar con Google Calendar, Apple Calendar o Celular"
                 >
                   <CalendarPlus className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span>Sincronizar Calendario</span>
+                  <span className="truncate">Calendario</span>
                 </button>
 
                 {isLeader && (
@@ -1737,27 +1780,24 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => handleOpenEditEventModal(activeEvent)}
-                      className="min-h-[34px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                      className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 flex-1 lg:flex-initial min-w-0 truncate"
                     >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>Editar</span>
+                      <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Editar</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleDuplicateEventNextWeek(activeEvent)}
-                      className="min-h-[34px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500"
+                      className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500 flex-1 lg:flex-initial min-w-0 truncate"
                       title="Duplicar este evento para la próxima semana (+7 días)"
                     >
-                      <Copy className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Duplicar (+7d)</span>
+                      <Copy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span className="truncate">+7 días</span>
                     </button>
 
                     {confirmDeleteEventId === activeEvent.id ? (
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/10 border border-rose-500/30">
-                        <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
-                          ¿Eliminar para todos?
-                        </span>
+                      <div className="flex items-center gap-1 px-2 h-8 rounded-xl bg-rose-500/10 border border-rose-500/30 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
@@ -1767,7 +1807,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           }}
                           className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold"
                         >
-                          Sí
+                          Borrar
                         </button>
                         <button
                           type="button"
@@ -1781,10 +1821,11 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteEventId(activeEvent.id)}
-                        className="min-h-[34px] flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
+                        className="h-8 w-8 flex items-center justify-center rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 shrink-0"
                         title="Eliminar evento"
+                        aria-label="Eliminar evento"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5 shrink-0" />
                       </button>
                     )}
                   </>
@@ -2175,19 +2216,21 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
             {/* ===============================================================
                 2. PLAYLIST DEL EVENTO CON REORDENAMIENTO, TONOS Y VOCES POR CANCIÓN
                =============================================================== */}
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <ListMusic className={`w-5 h-5 ${accent.textClass}`} />
-                    Playlist del Evento y sus Ensayos ({activeEvent.songs.length})
+            <div className="space-y-3 w-full max-w-full min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0 w-full">
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <ListMusic className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
+                    <span className="truncate">
+                      Playlist del Evento ({activeEvent.songs.length})
+                    </span>
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Toca una canción para abrirla en el Cancionero o lanza el Modo Atril en Vivo para ensayar/tocar toda la lista seguida.
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Toca una canción para abrirla en el Cancionero o usa el Modo Atril.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1 w-full sm:w-auto min-w-0 max-w-full">
                   {activeEvent.songs.length > 0 && (
                     <button
                       type="button"
@@ -2200,24 +2243,24 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           true
                         );
                       }}
-                      className="min-h-[44px] px-3.5 py-2 rounded-2xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 font-bold text-xs flex items-center gap-2 shadow-sm"
+                      className="h-8 px-2.5 rounded-xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs flex-1 sm:flex-initial min-w-0 truncate"
                       title="Abrir todas las canciones de este evento en Modo Escenario / Atril"
                     >
-                      <Maximize2 className="w-4 h-4" />
-                      <span>Modo Atril en Vivo</span>
+                      <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Atril</span>
                     </button>
                   )}
 
-                  {activeEvent.spotifyPlaylistUrl && (
+                  {activeEvent.spotifyPlaylistUrl?.trim() && (
                     <a
-                      href={activeEvent.spotifyPlaylistUrl}
+                      href={activeEvent.spotifyPlaylistUrl.trim()}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="min-h-[44px] px-3.5 py-2 rounded-2xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs flex items-center gap-2 shadow-sm transition-colors"
+                      className="h-8 px-2.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-colors flex-1 sm:flex-initial min-w-0 truncate"
                       title="Abrir playlist en Spotify"
                     >
-                      <Headphones className="w-4 h-4 text-black" />
-                      <span>Playlist Spotify</span>
+                      <Headphones className="w-3.5 h-3.5 text-black shrink-0" />
+                      <span className="truncate">Spotify</span>
                     </a>
                   )}
 
@@ -2225,15 +2268,15 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowPlaylistEditor(true)}
-                      className={`min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                      className={`h-8 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 flex-1 sm:flex-initial min-w-0 truncate ${accent.bgClass}`}
                     >
-                      <ShieldCheck className="w-4 h-4" />
-                      Editar Playlist, Orden y Voces
+                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Editar Setlist</span>
                     </button>
                   ) : (
-                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5" />
-                      Playlist gestionada por el Líder
+                    <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 whitespace-nowrap shrink-0">
+                      <Lock className="w-3 h-3 shrink-0" />
+                      <span>Líder</span>
                     </span>
                   )}
                 </div>
@@ -2246,11 +2289,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   const weeklyKey = item.customKey || songObj.originalKey;
                   const isModifiedKey = weeklyKey !== songObj.originalKey;
                   const backingList = item.backingVocals || [];
+                  const cleanSpotifyUrl = songObj.spotifyUrl?.trim();
 
                   return (
                     <div
                       key={`${item.songId}-${index}`}
-                      className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:border-amber-500/50 transition-all flex flex-col justify-between gap-3"
+                      className="p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:border-amber-500/50 transition-all flex flex-col justify-between gap-2.5"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <button
@@ -2275,12 +2319,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
                         <div className="flex items-center gap-1 shrink-0">
                           {isLeader && activeEvent.songs.length > 1 && (
-                            <div className="flex items-center gap-0.5 mr-1">
+                            <div className="flex items-center gap-0.5 mr-0.5">
                               <button
                                 type="button"
                                 disabled={index === 0}
                                 onClick={() => moveSongInActiveEvent(index, -1)}
-                                className="p-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950"
+                                className="p-1 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950"
                                 title="Subir canción en la playlist"
                               >
                                 <ArrowUp className="w-3.5 h-3.5" />
@@ -2289,7 +2333,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 type="button"
                                 disabled={index === activeEvent.songs.length - 1}
                                 onClick={() => moveSongInActiveEvent(index, 1)}
-                                className="p-1.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950"
+                                className="p-1 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950"
                                 title="Bajar canción en la playlist"
                               >
                                 <ArrowDown className="w-3.5 h-3.5" />
@@ -2297,7 +2341,21 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             </div>
                           )}
 
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1 shrink-0">
+                            {cleanSpotifyUrl && (
+                              <a
+                                href={cleanSpotifyUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Escuchar en Spotify"
+                                aria-label={`Abrir ${songObj.title} en Spotify`}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#1DB954]/15 hover:bg-[#1DB954] text-[#15883e] dark:text-[#1ed760] hover:text-slate-950 border border-[#1DB954]/30 text-[10px] font-bold transition-colors shrink-0"
+                              >
+                                <Headphones className="w-3 h-3 shrink-0" />
+                                <span>Spotify</span>
+                              </a>
+                            )}
                             {(songObj.hasChordSheetImage ||
                               (songObj.chordSheetImageUrl &&
                                 !songObj.chordSheetImageUrl.startsWith(
@@ -2309,7 +2367,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 </span>
                               )}
                             <span
-                              className={`font-mono text-xs font-bold px-2.5 py-1 rounded-xl shrink-0 ${
+                              className={`font-mono text-xs font-bold px-2 py-0.5 rounded-lg shrink-0 ${
                                 isModifiedKey
                                   ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
                                   : accent.softBgClass

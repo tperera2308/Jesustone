@@ -70,9 +70,12 @@ import {
   deleteSongFromFirestore,
   enrichGroupIndexes,
   findGroupByInviteCodeInCloud,
+  getPermanentDeletedIds,
+  isLegacyZombieRecurringEvent,
   MAX_CHAT_MESSAGES_PER_GROUP,
   MAX_DMS_PER_CONVERSATION,
   MAX_NOTIFICATIONS,
+  registerPermanentDeletedIds,
   signOutFirebaseOfficial,
   subscribeToJesustoneCloud,
   syncChatMessageToFirestore,
@@ -130,6 +133,8 @@ const STORAGE_KEYS = {
   DELETED_SONG_IDS: 'jesustone_deleted_songs_v4',
   DELETED_EVENT_IDS: 'jesustone_deleted_events_v4',
   DELETED_MSG_IDS: 'jesustone_deleted_msgs_v4',
+  SESSION_USER_CACHE: 'jesustone_session_user_v1',
+  SESSION_GROUP_SHELL_CACHE: 'jesustone_session_groups_shell_v1',
 };
 
 function generateMusicianCodeFromSeed(seed: string): string {
@@ -242,16 +247,30 @@ function migrateLegacyLocalGroupsOnce(): WorshipGroup[] {
 }
 
 export default function App() {
-  const [users, setUsers] = useState<AppUser[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string>(() =>
     loadFromStorage(STORAGE_KEYS.CURRENT_USER_ID, '')
   );
-  const [groups, setGroups] = useState<WorshipGroup[]>(() =>
-    migrateLegacyLocalGroupsOnce()
-  );
+  const [users, setUsers] = useState<AppUser[]>(() => {
+    const cachedUser = loadFromStorage<AppUser | null>(
+      STORAGE_KEYS.SESSION_USER_CACHE,
+      null
+    );
+    return cachedUser && cachedUser.id ? [ensureUserMusicianCode(cachedUser)] : [];
+  });
+  const [groups, setGroups] = useState<WorshipGroup[]>(() => {
+    const migrated = migrateLegacyLocalGroupsOnce();
+    if (migrated.length > 0) return migrated;
+    const cachedShells = loadFromStorage<WorshipGroup[]>(
+      STORAGE_KEYS.SESSION_GROUP_SHELL_CACHE,
+      []
+    );
+    return Array.isArray(cachedShells) ? cachedShells : [];
+  });
   const [activeGroupId, setActiveGroupId] = useState<string>(() =>
     loadFromStorage(STORAGE_KEYS.ACTIVE_GROUP_ID, '')
   );
+  const [cloudUsersLoaded, setCloudUsersLoaded] = useState(false);
+  const [cloudGroupsLoaded, setCloudGroupsLoaded] = useState(false);
   const [fallbackIdentity, setFallbackIdentity] = useState<AppIdentity>(() =>
     loadFromStorage(STORAGE_KEYS.THEME_PREF, INITIAL_IDENTITY)
   );
@@ -300,6 +319,11 @@ export default function App() {
 
   useEffect(() => {
     testFirestoreConnection();
+    const safetyTimer = window.setTimeout(() => {
+      setCloudUsersLoaded(true);
+      setCloudGroupsLoaded(true);
+    }, 2500);
+    return () => window.clearTimeout(safetyTimer);
   }, []);
 
   useEffect(() => {
@@ -311,6 +335,7 @@ export default function App() {
       },
       {
         onUsersSnapshot: (cloudUsers) => {
+          setCloudUsersLoaded(true);
           setUsers((prevLocal) => {
             const normalizedCloud = cloudUsers.map(ensureUserMusicianCode);
             const cloudMap = new Map(normalizedCloud.map((u) => [u.id, u]));
@@ -326,6 +351,7 @@ export default function App() {
           });
         },
         onGroupsSnapshot: (cloudGroups) => {
+          setCloudGroupsLoaded(true);
           const deletedSongs = new Set<string>(
             loadFromStorage<string[]>(STORAGE_KEYS.DELETED_SONG_IDS, [])
           );
@@ -340,10 +366,30 @@ export default function App() {
             const cloudGroupIds = new Set(cloudGroups.map((cg) => cg.id));
             const mergedGroups: WorshipGroup[] = cloudGroups.map((cloudGrp) => {
               const localGrp = prevLocalGroups.find((g) => g.id === cloudGrp.id);
+
+              // Detectar eventos serie huérfanos antiguos ("Domingo de celebración/servicio y alabanza ... 2/4, 3/4, 4/4")
+              const zombieEventIds = [
+                ...(cloudGrp.events || []),
+                ...(localGrp?.events || []),
+              ]
+                .filter((ev) => isLegacyZombieRecurringEvent(ev))
+                .map((ev) => ev.id);
+
+              if (zombieEventIds.length > 0) {
+                registerPermanentDeletedIds(cloudGrp.id, ...zombieEventIds);
+                zombieEventIds.forEach((zid) =>
+                  recordDeletedId(STORAGE_KEYS.DELETED_EVENT_IDS, zid)
+                );
+              }
+
               const combinedDeletedList = appendGroupDeletedIds(
                 cloudGrp.deletedIds,
-                ...(localGrp?.deletedIds || [])
+                ...(localGrp?.deletedIds || []),
+                ...getPermanentDeletedIds(cloudGrp.id),
+                ...zombieEventIds
               );
+              registerPermanentDeletedIds(cloudGrp.id, ...combinedDeletedList);
+
               const groupDeletedSet = new Set<string>([
                 ...combinedDeletedList,
                 ...deletedSongs,
@@ -352,7 +398,7 @@ export default function App() {
               ]);
 
               // Sincronizar IDs eliminados en la nube
-              for (const delId of cloudGrp.deletedIds || []) {
+              for (const delId of combinedDeletedList) {
                 if (delId.startsWith('ev-') && !deletedEvents.has(delId)) {
                   deletedEvents.add(delId);
                   recordDeletedId(STORAGE_KEYS.DELETED_EVENT_IDS, delId);
@@ -366,7 +412,7 @@ export default function App() {
               }
 
               if (!localGrp) {
-                return enrichGroupIndexes({
+                const cleanedInitialGroup = enrichGroupIndexes({
                   ...cloudGrp,
                   songs: (cloudGrp.songs || [])
                     .filter((s) => !groupDeletedSet.has(s.id))
@@ -410,8 +456,21 @@ export default function App() {
                       !groupDeletedSet.has(m.id) &&
                       !groupDeletedSet.has(m.channel)
                   ),
+                  activityFeed: (cloudGrp.activityFeed || []).filter(
+                    (f) => !f.targetId || !groupDeletedSet.has(f.targetId)
+                  ),
                   deletedIds: combinedDeletedList,
                 });
+
+                if (
+                  zombieEventIds.length > 0 ||
+                  (cloudGrp.events || []).some((e) => groupDeletedSet.has(e.id)) ||
+                  (cloudGrp.songs || []).some((s) => groupDeletedSet.has(s.id))
+                ) {
+                  syncGroupToFirestore(cleanedInitialGroup);
+                }
+
+                return cleanedInitialGroup;
               }
 
               const cloudSongMap = new Map(
@@ -576,10 +635,13 @@ export default function App() {
                     !groupDeletedSet.has(m.channel) &&
                     validChannelIds.has(m.channel)
                 ),
+                activityFeed: (cloudGrp.activityFeed || []).filter(
+                  (f) => !f.targetId || !groupDeletedSet.has(f.targetId)
+                ),
                 deletedIds: combinedDeletedList,
               });
 
-              if (needsResync) {
+              if (needsResync || zombieEventIds.length > 0) {
                 syncGroupToFirestore(mergedGroup);
               }
 
@@ -673,6 +735,40 @@ export default function App() {
 
   const activeGroup =
     myGroups.find((g) => g.id === activeGroupId) || myGroups[0] || null;
+
+  // Guardar carcasa ultraligera de la sesión activa (~2KB, sin letras ni chats ni imágenes)
+  // para que al abrir o refrescar la app entre en 0ms sin parpadear la pantalla de inicio de sesión
+  useEffect(() => {
+    if (!currentUserId) {
+      try {
+        localStorage.removeItem(STORAGE_KEYS.SESSION_USER_CACHE);
+        localStorage.removeItem(STORAGE_KEYS.SESSION_GROUP_SHELL_CACHE);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    if (currentUser) {
+      safeSaveToStorage(STORAGE_KEYS.SESSION_USER_CACHE, currentUser);
+    }
+    if (myGroups.length > 0) {
+      const lightGroupShells: WorshipGroup[] = myGroups.map((g) => ({
+        ...g,
+        songs: (g.songs || []).map((s) => ({
+          ...s,
+          lyricsAndChords: '',
+          rawLyricsAndChords: '',
+          chordSheetImageUrl: undefined,
+        })),
+        chatMessages: [],
+        devotionals: (g.devotionals || []).map((d) => ({
+          ...d,
+          comments: [],
+        })),
+      }));
+      safeSaveToStorage(STORAGE_KEYS.SESSION_GROUP_SHELL_CACHE, lightGroupShells);
+    }
+  }, [currentUserId, currentUser, myGroups]);
 
   const identity = activeGroup ? activeGroup.identity : fallbackIdentity;
 
@@ -958,6 +1054,12 @@ export default function App() {
 
   const handleLogout = () => {
     signOutFirebaseOfficial();
+    try {
+      localStorage.removeItem(STORAGE_KEYS.SESSION_USER_CACHE);
+      localStorage.removeItem(STORAGE_KEYS.SESSION_GROUP_SHELL_CACHE);
+    } catch {
+      // ignore
+    }
     setCurrentUserId('');
     setActiveGroupId('');
     setIsAuthModalOpen(false);
@@ -1158,7 +1260,27 @@ export default function App() {
   // ============================================================================
   // SI NO HA INICIADO SESIÓN O AÚN NO TIENE NINGÚN GRUPO ACTIVO
   // ============================================================================
+  const isHydratingSavedSession =
+    Boolean(currentUserId) && (!cloudUsersLoaded || !cloudGroupsLoaded);
+
   if (!currentUser || !activeGroup) {
+    if (isHydratingSavedSession) {
+      return (
+        <div className={identity.darkMode ? 'dark' : ''}>
+          <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex items-center justify-center p-4">
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="w-7 h-7 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                <GuitarPickCrossIcon className="w-4 h-4 text-amber-500 animate-pulse" />
+              </div>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                Sincronizando sesión de jesustone...
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className={identity.darkMode ? 'dark' : ''}>
         <AuthOnboardingModal
@@ -2271,10 +2393,12 @@ export default function App() {
   };
 
   const handleDeleteEvent = (eventId: string) => {
+    registerPermanentDeletedIds(activeGroup.id, eventId);
     recordDeletedId(STORAGE_KEYS.DELETED_EVENT_IDS, eventId);
     updateActiveGroup((g) => ({
       ...g,
       events: g.events.filter((e) => e.id !== eventId),
+      alerts: (g.alerts || []).filter((a) => a.eventRefId !== eventId),
       members: g.members.map((m) =>
         m.guestEventIds?.includes(eventId)
           ? {
@@ -2328,6 +2452,7 @@ export default function App() {
   };
 
   const handleDismissAlert = (alertId: string) => {
+    registerPermanentDeletedIds(activeGroup.id, alertId);
     updateActiveGroup((g) => ({
       ...g,
       alerts: g.alerts.filter((a) => a.id !== alertId),
@@ -2365,6 +2490,7 @@ export default function App() {
   };
 
   const handleRemoveAvailability = (recordId: string) => {
+    registerPermanentDeletedIds(activeGroup.id, recordId);
     updateActiveGroup((g) => ({
       ...g,
       availabilityRecords: (g.availabilityRecords || []).filter(
@@ -2482,6 +2608,7 @@ export default function App() {
   };
 
   const handleDeleteSong = (songId: string) => {
+    registerPermanentDeletedIds(activeGroup.id, songId);
     const targetSong = activeGroup.songs.find((s) => s.id === songId);
     if (
       targetSong?.chordSheetImageUrl &&
@@ -2700,6 +2827,7 @@ export default function App() {
   };
 
   const handleDeleteDevotional = (devId: string) => {
+    registerPermanentDeletedIds(activeGroup.id, devId);
     updateActiveGroup((g) => ({
       ...g,
       devotionals: g.devotionals.filter((d) => d.id !== devId),
@@ -2852,6 +2980,7 @@ export default function App() {
     targetGroupId?: string
   ) => {
     const resolvedGroupId = targetGroupId || activeGroup.id;
+    registerPermanentDeletedIds(resolvedGroupId, messageId);
     const targetGrp = groups.find((g) => g.id === resolvedGroupId);
     const targetMsg = targetGrp?.chatMessages.find((m) => m.id === messageId);
     if (targetMsg?.voiceClipUrl && targetMsg.voiceClipUrl.startsWith('http')) {
