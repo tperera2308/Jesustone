@@ -1365,8 +1365,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
       )}
 
       {/* Barra compacta de Filtros + Acciones en fila ordenada sin desbordar márgenes */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs w-full max-w-full overflow-hidden">
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 shadow-xs w-full max-w-full overflow-hidden">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full min-w-0">
           {[
             { id: 'all', label: 'Próximos' },
             { id: 'sunday', label: 'Domingos' },
@@ -1380,10 +1380,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               key={tab.id}
               type="button"
               onClick={() => setFilterType(tab.id as typeof filterType)}
-              className={`h-8 px-2.5 rounded-xl text-[11px] font-bold transition-colors whitespace-nowrap shrink-0 ${
+              className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
                 filterType === tab.id
                   ? `${accent.bgClass} shadow-xs`
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
               {tab.label}
@@ -1393,29 +1393,29 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           <button
             type="button"
             onClick={() => setOnlyMyEvents((prev) => !prev)}
-            className={`h-8 px-2.5 rounded-xl text-[11px] font-bold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1 ${
+            className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-bold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
               onlyMyEvents
                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
             title="Ver únicamente eventos donde estás convocado"
           >
-            <User className="w-3 h-3 shrink-0" />
+            <User className="w-3.5 h-3.5 shrink-0" />
             <span>Mis Eventos</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-1 w-full sm:w-auto min-w-0 max-w-full">
+        <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0 max-w-full">
           <button
             type="button"
             onClick={() => setShowAvailabilityModal(true)}
-            className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500/50 transition-colors flex-1 sm:flex-initial min-w-0 truncate"
+            className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500/60 transition-colors flex-1 sm:flex-initial min-w-0 truncate"
             title="Mi Disponibilidad / Bloquear Fechas"
           >
-            <CalendarOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            <CalendarOff className="w-4 h-4 text-rose-500 shrink-0" />
             <span className="truncate">Disponibilidad</span>
             {availabilityRecords.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 font-mono text-[10px] shrink-0">
+              <span className="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 font-mono text-xs shrink-0">
                 {availabilityRecords.length}
               </span>
             )}
@@ -1426,10 +1426,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAlertModal(true)}
-                className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex-1 sm:flex-initial min-w-0 truncate"
+                className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-bold text-slate-800 dark:text-slate-100 flex-1 sm:flex-initial min-w-0 truncate"
                 title="Publicar Aviso"
               >
-                <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <Bell className="w-4 h-4 text-amber-500 shrink-0" />
                 <span className="truncate">Aviso</span>
               </button>
               <button
@@ -1438,9 +1438,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   setSongSearchCreate('');
                   setShowCreateModal(true);
                 }}
-                className={`h-8 flex items-center justify-center gap-1 px-2.5 sm:px-3 rounded-xl text-[11px] font-bold shadow-xs flex-1 sm:flex-initial min-w-0 truncate ${accent.bgClass}`}
+                className={`min-h-[40px] flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex-1 sm:flex-initial min-w-0 truncate ${accent.bgClass}`}
               >
-                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <Plus className="w-4 h-4 shrink-0" />
                 <span className="truncate">Nuevo Evento</span>
               </button>
             </>
@@ -1525,43 +1525,43 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       setOpenedEventId(ev.id);
                     }
                   }}
-                  className="w-full text-left p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-lg transition-all flex flex-col justify-between gap-3.5 group cursor-pointer"
+                  className="w-full text-left p-4 sm:p-5 rounded-3xl border border-slate-300/80 dark:border-slate-700/80 bg-white dark:bg-slate-900 hover:border-amber-500/70 hover:shadow-lg transition-all flex flex-col justify-between gap-4 group cursor-pointer"
                 >
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span
-                        className={`px-2.5 py-1 rounded-xl font-bold ${accent.softBgClass}`}
+                        className={`px-3 py-1 rounded-xl font-bold ${accent.softBgClass}`}
                       >
                         {getEventTypeLabel(ev.type)}
                       </span>
-                      <span className="font-mono font-bold text-slate-600 dark:text-slate-300">
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-200">
                         {formatReadableDateEs(ev.date)}
                       </span>
                     </div>
 
                     <div>
-                      <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors">
+                      <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors leading-snug">
                         {ev.title}
                       </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 line-clamp-1 mt-0.5 font-medium">
                         {ev.preacherOrTheme}
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-300 pt-0.5">
-                      <span className="flex items-center gap-1 font-mono font-semibold">
-                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                    <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-slate-700 dark:text-slate-200 pt-0.5">
+                      <span className="flex items-center gap-1.5 font-mono font-semibold">
+                        <Clock className="w-4 h-4 text-amber-500" />
                         Cita: {ev.callTime} · Inicio: {ev.time}
                       </span>
-                      <span className="flex items-center gap-1 truncate">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="flex items-center gap-1.5 truncate">
+                        <MapPin className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                         {ev.location}
                       </span>
                     </div>
 
                     {/* Resumen de Ensayos incluidos dentro de este Evento */}
                     {ev.rehearsals && ev.rehearsals.length > 0 && (
-                      <div className="px-2.5 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-between gap-2 text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold">
+                      <div className="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-between gap-2 text-xs text-indigo-700 dark:text-indigo-300 font-semibold">
                         <span className="truncate">
                           🎵 {ev.rehearsals.length}{' '}
                           {ev.rehearsals.length === 1 ? 'Ensayo' : 'Ensayos'}:{' '}
@@ -1574,13 +1574,13 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
                     {/* Estado resumido de mi propia invitación en la tarjeta */}
                     {myAssigns.length > 0 ? (
-                      <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-2">
+                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                          <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 block">
                             Tu Invitación ({myRolesList.join(', ')})
                           </span>
                           <span
-                            className={`text-xs font-bold ${
+                            className={`text-xs sm:text-sm font-bold ${
                               myStatus === 'confirmed'
                                 ? 'text-emerald-600 dark:text-emerald-400'
                                 : myStatus === 'declined'
@@ -1595,24 +1595,24 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                               : '⏳ Pendiente de responder'}
                           </span>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                        <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
                       </div>
                     ) : (
-                      <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-[11px] text-slate-500 flex items-center justify-between">
+                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-600 dark:text-slate-300 font-medium flex items-center justify-between">
                         <span>No estás asignado en este evento</span>
-                        <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                        <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between text-xs pt-3 border-t border-slate-100 dark:border-slate-800 font-mono tabular-nums text-slate-500">
+                  <div className="flex items-center justify-between text-xs pt-3 border-t border-slate-200/80 dark:border-slate-800 font-mono tabular-nums text-slate-600 dark:text-slate-300 font-semibold">
                     <span>
                       {ev.songs.length} canciones
                       {ev.rehearsals && ev.rehearsals.length > 0
                         ? ` · ${ev.rehearsals.length} ens.`
                         : ''}
                     </span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <span className="font-bold text-emerald-600 dark:text-emerald-400">
                         {confirmedCount}/{ev.assignments.length} conf.
                       </span>
@@ -1622,17 +1622,17 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           e.stopPropagation();
                           setSyncCalendarEvent(ev);
                         }}
-                        className="p-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-colors shrink-0 shadow-2xs"
+                        className="min-h-[38px] min-w-[38px] p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-colors shrink-0 shadow-2xs flex items-center justify-center"
                         title="Añadir a mi Calendario (Google / Apple / Celular)"
                         aria-label="Añadir a mi Calendario"
                       >
-                        <CalendarPlus className="w-3.5 h-3.5" />
+                        <CalendarPlus className="w-4 h-4" />
                       </button>
                       {isLeader && (
                         confirmDeleteEventId === ev.id ? (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1 px-2 py-0.5 rounded-xl bg-rose-500/15 border border-rose-500/40"
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/15 border border-rose-500/40"
                           >
                             <button
                               type="button"
@@ -1641,7 +1641,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 onDeleteEvent(ev.id);
                                 setConfirmDeleteEventId(null);
                               }}
-                              className="px-1.5 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-sans font-bold"
+                              className="min-h-[32px] px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-sans font-bold"
                             >
                               Borrar
                             </button>
@@ -1651,7 +1651,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 e.stopPropagation();
                                 setConfirmDeleteEventId(null);
                               }}
-                              className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-sans font-bold"
+                              className="min-h-[32px] px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-sans font-bold"
                             >
                               No
                             </button>
@@ -1663,11 +1663,11 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                               e.stopPropagation();
                               setConfirmDeleteEventId(ev.id);
                             }}
-                            className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/25 transition-colors shrink-0"
+                            className="min-h-[38px] min-w-[38px] p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/25 transition-colors shrink-0 flex items-center justify-center"
                             title="Eliminar evento definitivamente para todos"
                             aria-label="Eliminar evento"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )
                       )}
@@ -1691,9 +1691,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 setOpenedEventId(null);
                 if (onClearInitialEventId) onClearInitialEventId();
               }}
-              className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center gap-1.5 shadow-2xs shrink-0"
+              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center gap-1.5 shadow-2xs shrink-0"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
               <span>Todos los Eventos</span>
             </button>
 
@@ -1703,7 +1703,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   (e) => e.id === activeEvent.id
                 );
                 return (
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -1716,12 +1716,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           setOpenedEventId(target.id);
                         }
                       }}
-                      className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                      className="min-h-[40px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-amber-500 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1"
                     >
-                      <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
+                      <ChevronLeft className="w-4 h-4 shrink-0" />
                       <span className="hidden sm:inline">Anterior</span>
                     </button>
-                    <span className="text-xs font-mono font-bold text-slate-500 px-1">
+                    <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-300 px-1">
                       {currentEvIdx + 1}/{filteredEvents.length}
                     </span>
                     <button
@@ -1735,55 +1735,55 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           setOpenedEventId(target.id);
                         }
                       }}
-                      className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                      className="min-h-[40px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-amber-500 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1"
                     >
                       <span className="hidden sm:inline">Siguiente</span>
-                      <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                      <ChevronRight className="w-4 h-4 shrink-0" />
                     </button>
                   </div>
                 );
               })()}
           </div>
 
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 space-y-4 w-full max-w-full overflow-hidden">
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-300/80 dark:border-slate-700/80 p-4 sm:p-6 space-y-4 w-full max-w-full overflow-hidden">
             {/* Cabecera del Evento + Botones compactos y proporcionados dentro del margen */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-3 border-b border-slate-200 dark:border-slate-800 min-w-0 w-full">
-              <div className="space-y-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3.5 border-b border-slate-200 dark:border-slate-800 min-w-0 w-full">
+              <div className="space-y-1.5 min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
                   <span className={`font-bold ${accent.textClass}`}>
                     {getEventTypeLabel(activeEvent.type)}
                   </span>
                   <span aria-hidden="true">·</span>
-                  <span className="flex items-center gap-1 font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                    <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="flex items-center gap-1 font-mono font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                    <Calendar className="w-4 h-4 text-amber-500" />
                     {formatReadableDateEs(activeEvent.date)}
                   </span>
                   <span aria-hidden="true">·</span>
-                  <span className="flex items-center gap-1 font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-200">
-                    <Clock className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="flex items-center gap-1 font-mono font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                    <Clock className="w-4 h-4 text-amber-500" />
                     Cita: {activeEvent.callTime} · Inicio: {activeEvent.time}
                   </span>
                 </div>
-                <h2 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white truncate">
+                <h2 className="text-lg sm:text-2xl font-extrabold text-slate-900 dark:text-white truncate">
                   {activeEvent.title}
                 </h2>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium">
                   <span>{activeEvent.preacherOrTheme}</span>
                   <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" />
+                    <MapPin className="w-4 h-4" />
                     {activeEvent.location}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 w-full lg:w-auto min-w-0 max-w-full">
+              <div className="flex items-center gap-1.5 w-full lg:w-auto min-w-0 max-w-full">
                 <button
                   type="button"
                   onClick={() => setSyncCalendarEvent(activeEvent)}
-                  className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-[11px] font-bold text-amber-600 dark:text-amber-400 transition-colors shadow-2xs flex-1 lg:flex-initial min-w-0 truncate"
+                  className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-xs font-bold text-amber-600 dark:text-amber-400 transition-colors shadow-2xs flex-1 lg:flex-initial min-w-0 truncate"
                   title="Sincronizar con Google Calendar, Apple Calendar o Celular"
                 >
-                  <CalendarPlus className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <CalendarPlus className="w-4 h-4 text-amber-500 shrink-0" />
                   <span className="truncate">Calendario</span>
                 </button>
 
@@ -1792,24 +1792,24 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => handleOpenEditEventModal(activeEvent)}
-                      className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 flex-1 lg:flex-initial min-w-0 truncate"
+                      className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 flex-1 lg:flex-initial min-w-0 truncate"
                     >
-                      <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                      <Edit3 className="w-4 h-4 shrink-0" />
                       <span className="truncate">Editar</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleDuplicateEventNextWeek(activeEvent)}
-                      className="h-8 flex items-center justify-center gap-1 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500 flex-1 lg:flex-initial min-w-0 truncate"
+                      className="min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex-1 lg:flex-initial min-w-0 truncate"
                       title="Duplicar este evento para la próxima semana (+7 días)"
                     >
-                      <Copy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <Copy className="w-4 h-4 text-amber-500 shrink-0" />
                       <span className="truncate">+7 días</span>
                     </button>
 
                     {confirmDeleteEventId === activeEvent.id ? (
-                      <div className="flex items-center gap-1 px-2 h-8 rounded-xl bg-rose-500/10 border border-rose-500/30 shrink-0">
+                      <div className="flex items-center gap-1.5 px-2.5 min-h-[40px] rounded-xl bg-rose-500/10 border border-rose-500/30 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
@@ -1817,14 +1817,14 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             setConfirmDeleteEventId(null);
                             setOpenedEventId(null);
                           }}
-                          className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold"
+                          className="min-h-[32px] px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
                         >
                           Borrar
                         </button>
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteEventId(null)}
-                          className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold"
+                          className="min-h-[32px] px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold"
                         >
                           No
                         </button>
@@ -1833,11 +1833,11 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteEventId(activeEvent.id)}
-                        className="h-8 w-8 flex items-center justify-center rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 shrink-0"
+                        className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 shrink-0"
                         title="Eliminar evento"
                         aria-label="Eliminar evento"
                       >
-                        <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                        <Trash2 className="w-4 h-4 shrink-0" />
                       </button>
                     )}
                   </>
@@ -1908,11 +1908,11 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
 
               if (currentStatus === 'confirmed') {
                 return (
-                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300 truncate">
+                        <p className="text-xs sm:text-sm font-bold text-emerald-800 dark:text-emerald-300 truncate">
                           Asistencia confirmada al evento y sus ensayos ·{' '}
                           <span className="font-semibold">
                             {myRolesCombined.join(' + ')}
@@ -1922,7 +1922,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       <button
                         type="button"
                         onClick={() => handleSaveMyRsvpNote('declined')}
-                        className="px-2.5 py-1 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 hover:border-rose-500 text-[11px] font-bold text-rose-600 dark:text-rose-400 transition-colors shrink-0"
+                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700 hover:border-rose-500 text-xs font-bold text-rose-600 dark:text-rose-400 transition-colors shrink-0"
                       >
                         Declinar
                       </button>
@@ -1935,7 +1935,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         onChange={(e) => setRsvpNoteDraft(e.target.value)}
                         onBlur={() => handleSaveMyRsvpNote()}
                         placeholder="Nota opcional (ej. Llego 10 min tarde por trabajo)..."
-                        className="flex-1 min-h-[32px] px-2.5 py-1 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-emerald-500/20 text-[11px] text-slate-800 dark:text-slate-200"
+                        className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-emerald-500/30 text-xs sm:text-sm text-slate-900 dark:text-slate-100"
                       />
                     </div>
                   </div>
@@ -1943,18 +1943,18 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               }
 
               return (
-                <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/40 space-y-3">
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/40 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-extrabold uppercase tracking-wider">
+                        <span className="px-2.5 py-0.5 rounded-md bg-amber-500 text-slate-950 text-xs font-extrabold uppercase tracking-wider">
                           Tu Invitación
                         </span>
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
                           {myRolesCombined.join(' + ')}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-300">
+                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200">
                         {currentStatus === 'declined'
                           ? 'Has declinado esta invitación. Puedes confirmar si cambió tu disponibilidad:'
                           : 'Confirma o declina tu participación en este evento y sus ensayos:'}
@@ -1965,22 +1965,22 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       <button
                         type="button"
                         onClick={() => handleSaveMyRsvpNote('confirmed')}
-                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                        className="min-h-[42px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all shadow-xs"
                       >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <CheckCircle2 className="w-4 h-4" />
                         <span>Aceptar</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleSaveMyRsvpNote('declined')}
-                        className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                        className={`min-h-[42px] px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all ${
                           currentStatus === 'declined'
                             ? 'bg-rose-600 text-white'
-                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-rose-500'
+                            : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:border-rose-500'
                         }`}
                       >
-                        <XCircle className="w-3.5 h-3.5" />
+                        <XCircle className="w-4 h-4" />
                         <span>{currentStatus === 'declined' ? 'Declinada' : 'Declinar'}</span>
                       </button>
                     </div>
@@ -1992,7 +1992,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     onChange={(e) => setRsvpNoteDraft(e.target.value)}
                     onBlur={() => handleSaveMyRsvpNote()}
                     placeholder="Motivo o comentario opcional para el Líder (ej. Llego directo del trabajo)..."
-                    className="w-full min-h-[34px] px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/30 text-xs text-slate-800 dark:text-slate-200"
+                    className="w-full min-h-[38px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/30 text-xs sm:text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
               );
@@ -2169,8 +2169,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         </div>
 
                         {isAmConvoked && (
-                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                            <span className="text-[11px] font-semibold text-slate-500">
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+                            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                               Tu asistencia al ensayo:
                             </span>
                             <div className="flex items-center gap-1.5">
@@ -2179,10 +2179,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 onClick={() =>
                                   handleToggleMyRehearsalRSVP(reh.id, 'confirmed')
                                 }
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                                className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
                                   myRehRsvp === 'confirmed'
                                     ? 'bg-emerald-600 text-white'
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-emerald-500/20'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-emerald-500/20'
                                 }`}
                               >
                                 {myRehRsvp === 'confirmed'
@@ -2194,10 +2194,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 onClick={() =>
                                   handleToggleMyRehearsalRSVP(reh.id, 'declined')
                                 }
-                                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                                className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
                                   myRehRsvp === 'declined'
                                     ? 'bg-rose-600 text-white'
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-rose-500'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-rose-500'
                                 }`}
                               >
                                 No puedo
@@ -2216,16 +2216,16 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
             {/* ===============================================================
                 2. PLAYLIST DEL EVENTO CON REORDENAMIENTO, TONOS Y VOCES POR CANCIÓN
                =============================================================== */}
-            <div className="space-y-2.5 w-full max-w-full min-w-0">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0 w-full">
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5 min-w-0">
+            <div className="space-y-3 w-full max-w-full min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 min-w-0 w-full">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 min-w-0">
                   <ListMusic className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
                   <span className="truncate">
                     Setlist / Canciones ({activeEvent.songs.length})
                   </span>
                 </h3>
 
-                <div className="flex items-center gap-1 w-full sm:w-auto min-w-0 max-w-full">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0 max-w-full">
                   {activeEvent.songs.length > 0 && (
                     <button
                       type="button"
@@ -2238,10 +2238,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           true
                         );
                       }}
-                      className="h-8 px-2.5 rounded-xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs flex-1 sm:flex-initial min-w-0 truncate"
+                      className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs flex-1 sm:flex-initial min-w-0 truncate"
                       title="Abrir todas las canciones de este evento en Modo Escenario / Atril"
                     >
-                      <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+                      <Maximize2 className="w-4 h-4 shrink-0" />
                       <span className="truncate">Atril</span>
                     </button>
                   )}
@@ -2251,10 +2251,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       href={activeEvent.spotifyPlaylistUrl.trim()}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="h-8 px-2.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-colors flex-1 sm:flex-initial min-w-0 truncate"
+                      className="min-h-[40px] px-3 py-2 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors flex-1 sm:flex-initial min-w-0 truncate"
                       title="Abrir playlist en Spotify"
                     >
-                      <Headphones className="w-3.5 h-3.5 text-black shrink-0" />
+                      <Headphones className="w-4 h-4 text-black shrink-0" />
                       <span className="truncate">Spotify</span>
                     </a>
                   )}
@@ -2263,21 +2263,21 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowPlaylistEditor(true)}
-                      className={`h-8 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 flex-1 sm:flex-initial min-w-0 truncate ${accent.bgClass}`}
+                      className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 flex-1 sm:flex-initial min-w-0 truncate ${accent.bgClass}`}
                     >
-                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                      <ShieldCheck className="w-4 h-4 shrink-0" />
                       <span className="truncate">Editar Setlist</span>
                     </button>
                   ) : (
-                    <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 whitespace-nowrap shrink-0">
-                      <Lock className="w-3 h-3 shrink-0" />
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1 whitespace-nowrap shrink-0">
+                      <Lock className="w-3.5 h-3.5 shrink-0" />
                       <span>Líder</span>
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {activeEvent.songs.map((item, index) => {
                   const songObj = songs.find((s) => s.id === item.songId);
                   if (!songObj) return null;
@@ -2289,7 +2289,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   return (
                     <div
                       key={`${item.songId}-${index}`}
-                      className="p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:border-amber-500/50 transition-all flex flex-col justify-between gap-2.5"
+                      className="p-4 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-800/40 hover:border-amber-500/60 transition-all flex flex-col justify-between gap-3"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <button
@@ -2302,41 +2302,41 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                               false
                             )
                           }
-                          className="text-left min-w-0 flex-1"
+                          className="text-left min-w-0 flex-1 py-0.5"
                         >
-                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate hover:text-amber-500">
+                          <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate hover:text-amber-500 leading-snug">
                             0{index + 1}. {songObj.title}
                           </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5 font-medium">
                             Tono Base: {songObj.originalKey} · {songObj.bpm} BPM
                           </p>
                         </button>
 
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           {isLeader && activeEvent.songs.length > 1 && (
-                            <div className="flex items-center gap-0.5 mr-0.5">
+                            <div className="flex items-center gap-1 mr-0.5">
                               <button
                                 type="button"
                                 disabled={index === 0}
                                 onClick={() => moveSongInActiveEvent(index, -1)}
-                                className="p-1 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950"
+                                className="min-h-[34px] min-w-[34px] p-1.5 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center"
                                 title="Subir canción en la playlist"
                               >
-                                <ArrowUp className="w-3.5 h-3.5" />
+                                <ArrowUp className="w-4 h-4" />
                               </button>
                               <button
                                 type="button"
                                 disabled={index === activeEvent.songs.length - 1}
                                 onClick={() => moveSongInActiveEvent(index, 1)}
-                                className="p-1 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950"
+                                className="min-h-[34px] min-w-[34px] p-1.5 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center"
                                 title="Bajar canción en la playlist"
                               >
-                                <ArrowDown className="w-3.5 h-3.5" />
+                                <ArrowDown className="w-4 h-4" />
                               </button>
                             </div>
                           )}
 
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             {cleanSpotifyUrl && (
                               <a
                                 href={cleanSpotifyUrl}
@@ -2345,9 +2345,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 onClick={(e) => e.stopPropagation()}
                                 title="Escuchar en Spotify"
                                 aria-label={`Abrir ${songObj.title} en Spotify`}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#1DB954]/15 hover:bg-[#1DB954] text-[#15883e] dark:text-[#1ed760] hover:text-slate-950 border border-[#1DB954]/30 text-[10px] font-bold transition-colors shrink-0"
+                                className="min-h-[32px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#1DB954]/15 hover:bg-[#1DB954] text-[#15883e] dark:text-[#1ed760] hover:text-slate-950 border border-[#1DB954]/30 text-xs font-bold transition-colors shrink-0"
                               >
-                                <Headphones className="w-3 h-3 shrink-0" />
+                                <Headphones className="w-3.5 h-3.5 shrink-0" />
                                 <span>Spotify</span>
                               </a>
                             )}
@@ -2356,13 +2356,13 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 !songObj.chordSheetImageUrl.startsWith(
                                   'data:image/svg+xml'
                                 ))) && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-bold shrink-0">
-                                  <ImageIcon className="w-3 h-3" />
+                                <span className="min-h-[32px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold shrink-0">
+                                  <ImageIcon className="w-3.5 h-3.5" />
                                   <span>Imagen</span>
                                 </span>
                               )}
                             <span
-                              className={`font-mono text-xs font-bold px-2 py-0.5 rounded-lg shrink-0 ${
+                              className={`min-h-[32px] inline-flex items-center font-mono text-xs font-bold px-2.5 py-1 rounded-xl shrink-0 ${
                                 isModifiedKey
                                   ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
                                   : accent.softBgClass
@@ -2375,13 +2375,13 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       </div>
 
                       {/* Voces asignadas en esta canción (Voz Principal y Coros) */}
-                      <div className="pt-2 border-t border-slate-200/70 dark:border-slate-700/60 flex flex-wrap items-center gap-2 text-[11px]">
-                        <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1">
-                          <Mic className="w-3 h-3" />
+                      <div className="pt-2.5 border-t border-slate-200 dark:border-slate-700/70 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1">
+                          <Mic className="w-3.5 h-3.5" />
                           Voz Principal: {item.vocalLeader || 'Por definir'}
                         </span>
                         {backingList.length > 0 && (
-                          <span className="px-2 py-0.5 rounded-lg bg-sky-500/15 text-sky-700 dark:text-sky-300 font-semibold">
+                          <span className="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-700 dark:text-sky-300 font-semibold">
                             Coros: {backingList.join(', ')}
                           </span>
                         )}
@@ -2882,20 +2882,20 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 {/* Tarjeta 1: Notas Grupales del Evento */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-300/80 dark:border-slate-700/80 space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <FileText className={`w-3.5 h-3.5 ${accent.textClass}`} />
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <FileText className={`w-4 h-4 ${accent.textClass}`} />
                       <span>Notas Grupales del Evento</span>
                     </h3>
                     <button
                       type="button"
                       onClick={handleSaveActiveEventGroupNotes}
-                      className={`h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 ${accent.bgClass}`}
+                      className={`min-h-[34px] px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
                     >
-                      <Check className="w-3 h-3" />
+                      <Check className="w-3.5 h-3.5" />
                       <span>Guardar</span>
                     </button>
                   </div>
@@ -2905,23 +2905,23 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     onChange={(e) => setEventGroupNotesDraft(e.target.value)}
                     onBlur={handleSaveActiveEventGroupNotes}
                     placeholder="Indicaciones generales de horarios, vestimenta o prueba de sonido..."
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                    className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
                   />
                 </div>
 
                 {/* Tarjeta 2: Mis Notas Personales en este Evento */}
-                <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-2">
+                <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/30 space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-emerald-500" />
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <User className="w-4 h-4 text-emerald-500" />
                       <span>Mis Notas Personales</span>
                     </h3>
                     <button
                       type="button"
                       onClick={handleSaveActiveEventPersonalNotes}
-                      className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1"
+                      className="min-h-[34px] px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5"
                     >
-                      <Check className="w-3 h-3" />
+                      <Check className="w-3.5 h-3.5" />
                       <span>Guardar</span>
                     </button>
                   </div>
@@ -2931,7 +2931,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     onChange={(e) => setEventPersonalNotesDraft(e.target.value)}
                     onBlur={handleSaveActiveEventPersonalNotes}
                     placeholder="Tus apuntes privados para este evento..."
-                    className="w-full p-2.5 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                    className="w-full p-3 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
                   />
                 </div>
               </div>

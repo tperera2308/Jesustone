@@ -393,7 +393,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   // ===========================================================================
   if (isGroupScreenOpen) {
     return (
-      <div className="space-y-3.5 w-full max-w-full min-w-0">
+      <div className="space-y-4 w-full max-w-full min-w-0">
         {/* Barra superior de navegación para volver al Inicio Personal */}
         <div className="flex items-center justify-between gap-2">
           <button
@@ -402,14 +402,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               setIsGroupScreenOpen(false);
               if (onToggleGroupScreen) onToggleGroupScreen(false);
             }}
-            className="min-h-[34px] px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/60 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shadow-2xs transition-colors shrink-0 whitespace-nowrap"
+            className="min-h-[42px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 shadow-2xs transition-colors shrink-0 whitespace-nowrap"
           >
-            <ArrowLeft className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
             <span>Inicio Personal</span>
           </button>
 
           {userGroups.length > 1 && (
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full py-0.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full py-0.5">
               {userGroups.map((g) => {
                 const isCurrent = g.id === activeGroupId;
                 return (
@@ -419,10 +419,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     onClick={() => {
                       if (onSelectGroup) onSelectGroup(g.id);
                     }}
-                    className={`min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap shrink-0 transition-all ${
+                    className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
                       isCurrent
                         ? `${accent.bgClass} shadow-2xs`
-                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     {g.identity.ministryName}
@@ -434,24 +434,24 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         </div>
 
         {/* CABECERA EXCLUSIVA DEL GRUPO CON "CANCIONERO", "MIEMBROS" Y "⚙️" EN UNA SOLA LÍNEA */}
-        <div className="rounded-3xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-4 shadow-xs dark:shadow-md space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div className="rounded-3xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-xs dark:shadow-md space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div
-                className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shadow-md shrink-0 overflow-hidden ${accent.bgClass}`}
+                className={`w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center shadow-md shrink-0 overflow-hidden ${accent.bgClass}`}
               >
                 <BrandIconDisplay
                   iconId={identity.iconId}
                   customImageUrl={identity.customImageUrl}
                   className={
-                    identity.customImageUrl ? 'w-full h-full' : 'w-5 h-5'
+                    identity.customImageUrl ? 'w-full h-full' : 'w-6 h-6'
                   }
                 />
               </div>
 
               <div className="min-w-0 space-y-0.5">
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
                     {isLeader
                       ? 'Líder / Admin'
                       : activeMember.isGuest
@@ -459,30 +459,30 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       : 'Miembro Titular'}
                   </span>
                   <span>·</span>
-                  <span>{members.length} integrantes</span>
+                  <span className="font-medium">{members.length} integrantes</span>
                   {!activeMember.isGuest && (
                     <>
                       <span>·</span>
-                      <span className="font-mono text-slate-600 dark:text-slate-300">
+                      <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
                         Código: {identity.inviteCode}
                       </span>
                     </>
                   )}
                 </div>
-                <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-950 dark:text-white truncate">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-950 dark:text-white truncate">
                   {identity.ministryName}
                 </h1>
               </div>
             </div>
 
-            {/* Tres botones compactos en una sola línea: Cancionero, Miembros y Engrane ⚙️ */}
-            <div className="flex items-center gap-1.5 flex-nowrap shrink-0 overflow-x-auto no-scrollbar">
+            {/* Tres botones amplios y táctiles en una sola línea: Cancionero, Miembros y Engrane ⚙️ */}
+            <div className="flex items-center gap-2 flex-nowrap shrink-0 overflow-x-auto no-scrollbar">
               <button
                 type="button"
                 onClick={() => onNavigate('cancionero')}
-                className={`min-h-[34px] px-2.5 sm:px-3 py-1 rounded-xl flex items-center gap-1.5 text-[11px] sm:text-xs font-bold shadow-xs transition-all whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                className={`min-h-[42px] px-3.5 py-2 rounded-xl flex items-center gap-1.5 text-xs sm:text-sm font-bold shadow-xs transition-all whitespace-nowrap shrink-0 ${accent.bgClass}`}
               >
-                <Music className="w-3.5 h-3.5 shrink-0" />
+                <Music className="w-4 h-4 shrink-0" />
                 <span>Cancionero ({songs.length})</span>
               </button>
 
@@ -491,9 +491,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenIdentityModal('invitaciones')}
-                    className="min-h-[34px] px-2.5 sm:px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-slate-800 dark:text-white transition-colors whitespace-nowrap shrink-0"
+                    className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-800 dark:text-white transition-colors whitespace-nowrap shrink-0"
                   >
-                    <Users className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                    <Users className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
                     <span>Miembros ({members.length})</span>
                   </button>
 
@@ -502,9 +502,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     onClick={() => onOpenIdentityModal('grupo')}
                     title="Datos del Grupo"
                     aria-label="Datos del Grupo"
-                    className="min-h-[34px] w-[34px] p-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/15 border border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-colors shrink-0"
+                    className="min-h-[42px] w-[42px] p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-colors shrink-0"
                   >
-                    <Settings className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
+                    <Settings className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
                   </button>
                 </>
               )}
@@ -512,18 +512,18 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
 
           {activeMember.isGuest && (
-            <div className="px-3 py-2 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-200">
+            <div className="px-3.5 py-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
               <span>
                 <strong>Pase de Músico Invitado:</strong> Solo ves las fechas y el repertorio de los eventos donde participas en este grupo.
               </span>
-              <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 text-[10px] font-bold shrink-0">
+              <span className="px-2.5 py-1 rounded-md bg-amber-500 text-slate-950 text-xs font-bold shrink-0">
                 Invitado
               </span>
             </div>
           )}
 
           {/* Pestañas Internas del Grupo en una sola línea (4 columnas): Todo | Fechas | Estudios | Feed */}
-          <div className="grid grid-cols-4 gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-950/70 border border-slate-200/80 dark:border-white/5">
+          <div className="grid grid-cols-4 gap-1.5 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-950/70 border border-slate-200/80 dark:border-white/10">
             {[
               { id: 'todo', label: 'Todo' },
               { id: 'fechas', label: `Fechas (${upcomingEvents.length})` },
@@ -539,10 +539,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 onClick={() =>
                   setGroupSectionTab(t.id as typeof groupSectionTab)
                 }
-                className={`min-h-[32px] px-1.5 sm:px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold transition-all truncate ${
+                className={`min-h-[40px] px-2 sm:px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all truncate ${
                   groupSectionTab === t.id
                     ? `${accent.bgClass} shadow-2xs`
-                    : 'text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white'
+                    : 'text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white'
                 }`}
               >
                 {t.label}
@@ -553,36 +553,36 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
         {/* SECCIÓN 1 DEL GRUPO: RESUMEN COMPACTO DE PRÓXIMAS FECHAS */}
         {(groupSectionTab === 'todo' || groupSectionTab === 'fechas') && (
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 space-y-2.5">
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <Calendar className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
                   Resumen de Eventos ({upcomingEvents.length})
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigate('eventos')}
-                className={`text-xs font-bold ${accent.textClass} hover:underline flex items-center gap-1 shrink-0`}
+                className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold ${accent.textClass} hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5 shrink-0 transition-colors`}
               >
                 <span>{isLeader ? 'Administrar' : 'Ver todos'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
 
             {upcomingEvents.length === 0 ? (
-              <div className="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
                   Sin fechas próximas programadas.
                 </p>
                 {isLeader && (
                   <button
                     type="button"
                     onClick={() => onNavigate('eventos')}
-                    className={`px-3 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 ${accent.bgClass}`}
+                    className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 ${accent.bgClass}`}
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-3.5 h-3.5" />
                     <span>Crear</span>
                   </button>
                 )}
@@ -611,19 +611,19 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                           onNavigate('eventos');
                         }
                       }}
-                      className="w-full py-2.5 first:pt-0.5 last:pb-0.5 flex items-center justify-between gap-3 text-left hover:opacity-85 transition-opacity min-w-0"
+                      className="w-full py-3 first:pt-1 last:pb-1 flex items-center justify-between gap-3 text-left hover:opacity-85 transition-opacity min-w-0"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-sm">
                           <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
-                            {ev.date} · Cita {ev.callTime}
+                            {ev.date} · Cita: {ev.callTime}
                           </span>
                           <span className="text-slate-300 dark:text-slate-700">·</span>
                           <span className="font-bold text-slate-900 dark:text-white truncate">
                             {ev.title}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5">
                           {ev.location} · {ev.songs.length} canciones · {confirmedCount}/
                           {ev.assignments.length} confirmados
                           {myAssign
@@ -631,7 +631,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                             : ''}
                         </p>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-300 shrink-0" />
                     </button>
                   );
                 })}
@@ -642,11 +642,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
         {/* SECCIÓN DEL GRUPO: ESTUDIOS BÍBLICOS Y DEVOCIONALES (RESUMIDO EN 'TODO', COMPLETO EN 'ESTUDIO') */}
         {(groupSectionTab === 'todo' || groupSectionTab === 'estudio') && (
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 space-y-2.5">
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <BookOpen className="w-4 h-4 text-emerald-500 shrink-0" />
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
                   Estudios Bíblicos ({devotionals.length})
                 </h2>
               </div>
@@ -654,25 +654,25 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('devocionales')}
-                className={`text-xs font-bold ${accent.textClass} hover:underline flex items-center gap-1 shrink-0`}
+                className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold ${accent.textClass} hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5 shrink-0 transition-colors`}
               >
                 <span>Ver todos</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
 
             {devotionals.length === 0 ? (
-              <div className="px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
                   Sin estudios bíblicos publicados.
                 </p>
                 {isLeader && (
                   <button
                     type="button"
                     onClick={() => onNavigate('devocionales')}
-                    className={`px-3 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 ${accent.bgClass}`}
+                    className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 ${accent.bgClass}`}
                   >
-                    <Plus className="w-3 h-3" />
+                    <Plus className="w-3.5 h-3.5" />
                     <span>Crear</span>
                   </button>
                 )}
@@ -695,10 +695,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                           onNavigate('devocionales');
                         }
                       }}
-                      className="w-full py-2.5 first:pt-0.5 last:pb-0.5 flex items-center justify-between gap-3 text-left hover:opacity-85 transition-opacity min-w-0"
+                      className="w-full py-3 first:pt-1 last:pb-1 flex items-center justify-between gap-3 text-left hover:opacity-85 transition-opacity min-w-0"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-xs">
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
                           <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
                             {dev.category}
                           </span>
@@ -707,12 +707,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                             {dev.title}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5">
                           {completedSessionsCount}/{totalSessions}{' '}
                           {totalSessions === 1 ? 'sesión' : 'sesiones'} · {dev.description}
                         </p>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-300 shrink-0" />
                     </button>
                   );
                 })}
@@ -734,30 +734,30 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   return (
                     <div
                       key={dev.id}
-                      className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 hover:border-amber-500/40 flex flex-col justify-between gap-3 transition-colors"
+                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 flex flex-col justify-between gap-3 transition-colors"
                     >
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
                             {dev.category}
                           </span>
-                          <span className="text-[11px] font-mono text-slate-400">
+                          <span className="text-xs font-mono text-slate-600 dark:text-slate-300">
                             {dev.sessions.length}{' '}
                             {dev.sessions.length === 1 ? 'sesión' : 'sesiones'}
                           </span>
                         </div>
-                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white line-clamp-1">
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white line-clamp-1">
                           {dev.title}
                         </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 line-clamp-2">
                           {dev.description}
                         </p>
                       </div>
 
-                      <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700/60">
-                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                      <div className="space-y-2.5 pt-2.5 border-t border-slate-200 dark:border-slate-700/60">
+                        <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
                           <span>Tu progreso</span>
-                          <span className="font-bold text-emerald-500">
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
                             {progressPct}% ({completedSessionsCount}/
                             {totalSessions})
                           </span>
@@ -771,9 +771,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                               onNavigate('devocionales');
                             }
                           }}
-                          className="w-full min-h-[34px] px-3 py-1 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-center gap-1.5"
+                          className="w-full min-h-[40px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1.5"
                         >
-                          <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
+                          <BookOpen className="w-4 h-4 text-emerald-500" />
                           <span>Abrir Estudio</span>
                         </button>
                       </div>
@@ -789,11 +789,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         {(groupSectionTab === 'feed' ||
           (groupSectionTab === 'todo' &&
             alerts.length + recentActivityFeed.length > 0)) && (
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 space-y-2.5">
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <Activity className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
                   Feed y Avisos ({alerts.length + recentActivityFeed.length})
                 </h2>
               </div>
@@ -802,16 +802,16 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   <button
                     type="button"
                     onClick={() => setGroupSectionTab('feed')}
-                    className={`text-xs font-bold ${accent.textClass} hover:underline flex items-center gap-1 shrink-0`}
+                    className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold ${accent.textClass} hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5 shrink-0 transition-colors`}
                   >
                     <span>Ver todos</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 )}
             </div>
 
             {alerts.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {(groupSectionTab === 'todo' ? alerts.slice(0, 2) : alerts).map(
                   (al) => (
                     <button
@@ -824,18 +824,18 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                           onNavigate('eventos');
                         }
                       }}
-                      className="w-full px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2.5 text-left hover:bg-amber-500/15 transition-colors min-w-0"
+                      className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2.5 text-left hover:bg-amber-500/15 transition-colors min-w-0"
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                        <p className="text-xs text-slate-800 dark:text-slate-200 truncate">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                        <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 truncate">
                           <strong className="font-bold text-slate-950 dark:text-white">
                             {al.title}:
                           </strong>{' '}
                           {al.message}
                         </p>
                       </div>
-                      <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                      <span className="text-xs font-bold text-amber-700 dark:text-amber-300 shrink-0">
                         Ver →
                       </span>
                     </button>
@@ -872,29 +872,29 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                         onNavigate(item.targetTab);
                       }
                     }}
-                    className="w-full py-2 first:pt-0.5 last:pb-0.5 flex items-center justify-between gap-3 text-left hover:opacity-85 transition-opacity min-w-0"
+                    className="w-full py-2.5 first:pt-1 last:pb-1 flex items-center justify-between gap-3 text-left hover:opacity-85 transition-opacity min-w-0"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 text-xs">
+                      <div className="flex items-center gap-1.5 text-xs sm:text-sm">
                         <span className="font-bold text-slate-900 dark:text-white truncate">
                           {item.title}
                         </span>
                         <span className="text-slate-300 dark:text-slate-700">·</span>
-                        <span className="text-[11px] font-mono text-slate-400 shrink-0">
+                        <span className="text-xs font-mono text-slate-600 dark:text-slate-300 shrink-0">
                           {item.actorName} ({item.timestamp})
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5">
                         {item.description}
                       </p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-300 shrink-0" />
                   </button>
                 ))}
               </div>
             ) : (
               alerts.length === 0 && (
-                <p className="text-xs text-slate-500 py-1.5">
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 py-2">
                   Sin avisos ni actividad reciente en este grupo.
                 </p>
               )
@@ -911,12 +911,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   return (
     <div className="space-y-4 w-full max-w-full min-w-0">
       {/* 1. BIENVENIDA PERSONAL MINIMALISTA + RED DE AMIGOS EN UNA SOLA LÍNEA */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-3 sm:px-4 sm:py-3.5 shadow-2xs flex items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-3.5 sm:px-5 sm:py-4 shadow-2xs flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={() => onOpenMusicianProfile(resolvedUserId, 'perfil')}
-            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 overflow-hidden shadow-xs ${accent.bgClass}`}
+            className={`w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-sm sm:text-base font-bold shrink-0 overflow-hidden shadow-xs ${accent.bgClass}`}
             title="Ver Mi Perfil de Músico"
           >
             {activeMember.avatarUrl ? (
@@ -931,14 +931,16 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </button>
 
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-              <span className="font-bold text-amber-500 shrink-0">Inicio Personal</span>
+            <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+              <span className="font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                Inicio Personal
+              </span>
               <span>·</span>
-              <span className="truncate">
+              <span className="truncate font-medium">
                 {activeMember.instruments.slice(0, 2).join(', ') || 'Músico'}
               </span>
             </div>
-            <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+            <h1 className="text-base sm:text-lg font-bold text-slate-950 dark:text-white truncate">
               Hola, {activeMember.name.split(' ')[0]}
             </h1>
           </div>
@@ -947,12 +949,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         <button
           type="button"
           onClick={() => onOpenMusicianProfile(resolvedUserId, 'amigos')}
-          className="min-h-[34px] px-3 py-1 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-[11px] sm:text-xs font-bold text-indigo-600 dark:text-indigo-300 flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
+          className="min-h-[42px] px-3.5 py-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-xs sm:text-sm font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
         >
-          <Users className="w-3.5 h-3.5 shrink-0" />
+          <Users className="w-4 h-4 shrink-0" />
           <span>Amigos ({friendsCount})</span>
           {pendingFriendRequestsCount > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+            <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-xs font-bold">
               {pendingFriendRequestsCount}
             </span>
           )}
@@ -960,22 +962,22 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       </div>
 
       {/* 2. MIS GRUPOS MUSICALES: ACCESO DIRECTO EN 1 TOQUE A GRUPO, CANCIONERO Y FECHAS */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
             Mis Grupos Musicales ({groupsToSummarize.length})
           </h2>
           <button
             type="button"
             onClick={onOpenAuthModal}
-            className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 shrink-0"
+            className="min-h-[40px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 shrink-0"
           >
-            <FolderPlus className="w-3.5 h-3.5 text-amber-500" />
+            <FolderPlus className="w-4 h-4 text-amber-500" />
             <span>+ Grupo</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {groupsToSummarize.map((grp) => {
             const isCurrentActive =
               grp.id === activeGroupId || groupsToSummarize.length === 1;
@@ -1000,16 +1002,16 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     handleEnterGroupScreen(grp.id);
                   }
                 }}
-                className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between gap-2.5 group min-w-0 cursor-pointer ${
+                className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group min-w-0 cursor-pointer ${
                   isCurrentActive
-                    ? 'bg-amber-500/10 dark:bg-slate-900 border-amber-500/60 dark:border-slate-800 text-slate-950 dark:text-white shadow-xs'
+                    ? 'bg-amber-500/10 dark:bg-slate-900 border-amber-500/60 dark:border-slate-700 text-slate-950 dark:text-white shadow-xs'
                     : 'bg-white dark:bg-slate-900/70 text-slate-900 dark:text-white border-slate-200 dark:border-slate-800 hover:border-amber-500/50'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2.5 min-w-0">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden ${grpAccent.bgClass}`}
+                      className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden ${grpAccent.bgClass}`}
                     >
                       <BrandIconDisplay
                         iconId={grp.identity.iconId}
@@ -1023,14 +1025,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-bold truncate group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors text-slate-950 dark:text-white">
+                        <p className="text-base font-bold truncate group-hover:text-amber-500 dark:group-hover:text-amber-400 transition-colors text-slate-950 dark:text-white">
                           {grp.identity.ministryName}
                         </p>
                         {isGrpLeader && (
-                          <ShieldCheck className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
+                          <ShieldCheck className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
                         )}
                       </div>
-                      <p className="text-xs truncate text-slate-500 dark:text-slate-400">
+                      <p className="text-xs truncate text-slate-600 dark:text-slate-300">
                         {grp.members.length} miembros · {grp.songs.length} canciones
                       </p>
                     </div>
@@ -1039,8 +1041,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   <ChevronRight className="w-4 h-4 text-amber-500 shrink-0" />
                 </div>
 
-                {/* Propuesta A: Acceso directo en 1 toque a Cancionero y Fechas sin pasos intermedios */}
-                <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-slate-200/70 dark:border-slate-800">
+                {/* Propuesta A: Acceso directo en 1 toque a Cancionero y Fechas con botones amplios */}
+                <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-slate-200/70 dark:border-slate-800">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1050,9 +1052,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       }
                       onNavigate('cancionero');
                     }}
-                    className={`h-8 px-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all truncate ${grpAccent.bgClass}`}
+                    className={`min-h-[40px] px-3 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all truncate ${grpAccent.bgClass}`}
                   >
-                    <Music className="w-3.5 h-3.5 shrink-0" />
+                    <Music className="w-4 h-4 shrink-0" />
                     <span className="truncate">Cancionero ({grp.songs.length})</span>
                   </button>
 
@@ -1065,9 +1067,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       }
                       onNavigate('eventos');
                     }}
-                    className="h-8 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 transition-colors truncate"
+                    className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1.5 transition-colors truncate"
                   >
-                    <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
                     <span className="truncate">
                       Fechas ({grpUpcomingCount})
                     </span>
@@ -1082,24 +1084,24 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       {/* 3. DOS COLUMNAS LIMPIAS: TU AGENDA PERSONAL + NOVEDADES RESUMIDAS DE TUS GRUPOS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Columna Izquierda (6 cols): Tu Asistencia y Próximas Fechas (en todos tus grupos) */}
-        <div className="lg:col-span-6 space-y-2">
+        <div className="lg:col-span-6 space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+              <UserCheck className="w-4 h-4 text-emerald-500" />
               <span>Tus Próximas Fechas y Confirmaciones</span>
             </h2>
             <button
               type="button"
               onClick={() => onNavigate('eventos')}
-              className={`text-xs font-bold ${accent.textClass} hover:underline`}
+              className={`min-h-[36px] px-2.5 py-1 rounded-xl text-xs sm:text-sm font-bold ${accent.textClass} hover:underline`}
             >
               Ver calendario →
             </button>
           </div>
 
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 space-y-2.5">
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 space-y-3">
             {crossGroupMyUpcomingAssignments.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {crossGroupMyUpcomingAssignments
                   .slice(0, 4)
                   .map(
@@ -1146,31 +1148,31 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                             key={`${groupId}-${event.id}`}
                             type="button"
                             onClick={handleOpenThisEvent}
-                            className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-3 text-left transition-colors min-w-0"
+                            className="w-full p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-3 text-left transition-colors min-w-0"
                           >
                             <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono text-slate-600 dark:text-slate-300">
-                                <span className="px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-sans font-bold text-[11px]">
+                              <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono text-slate-700 dark:text-slate-200">
+                                <span className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-sans font-bold text-xs">
                                   {groupName}
                                 </span>
                                 <span>·</span>
                                 <span>{event.date}</span>
                                 <span>·</span>
                                 <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-amber-500" />
+                                  <Clock className="w-3.5 h-3.5 text-amber-500" />
                                   Cita: {event.callTime}
                                 </span>
                               </div>
-                              <p className="text-sm font-bold text-slate-900 dark:text-white truncate mt-0.5">
+                              <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate mt-1">
                                 {event.title}
                               </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 truncate">
                                 Rol: <strong className={accent.textClass}>{rolesText}</strong>
                               </p>
                             </div>
 
-                            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1 shrink-0">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-1.5 shrink-0">
+                              <CheckCircle2 className="w-4 h-4" />
                               Confirmado
                             </span>
                           </button>
@@ -1180,7 +1182,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       return (
                         <div
                           key={`${groupId}-${event.id}`}
-                          className="p-3 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-2.5"
+                          className="p-3.5 sm:p-4 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-3"
                         >
                           <button
                             type="button"
@@ -1188,8 +1190,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                             className="w-full flex items-start justify-between gap-2 text-left"
                           >
                             <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 font-mono">
-                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-sans font-bold text-[11px]">
+                              <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-700 dark:text-slate-200 font-mono">
+                                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-200 font-sans font-bold text-xs">
                                   {groupName}
                                 </span>
                                 <span>·</span>
@@ -1197,30 +1199,30 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                                 <span>·</span>
                                 <span>Cita: {event.callTime}</span>
                               </div>
-                              <p className="text-sm font-bold text-slate-900 dark:text-white truncate mt-0.5 hover:text-amber-500 transition-colors">
+                              <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate mt-1 hover:text-amber-500 transition-colors">
                                 {event.title}
                               </p>
-                              <p className="text-xs text-slate-600 dark:text-slate-300">
+                              <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200">
                                 Rol asignado:{' '}
                                 <strong className={accent.textClass}>
                                   {rolesText}
                                 </strong>
                               </p>
                             </div>
-                            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[11px] font-bold shrink-0">
+                            <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold shrink-0">
                               Pendiente
                             </span>
                           </button>
 
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2.5">
                             <button
                               type="button"
                               onClick={() =>
                                 handleUpdateAllMyRolesInEvent('confirmed')
                               }
-                              className="min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all bg-emerald-600 hover:bg-emerald-500 text-white"
+                              className="min-h-[42px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all bg-emerald-600 hover:bg-emerald-500 text-white"
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <CheckCircle2 className="w-4 h-4" />
                               Aceptar
                             </button>
 
@@ -1229,9 +1231,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                               onClick={() =>
                                 handleUpdateAllMyRolesInEvent('declined')
                               }
-                              className="min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all bg-white dark:bg-slate-900 border border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white"
+                              className="min-h-[42px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all bg-white dark:bg-slate-900 border border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white"
                             >
-                              <XCircle className="w-3.5 h-3.5" />
+                              <XCircle className="w-4 h-4" />
                               Declinar
                             </button>
                           </div>
@@ -1241,7 +1243,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   )}
               </div>
             ) : (
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2 text-xs sm:text-sm text-slate-700 dark:text-slate-200">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                   <span>No tienes fechas pendientes por confirmar.</span>
@@ -1249,7 +1251,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigate('eventos')}
-                  className={`font-bold ${accent.textClass} shrink-0`}
+                  className={`min-h-[38px] px-3 py-1.5 rounded-xl font-bold ${accent.textClass} shrink-0`}
                 >
                   Eventos
                 </button>
@@ -1259,15 +1261,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         </div>
 
         {/* Columna Derecha (6 cols): Sección de 'Novedades' Consolidada y Filtrada (Feed Minimalista) */}
-        <div className="lg:col-span-6 space-y-2">
+        <div className="lg:col-span-6 space-y-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <Activity className={`w-3.5 h-3.5 ${accent.textClass}`} />
+            <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+              <Activity className={`w-4 h-4 ${accent.textClass}`} />
               <span>Novedades de Tus Grupos</span>
             </h2>
 
-            {/* Filtro minimalista del Feed de Novedades */}
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            {/* Filtro táctil del Feed de Novedades */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               {[
                 { id: 'all', label: 'Todo' },
                 { id: 'eventos', label: 'Eventos' },
@@ -1280,10 +1282,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   onClick={() =>
                     setNovedadesFilter(f.id as typeof novedadesFilter)
                   }
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-colors ${
+                  className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
                     novedadesFilter === f.id
                       ? `${accent.bgClass}`
-                      : 'bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      : 'bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   {f.label}
@@ -1292,7 +1294,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5">
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4">
             {filteredNovedades.length > 0 ? (
               <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
                 {filteredNovedades.map((nov) => (
@@ -1300,11 +1302,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     key={nov.id}
                     type="button"
                     onClick={nov.onClick}
-                    className="w-full py-2.5 first:pt-0.5 last:pb-0.5 flex items-center justify-between gap-2.5 text-left hover:opacity-85 transition-opacity min-w-0"
+                    className="w-full py-3 first:pt-1 last:pb-1 flex items-center justify-between gap-3 text-left hover:opacity-85 transition-opacity min-w-0"
                   >
-                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
                       <div
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
                           nov.priorityHigh
                             ? 'bg-amber-500/20 text-amber-500'
                             : nov.category === 'eventos'
@@ -1315,23 +1317,23 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                         }`}
                       >
                         {nov.priorityHigh ? (
-                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <AlertTriangle className="w-4 h-4" />
                         ) : nov.category === 'eventos' ? (
-                          <Calendar className="w-3.5 h-3.5" />
+                          <Calendar className="w-4 h-4" />
                         ) : nov.category === 'mensajes' ? (
-                          <MessageSquare className="w-3.5 h-3.5" />
+                          <MessageSquare className="w-4 h-4" />
                         ) : (
-                          <Music className="w-3.5 h-3.5" />
+                          <Music className="w-4 h-4" />
                         )}
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
-                          <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-300 truncate max-w-[125px]">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+                          <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-200 truncate max-w-[135px]">
                             {nov.groupName}
                           </span>
                           <span>·</span>
-                          <span className="font-semibold text-amber-600 dark:text-amber-400 truncate">
+                          <span className="font-semibold text-amber-700 dark:text-amber-300 truncate">
                             {nov.categoryLabel}
                           </span>
                           <span>·</span>
@@ -1339,20 +1341,20 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                             {nov.metaRight}
                           </span>
                         </div>
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate mt-0.5">
+                        <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate mt-0.5">
                           {nov.title}
                         </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 truncate">
                           {nov.subtitle}
                         </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-300 shrink-0" />
                   </button>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-500 dark:text-slate-400 py-3 text-center">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 py-4 text-center">
                 No hay novedades en esta categoría. Toca cualquiera de tus grupos arriba para abrir su repertorio, fechas y miembros.
               </p>
             )}

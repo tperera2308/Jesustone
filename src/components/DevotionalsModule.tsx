@@ -235,7 +235,7 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
   return (
     <div className="space-y-6">
       {/* Cabecera compacta de Sección */}
-      <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+      <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 px-4 py-3 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 shadow-xs">
         <div className="flex items-center gap-2 min-w-0">
           <BookOpen className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
           <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
@@ -247,9 +247,9 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className={`h-8 flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold shadow-xs transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
+            className={`min-h-[40px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
           >
-            <Plus className="w-3.5 h-3.5 shrink-0" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Nuevo Estudio</span>
           </button>
         )}
@@ -308,24 +308,24 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
                   className={`w-full text-left p-5 rounded-3xl border transition-all ${
                     isSelected
                       ? `bg-white dark:bg-slate-900 ${accent.borderClass} ring-2 ring-amber-500/20 shadow-sm`
-                      : 'bg-white/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-900'
+                      : 'bg-white/90 dark:bg-slate-900/70 border-slate-300/80 dark:border-slate-700/80 hover:bg-white dark:hover:bg-slate-900'
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                  <div className="flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300 mb-1.5 font-medium">
                     <span className={`font-bold ${accent.textClass}`}>
                       {dev.category}
                     </span>
                     <span className="font-mono">{dev.date}</span>
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white leading-snug mb-1">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug mb-1">
                     {dev.title}
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mb-3">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 line-clamp-2 mb-3">
                     {dev.description}
                   </p>
-                  <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-100 dark:border-slate-800/80 text-slate-500 dark:text-slate-400 font-mono tabular-nums">
+                  <div className="flex items-center justify-between text-xs pt-2.5 border-t border-slate-200/80 dark:border-slate-800/80 text-slate-600 dark:text-slate-300 font-mono tabular-nums font-semibold">
                     <span className="flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5" />
+                      <Layers className="w-4 h-4" />
                       {completedSessionsCount}/{totalSessions}{' '}
                       {totalSessions === 1 ? 'sesión' : 'sesiones'}
                     </span>
@@ -333,10 +333,10 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
                       className={`font-sans font-bold flex items-center gap-1 ${
                         isStudyDone
                           ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-slate-400'
+                          : 'text-slate-500 dark:text-slate-300'
                       }`}
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <CheckCircle2 className="w-4 h-4" />
                       {isStudyDone ? 'Realizado' : 'En curso'}
                     </span>
                   </div>
@@ -553,7 +553,7 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
                             {session.content}
                           </div>
 
-                          <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+                          <div className="pt-2 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 font-mono font-medium">
                             <span>
                               Completada por {session.completedByMemberIds.length} de{' '}
                               {members.length} miembros

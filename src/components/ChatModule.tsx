@@ -620,16 +620,16 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={onExitFullScreenChat}
-                  className="sm:hidden min-h-[36px] px-2.5 py-1 rounded-xl bg-[#383a40] hover:bg-[#404249] text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
+                  className="sm:hidden min-h-[40px] px-3 py-1.5 rounded-xl bg-[#383a40] hover:bg-[#404249] text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+                  <ArrowLeft className="w-4 h-4 text-amber-400" />
                   <span>Menú Principal</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setMobileDrawerOpen(false)}
-                  className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white"
+                  className="md:hidden min-h-[40px] min-w-[40px] p-2 rounded-lg text-slate-300 hover:text-white flex items-center justify-center"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -637,32 +637,32 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
 
               {/* Switcher minimalista Grupo vs Amigos y DM */}
               {!isGuestInActiveGroup && (
-                <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[#1e1f22]">
+                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[#1e1f22]">
                   <button
                     type="button"
                     onClick={() => setChatMode('group')}
-                    className={`min-h-[34px] px-2 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`min-h-[40px] px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                       chatMode === 'group'
                         ? 'bg-[#383a40] text-white shadow-xs'
-                        : 'text-slate-400 hover:text-slate-200'
+                        : 'text-slate-300 hover:text-white'
                     }`}
                   >
-                    <Hash className="w-3.5 h-3.5" />
+                    <Hash className="w-4 h-4" />
                     <span className="truncate">Grupo</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setChatMode('social')}
-                    className={`min-h-[34px] px-2 py-1 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all relative ${
+                    className={`min-h-[40px] px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all relative ${
                       chatMode === 'social'
                         ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-slate-200'
+                        : 'text-slate-300 hover:text-white'
                     }`}
                   >
-                    <Users className="w-3.5 h-3.5" />
+                    <Users className="w-4 h-4" />
                     <span className="truncate">Amigos y DM</span>
                     {incomingFriendRequests.length > 0 && (
-                      <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px]">
+                      <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-xs">
                         {incomingFriendRequests.length}
                       </span>
                     )}
@@ -911,31 +911,31 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                                   setActiveChannel(ch.id);
                                   setMobileDrawerOpen(false);
                                 }}
-                                className={`flex-1 min-h-[34px] px-2 py-1 rounded-lg flex items-center justify-between gap-1.5 text-xs font-medium transition-colors min-w-0 ${
+                                className={`flex-1 min-h-[40px] px-2.5 py-1.5 rounded-lg flex items-center justify-between gap-1.5 text-xs sm:text-sm font-medium transition-colors min-w-0 ${
                                   isSelected
                                     ? 'bg-[#404249] text-white font-semibold'
                                     : unreadCount > 0
-                                    ? 'bg-amber-500/10 text-white font-bold'
-                                    : 'text-slate-400 hover:bg-[#35373c] hover:text-slate-200'
+                                    ? 'bg-amber-500/15 text-white font-bold'
+                                    : 'text-slate-300 hover:bg-[#35373c] hover:text-white'
                                 }`}
                               >
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <Hash
-                                    className={`w-3.5 h-3.5 shrink-0 ${
+                                    className={`w-4 h-4 shrink-0 ${
                                       isSelected || unreadCount > 0
                                         ? 'text-amber-400'
-                                        : 'text-slate-500'
+                                        : 'text-slate-400'
                                     }`}
                                   />
                                   <span className="truncate">{ch.name}</span>
                                 </div>
                                 {unreadCount > 0 ? (
-                                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-mono text-[10px] font-extrabold shrink-0">
+                                  <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono text-xs font-extrabold shrink-0">
                                     +{unreadCount}
                                   </span>
                                 ) : (
                                   msgCount > 0 && (
-                                    <span className="font-mono text-[10px] text-slate-400 shrink-0">
+                                    <span className="font-mono text-xs text-slate-300 shrink-0">
                                       {msgCount}
                                     </span>
                                   )
@@ -1024,14 +1024,14 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 </div>
 
                 {/* Sub-pestañas de Red Social: Mensajes DM | Buscar | Solicitudes */}
-                <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#1e1f22] text-[11px] font-bold">
+                <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#1e1f22] text-xs font-bold">
                   <button
                     type="button"
                     onClick={() => setSocialTab('dm')}
-                    className={`py-1.5 rounded-lg transition-colors ${
+                    className={`min-h-[38px] py-1.5 rounded-lg transition-colors ${
                       socialTab === 'dm'
                         ? 'bg-[#383a40] text-white'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-slate-300 hover:text-white'
                     }`}
                   >
                     Amigos ({friends.length})
@@ -1039,10 +1039,10 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setSocialTab('search')}
-                    className={`py-1.5 rounded-lg transition-colors ${
+                    className={`min-h-[38px] py-1.5 rounded-lg transition-colors ${
                       socialTab === 'search'
                         ? 'bg-[#383a40] text-white'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-slate-300 hover:text-white'
                     }`}
                   >
                     Buscar
@@ -1050,10 +1050,10 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setSocialTab('requests')}
-                    className={`py-1.5 rounded-lg transition-colors relative ${
+                    className={`min-h-[38px] py-1.5 rounded-lg transition-colors relative ${
                       socialTab === 'requests'
                         ? 'bg-[#383a40] text-white'
-                        : 'text-slate-400 hover:text-white'
+                        : 'text-slate-300 hover:text-white'
                     }`}
                   >
                     Solicitudes
