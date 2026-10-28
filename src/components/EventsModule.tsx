@@ -115,6 +115,8 @@ interface EventsModuleProps {
   ) => void;
   friends?: AppUser[];
   onConvokeFriendAsGuest?: (friendUser: AppUser) => BandMember;
+  initialEventId?: string | null;
+  onClearInitialEventId?: () => void;
 }
 
 const MAJOR_KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -663,15 +665,32 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
   friends = [],
   onConvokeFriendAsGuest,
   ministryName,
+  initialEventId,
+  onClearInitialEventId,
 }) => {
   const accent = getAccentClasses(accentColor);
   const isLeader = activeMember.role === 'leader';
 
   const [filterType, setFilterType] = useState<'all' | 'sunday' | 'special' | 'past'>('all');
   const [onlyMyEvents, setOnlyMyEvents] = useState<boolean>(false);
-  const [selectedEventId, setSelectedEventId] = useState<string>(events[0]?.id || '');
-  // Vista inicial en tarjetas resumidas; al tocar una tarjeta se abre toda la información del evento
-  const [openedEventId, setOpenedEventId] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string>(
+    initialEventId || events[0]?.id || ''
+  );
+  // Vista inicial en tarjetas resumidas; si viene initialEventId desde Inicio/Feed se abre directo ese evento
+  const [openedEventId, setOpenedEventId] = useState<string | null>(
+    initialEventId || null
+  );
+
+  useEffect(() => {
+    if (initialEventId && events.some((ev) => ev.id === initialEventId)) {
+      const targetEv = events.find((ev) => ev.id === initialEventId);
+      if (targetEv && targetEv.date < getTodayDateStr()) {
+        setFilterType('past');
+      }
+      setSelectedEventId(initialEventId);
+      setOpenedEventId(initialEventId);
+    }
+  }, [initialEventId, events]);
   const [syncCalendarEvent, setSyncCalendarEvent] = useState<WorshipEvent | null>(null);
   const [calendarSyncFeedback, setCalendarSyncFeedback] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1472,18 +1491,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         /* =====================================================================
            PANTALLA PRINCIPAL DE EVENTOS: TARJETAS RESUMIDAS (TOCA PARA ABRIR)
            ===================================================================== */
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Selecciona la tarjeta de un evento para abrir toda su información, playlist y tu invitación personal:
-            </p>
-            <span className="text-xs font-mono font-bold text-slate-500">
-              {filteredEvents.length}{' '}
-              {filteredEvents.length === 1 ? 'evento' : 'eventos'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {filteredEvents.map((ev) => {
               const confirmedCount = ev.assignments.filter(
                 (a) => a.rsvpStatus === 'confirmed'
@@ -1516,9 +1525,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       setOpenedEventId(ev.id);
                     }
                   }}
-                  className="w-full text-left p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-lg transition-all flex flex-col justify-between gap-4 group cursor-pointer"
+                  className="w-full text-left p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-lg transition-all flex flex-col justify-between gap-3.5 group cursor-pointer"
                 >
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span
                         className={`px-2.5 py-1 rounded-xl font-bold ${accent.softBgClass}`}
@@ -1531,7 +1540,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     </div>
 
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors">
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors">
                         {ev.title}
                       </h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
@@ -1539,10 +1548,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 pt-1">
-                      <span className="flex items-center gap-1 font-mono">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-300 pt-0.5">
+                      <span className="flex items-center gap-1 font-mono font-semibold">
                         <Clock className="w-3.5 h-3.5 text-amber-500" />
-                        Cit: {ev.callTime} · Ini: {ev.time}
+                        Cita: {ev.callTime} · Inicio: {ev.time}
                       </span>
                       <span className="flex items-center gap-1 truncate">
                         <MapPin className="w-3.5 h-3.5 text-slate-400" />
@@ -1678,11 +1687,14 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           <div className="flex items-center justify-between gap-2 w-full min-w-0">
             <button
               type="button"
-              onClick={() => setOpenedEventId(null)}
-              className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center gap-1.5 shadow-2xs shrink-0"
+              onClick={() => {
+                setOpenedEventId(null);
+                if (onClearInitialEventId) onClearInitialEventId();
+              }}
+              className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center gap-1.5 shadow-2xs shrink-0"
             >
               <ArrowLeft className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span>Eventos</span>
+              <span>Todos los Eventos</span>
             </button>
 
             {filteredEvents.length > 1 &&
@@ -1704,12 +1716,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           setOpenedEventId(target.id);
                         }
                       }}
-                      className="h-8 px-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                      className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
                     >
                       <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
                       <span className="hidden sm:inline">Anterior</span>
                     </button>
-                    <span className="text-[11px] font-mono font-bold text-slate-500 px-1">
+                    <span className="text-xs font-mono font-bold text-slate-500 px-1">
                       {currentEvIdx + 1}/{filteredEvents.length}
                     </span>
                     <button
@@ -1723,7 +1735,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           setOpenedEventId(target.id);
                         }
                       }}
-                      className="h-8 px-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
+                      className="h-8 px-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1"
                     >
                       <span className="hidden sm:inline">Siguiente</span>
                       <ChevronRight className="w-3.5 h-3.5 shrink-0" />
@@ -1733,23 +1745,23 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               })()}
           </div>
 
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 space-y-5 w-full max-w-full overflow-hidden">
+          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 space-y-4 w-full max-w-full overflow-hidden">
             {/* Cabecera del Evento + Botones compactos y proporcionados dentro del margen */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-3.5 border-b border-slate-200 dark:border-slate-800 min-w-0 w-full">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-3 border-b border-slate-200 dark:border-slate-800 min-w-0 w-full">
               <div className="space-y-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                   <span className={`font-bold ${accent.textClass}`}>
                     {getEventTypeLabel(activeEvent.type)}
                   </span>
                   <span aria-hidden="true">·</span>
-                  <span className="flex items-center gap-1 font-mono tabular-nums">
-                    <Calendar className="w-3.5 h-3.5" />
+                  <span className="flex items-center gap-1 font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                    <Calendar className="w-3.5 h-3.5 text-amber-500" />
                     {formatReadableDateEs(activeEvent.date)}
                   </span>
                   <span aria-hidden="true">·</span>
-                  <span className="flex items-center gap-1 font-mono tabular-nums">
-                    <Clock className="w-3.5 h-3.5" />
-                    Cit: {activeEvent.callTime} / Ini: {activeEvent.time}
+                  <span className="flex items-center gap-1 font-mono font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+                    <Clock className="w-3.5 h-3.5 text-amber-500" />
+                    Cita: {activeEvent.callTime} · Inicio: {activeEvent.time}
                   </span>
                 </div>
                 <h2 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white truncate">
@@ -1987,106 +1999,93 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
             })()}
 
             {/* ===============================================================
-                1.5 ENSAYOS DE ESTE EVENTO (MISMO EQUIPO Y MISMA SETLIST)
+                1.5 ENSAYOS DE ESTE EVENTO (SOLO SE MUESTRA SI HAY ENSAYOS O SI ES LÍDER)
                =============================================================== */}
-            <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/25 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-indigo-500" />
+            {((activeEvent.rehearsals && activeEvent.rehearsals.length > 0) ||
+              isLeader) && (
+              <div className="p-3.5 rounded-2xl bg-indigo-500/5 border border-indigo-500/25 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
                     <span>
-                      Ensayos de este Evento ({(activeEvent.rehearsals || []).length})
+                      Ensayos del Evento ({(activeEvent.rehearsals || []).length})
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Los ensayos forman parte de este mismo evento: participan los mismos músicos convocados ({activeEvent.assignments.length}) y se ensaya la misma Setlist ({activeEvent.songs.length} canciones).
-                  </p>
-                </div>
 
-                {isLeader && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAddRehearsalInDetail((prev) => !prev)}
-                    className={`min-h-[34px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>
-                      {showAddRehearsalInDetail
-                        ? 'Cerrar'
-                        : 'Programar Ensayo'}
-                    </span>
-                  </button>
-                )}
-              </div>
-
-              {/* Formulario desplegable para agregar un ensayo con fecha/hora personalizada dentro del evento */}
-              {isLeader && showAddRehearsalInDetail && (
-                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-500/30 space-y-3">
-                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                    Programar Ensayo para «{activeEvent.title}»
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
-                        Nombre del Ensayo
-                      </label>
-                      <input
-                        type="text"
-                        value={rehTitleDraft}
-                        onChange={(e) => setRehTitleDraft(e.target.value)}
-                        placeholder="Ej. Ensayo General / Voces"
-                        className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                      />
-                    </div>
-                    <InteractiveDatePicker
-                      label="Fecha del Ensayo"
-                      value={rehDateDraft}
-                      onChange={(d) => setRehDateDraft(d)}
-                    />
-                    <InteractiveTimePicker
-                      label="Hora"
-                      value={rehTimeDraft}
-                      onChange={(t) => setRehTimeDraft(t)}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <input
-                      type="text"
-                      value={rehLocationDraft}
-                      onChange={(e) => setRehLocationDraft(e.target.value)}
-                      placeholder="Lugar del ensayo (ej. Salón de Ensayo)"
-                      className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                    />
-                    <input
-                      type="text"
-                      value={rehNotesDraft}
-                      onChange={(e) => setRehNotesDraft(e.target.value)}
-                      placeholder="Nota para el ensayo (ej. Traer in-ears y pistas listas)"
-                      className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div className="flex justify-end">
+                  {isLeader && (
                     <button
                       type="button"
-                      onClick={() => handleAddRehearsalToActiveEvent()}
-                      className={`min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                      onClick={() => setShowAddRehearsalInDetail((prev) => !prev)}
+                      className={`h-8 px-3 rounded-xl text-[11px] font-bold flex items-center gap-1 shrink-0 ${accent.bgClass}`}
                     >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Guardar Ensayo en este Evento</span>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>
+                        {showAddRehearsalInDetail ? 'Cerrar' : '+ Ensayo'}
+                      </span>
                     </button>
-                  </div>
+                  )}
                 </div>
-              )}
 
-              {/* Lista de Ensayos programados dentro de este evento */}
-              {(!activeEvent.rehearsals || activeEvent.rehearsals.length === 0) ? (
-                <p className="text-xs text-slate-500 dark:text-slate-400 py-1">
-                  Aún no se han programado fechas de ensayo para este evento.
-                  {isLeader
-                    ? ' Haz clic en "Programar Ensayo" arriba para definir la fecha y hora.'
-                    : ''}
-                </p>
-              ) : (
+                {/* Formulario desplegable para agregar un ensayo con fecha/hora personalizada dentro del evento */}
+                {isLeader && showAddRehearsalInDetail && (
+                  <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-500/30 space-y-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1">
+                          Nombre del Ensayo
+                        </label>
+                        <input
+                          type="text"
+                          value={rehTitleDraft}
+                          onChange={(e) => setRehTitleDraft(e.target.value)}
+                          placeholder="Ej. Ensayo General / Voces"
+                          className="w-full min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <InteractiveDatePicker
+                        label="Fecha del Ensayo"
+                        value={rehDateDraft}
+                        onChange={(d) => setRehDateDraft(d)}
+                      />
+                      <InteractiveTimePicker
+                        label="Hora"
+                        value={rehTimeDraft}
+                        onChange={(t) => setRehTimeDraft(t)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={rehLocationDraft}
+                        onChange={(e) => setRehLocationDraft(e.target.value)}
+                        placeholder="Lugar del ensayo (ej. Salón de Ensayo)"
+                        className="w-full min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                      />
+                      <input
+                        type="text"
+                        value={rehNotesDraft}
+                        onChange={(e) => setRehNotesDraft(e.target.value)}
+                        placeholder="Nota para el ensayo (opcional)"
+                        className="w-full min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleAddRehearsalToActiveEvent()}
+                        className={`h-8 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Guardar Ensayo</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {(!activeEvent.rehearsals ||
+                  activeEvent.rehearsals.length === 0) &&
+                !showAddRehearsalInDetail ? null : activeEvent.rehearsals &&
+                  activeEvent.rehearsals.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   {activeEvent.rehearsals.map((reh) => {
                     const isAmConvoked = activeEvent.assignments.some(
@@ -2207,28 +2206,24 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           </div>
                         )}
                       </div>
-                    );
+                  );
                   })}
                 </div>
-              )}
-            </div>
+              ) : null}
+              </div>
+            )}
 
             {/* ===============================================================
                 2. PLAYLIST DEL EVENTO CON REORDENAMIENTO, TONOS Y VOCES POR CANCIÓN
                =============================================================== */}
-            <div className="space-y-3 w-full max-w-full min-w-0">
+            <div className="space-y-2.5 w-full max-w-full min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0 w-full">
-                <div className="min-w-0">
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <ListMusic className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
-                    <span className="truncate">
-                      Playlist del Evento ({activeEvent.songs.length})
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Toca una canción para abrirla en el Cancionero o usa el Modo Atril.
-                  </p>
-                </div>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5 min-w-0">
+                  <ListMusic className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
+                  <span className="truncate">
+                    Setlist / Canciones ({activeEvent.songs.length})
+                  </span>
+                </h3>
 
                 <div className="flex items-center gap-1 w-full sm:w-auto min-w-0 max-w-full">
                   {activeEvent.songs.length > 0 && (
@@ -2401,23 +2396,18 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 3. LISTA GENERAL DE MIEMBROS EN EL EVENTO (VISTA NORMAL DE EQUIPO)
                    + CONTROLES DEL LÍDER PARA AGREGAR/ELIMINAR Y ASIGNAR MÚLTIPLES INSTRUMENTOS
                =============================================================== */}
-            <div className="space-y-3 pt-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Users className="w-5 h-5 text-emerald-500" />
-                    Miembros en este Evento ({activeEvent.assignments.length})
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Equipo convocado y estado de confirmación.
-                  </p>
-                </div>
+            <div className="space-y-2.5 pt-1">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>Equipo Convocado ({activeEvent.assignments.length})</span>
+                </h3>
 
                 {isLeader && (
                   <button
                     type="button"
                     onClick={() => setShowAddMemberInDetail((prev) => !prev)}
-                    className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 ${
+                    className={`h-8 px-3 rounded-xl text-[11px] font-bold flex items-center gap-1 shrink-0 ${
                       showAddMemberInDetail
                         ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
                         : accent.bgClass
@@ -2425,9 +2415,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>
-                      {showAddMemberInDetail
-                        ? 'Cerrar panel'
-                        : 'Agregar Miembro / Invitado'}
+                      {showAddMemberInDetail ? 'Cerrar' : '+ Integrante'}
                     </span>
                   </button>
                 )}
@@ -2894,75 +2882,57 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Tarjeta 1: Notas Grupales del Evento */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <FileText className={`w-4 h-4 ${accent.textClass}`} />
-                        <span>Notas Grupales del Evento</span>
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
-                        Para todo el grupo
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Indicaciones generales de horarios, código de vestimenta, prueba de sonido o transiciones del servicio.
-                    </p>
-                    <textarea
-                      rows={3}
-                      value={eventGroupNotesDraft}
-                      onChange={(e) => setEventGroupNotesDraft(e.target.value)}
-                      placeholder="Ej. Prueba de sonido puntual a las 08:30 hrs; vestimenta tonos neutros; transición continua entre canción 1 y 2..."
-                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div className="flex justify-end">
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <FileText className={`w-3.5 h-3.5 ${accent.textClass}`} />
+                      <span>Notas Grupales del Evento</span>
+                    </h3>
                     <button
                       type="button"
                       onClick={handleSaveActiveEventGroupNotes}
-                      className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                      className={`h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 ${accent.bgClass}`}
                     >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Guardar Nota Grupal del Evento</span>
+                      <Check className="w-3 h-3" />
+                      <span>Guardar</span>
                     </button>
                   </div>
+                  <textarea
+                    rows={2}
+                    value={eventGroupNotesDraft}
+                    onChange={(e) => setEventGroupNotesDraft(e.target.value)}
+                    onBlur={handleSaveActiveEventGroupNotes}
+                    placeholder="Indicaciones generales de horarios, vestimenta o prueba de sonido..."
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                  />
                 </div>
 
                 {/* Tarjeta 2: Mis Notas Personales en este Evento */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <User className="w-4 h-4 text-emerald-500" />
-                        <span>Mis Notas Personales ({activeMember.name})</span>
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
-                        Solo para ti
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Tus recordatorios privados para este evento (cables, pedales, partes que te tocan o pendientes).
-                    </p>
-                    <textarea
-                      rows={3}
-                      value={eventPersonalNotesDraft}
-                      onChange={(e) => setEventPersonalNotesDraft(e.target.value)}
-                      placeholder="Escribe aquí tus apuntes personales para este evento..."
-                      className="w-full p-3 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div className="flex justify-end">
+                <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Mis Notas Personales</span>
+                    </h3>
                     <button
                       type="button"
                       onClick={handleSaveActiveEventPersonalNotes}
-                      className="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5"
+                      className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1"
                     >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Guardar Mi Nota del Evento</span>
+                      <Check className="w-3 h-3" />
+                      <span>Guardar</span>
                     </button>
                   </div>
+                  <textarea
+                    rows={2}
+                    value={eventPersonalNotesDraft}
+                    onChange={(e) => setEventPersonalNotesDraft(e.target.value)}
+                    onBlur={handleSaveActiveEventPersonalNotes}
+                    placeholder="Tus apuntes privados para este evento..."
+                    className="w-full p-2.5 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                  />
                 </div>
               </div>
             </div>

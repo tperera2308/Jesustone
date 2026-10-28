@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AccentColorId,
   BandMember,
@@ -27,6 +27,7 @@ interface DevotionalsModuleProps {
   activeMemberId: string;
   userRole: UserRole;
   accentColor: AccentColorId;
+  initialDevotionalId?: string | null;
   onToggleCompleteDevotional: (devId: string) => void;
   onToggleCompleteSession: (devId: string, sessionId: string) => void;
   onAddComment: (devId: string, text: string) => void;
@@ -49,6 +50,7 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
   activeMemberId,
   userRole,
   accentColor,
+  initialDevotionalId,
   onToggleCompleteDevotional,
   onToggleCompleteSession,
   onAddComment,
@@ -57,13 +59,19 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
 }) => {
   const accent = getAccentClasses(accentColor);
   const [selectedDevId, setSelectedDevId] = useState<string>(
-    devotionals[0]?.id || ''
+    initialDevotionalId || devotionals[0]?.id || ''
   );
   const [commentInput, setCommentInput] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [confirmDeleteDevId, setConfirmDeleteDevId] = useState<string | null>(
     null
   );
+
+  useEffect(() => {
+    if (initialDevotionalId && devotionals.some((d) => d.id === initialDevotionalId)) {
+      setSelectedDevId(initialDevotionalId);
+    }
+  }, [initialDevotionalId, devotionals]);
 
   // New Study (Multi-Session) Form State
   const [newTitle, setNewTitle] = useState('');
@@ -226,25 +234,23 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Cabecera de Sección */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-            Estudios y Formación del Grupo
+      {/* Cabecera compacta de Sección */}
+      <div className="flex items-center justify-between gap-2 bg-white dark:bg-slate-900 px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <BookOpen className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
+          <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+            Estudios Bíblicos ({devotionals.length})
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Estudios de una o varias sesiones con versículos bíblicos y control de sesiones realizadas
-          </p>
         </div>
 
         {userRole === 'leader' && (
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className={`min-h-[48px] self-start sm:self-auto flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold shadow-md transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
+            className={`h-8 flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold shadow-xs transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
           >
-            <Plus className="w-4 h-4" />
-            Agregar Estudio (Líder / Admin)
+            <Plus className="w-3.5 h-3.5 shrink-0" />
+            <span>Nuevo Estudio</span>
           </button>
         )}
       </div>

@@ -306,6 +306,12 @@ export default function App() {
     autoStageMode?: boolean;
   }>({ songId: null, customKey: null, eventId: null, autoStageMode: false });
   const [returnToGroupScreen, setReturnToGroupScreen] = useState(false);
+  const [selectedEventNavId, setSelectedEventNavId] = useState<string | null>(
+    null
+  );
+  const [selectedDevotionalNavId, setSelectedDevotionalNavId] = useState<
+    string | null
+  >(null);
   const [metronomePreset, setMetronomePreset] = useState<{
     bpm: number | null;
     timeSignature: TimeSignature | null;
@@ -1392,6 +1398,10 @@ export default function App() {
     // Navigate to target tab / item
     if (notif.targetTab === 'cancionero' && notif.targetId) {
       setSelectedSongNav({ songId: notif.targetId, customKey: null });
+    } else if (notif.targetTab === 'eventos') {
+      setSelectedEventNavId(notif.targetId || null);
+    } else if (notif.targetTab === 'devocionales') {
+      setSelectedDevotionalNavId(notif.targetId || null);
     }
     setActiveTab(notif.targetTab);
   };
@@ -2654,6 +2664,25 @@ export default function App() {
     setActiveTab('cancionero');
   };
 
+  const handleOpenEventDetail = (eventId: string, targetGroupId?: string) => {
+    if (targetGroupId && targetGroupId !== activeGroup.id) {
+      setActiveGroupId(targetGroupId);
+    }
+    setSelectedEventNavId(eventId);
+    setActiveTab('eventos');
+  };
+
+  const handleOpenDevotionalDetail = (
+    devotionalId: string,
+    targetGroupId?: string
+  ) => {
+    if (targetGroupId && targetGroupId !== activeGroup.id) {
+      setActiveGroupId(targetGroupId);
+    }
+    setSelectedDevotionalNavId(devotionalId);
+    setActiveTab('devocionales');
+  };
+
   const handleOpenMetronomeWithSong = (
     bpm: number,
     timeSignature: TimeSignature
@@ -3230,7 +3259,10 @@ export default function App() {
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               type="button"
-              onClick={() => setActiveTab('inicio')}
+              onClick={() => {
+                setReturnToGroupScreen(false);
+                setActiveTab('inicio');
+              }}
               className="text-left min-w-0 flex items-center gap-2 group"
               title="Ir a Inicio"
             >
@@ -3270,6 +3302,7 @@ export default function App() {
                   type="button"
                   onClick={() => {
                     if (item.id === 'inicio') setReturnToGroupScreen(false);
+                    if (item.id === 'eventos') setSelectedEventNavId(null);
                     if (item.id === 'cancionero') {
                       setSelectedSongNav({ songId: null, customKey: null });
                     }
@@ -3474,7 +3507,10 @@ export default function App() {
               onUpdateRSVP={handleUpdateRSVP}
               onOpenSongInSongbook={handleOpenSongInSongbook}
               onOpenMetronomeWithSong={handleOpenMetronomeWithSong}
+              onOpenEvent={handleOpenEventDetail}
+              onOpenDevotional={handleOpenDevotionalDetail}
               initialOpenGroupScreen={returnToGroupScreen}
+              onToggleGroupScreen={setReturnToGroupScreen}
             />
           )}
 
@@ -3488,6 +3524,8 @@ export default function App() {
               availabilityRecords={activeGroup.availabilityRecords || []}
               activeMember={{ ...activeMember, role: userRole }}
               accentColor={identity.accentColor}
+              initialEventId={selectedEventNavId}
+              onClearInitialEventId={() => setSelectedEventNavId(null)}
               onUpdateRSVP={handleUpdateRSVP}
               onReassignRole={handleReassignRole}
               onUpdateEventAssignments={handleUpdateEventAssignments}
@@ -3531,24 +3569,19 @@ export default function App() {
           )}
 
           {activeTab === 'devocionales' && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setReturnToGroupScreen(true);
                     setActiveTab('inicio');
                   }}
-                  className="min-h-[40px] px-3.5 py-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 shadow-2xs transition-colors"
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/60 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shadow-2xs transition-colors"
                 >
-                  <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
+                  <ArrowLeft className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span>Volver a {activeGroup.identity.ministryName}</span>
                 </button>
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
-                    Estudios de {activeGroup.identity.ministryName}
-                  </span>
-                </div>
               </div>
 
               <DevotionalsModule
@@ -3557,6 +3590,7 @@ export default function App() {
                 activeMemberId={activeMember.id}
                 userRole={userRole}
                 accentColor={identity.accentColor}
+                initialDevotionalId={selectedDevotionalNavId}
                 onToggleCompleteDevotional={handleToggleCompleteDevotional}
                 onToggleCompleteSession={handleToggleCompleteSession}
                 onAddComment={handleAddDevotionalComment}
@@ -3630,6 +3664,7 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   if (item.id === 'inicio') setReturnToGroupScreen(false);
+                  if (item.id === 'eventos') setSelectedEventNavId(null);
                   if (item.id === 'cancionero') {
                     setSelectedSongNav({ songId: null, customKey: null });
                   }

@@ -275,14 +275,46 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     useState<string>(initialEventId || '');
 
   const [semitoneOffset, setSemitoneOffset] = useState<number>(0);
-  const [fontSize, setFontSize] = useState<number>(15);
-  const [showLyricsOnly, setShowLyricsOnly] = useState<boolean>(false);
+  const [fontSize, setFontSize] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem('jesustone_reader_font_size_v1'));
+      return saved >= 12 && saved <= 26 ? saved : 16;
+    } catch {
+      return 16;
+    }
+  });
+  const [showLyricsOnly, setShowLyricsOnly] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('jesustone_reader_lyrics_only_v1') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [isStageMode, setIsStageMode] = useState<boolean>(
     Boolean(initialAutoStageMode)
   );
   const [sheetViewMode, setSheetViewMode] = useState<'interactive' | 'image'>(
     'interactive'
   );
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('jesustone_reader_font_size_v1', String(fontSize));
+    } catch {
+      // ignore
+    }
+  }, [fontSize]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'jesustone_reader_lyrics_only_v1',
+        showLyricsOnly ? 'true' : 'false'
+      );
+    } catch {
+      // ignore
+    }
+  }, [showLyricsOnly]);
 
   // Auto-scroll en Modo Escenario (Atril en Vivo)
   const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
@@ -1629,17 +1661,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Canciones ordenadas alfabéticamente (A–Z) · Toca cualquiera para abrir cifrado y transpositor:
-              </p>
-              <span className="text-xs font-mono font-bold text-slate-500">
-                {filteredSongs.length}{' '}
-                {filteredSongs.length === 1 ? 'canción' : 'canciones'}
-              </span>
-            </div>
-
+          <div className="space-y-2.5">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredSongs.map((song) => {
                 const cleanSpotifyUrl = song.spotifyUrl?.trim();
@@ -1888,12 +1910,42 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
+                {activeSongHasImage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextMode =
+                        sheetViewMode === 'image' ? 'interactive' : 'image';
+                      setSheetViewMode(nextMode);
+                      if (nextMode === 'image' && !streamedImageUrl) {
+                        triggerOnDemandImageLoad(activeSong);
+                      }
+                    }}
+                    className={`h-8 px-2.5 rounded-xl text-[11px] font-bold flex items-center gap-1 border transition-all whitespace-nowrap shrink-0 ${
+                      sheetViewMode === 'image'
+                        ? `${accent.bgClass} border-transparent`
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-amber-500'
+                    }`}
+                    title="Alternar entre Cifrado e Imagen Adjunta"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {sheetViewMode === 'image' ? 'Ver Cifrado' : 'Imagen'}
+                    </span>
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => setShowLyricsOnly((prev) => !prev)}
+                  onClick={() => {
+                    if (sheetViewMode === 'image') {
+                      setSheetViewMode('interactive');
+                    }
+                    setShowLyricsOnly((prev) => !prev);
+                  }}
                   className={`h-8 px-2.5 rounded-xl text-[11px] font-bold flex items-center gap-1 border transition-all whitespace-nowrap shrink-0 ${
-                    showLyricsOnly
+                    showLyricsOnly && sheetViewMode === 'interactive'
                       ? 'bg-emerald-600 text-white border-emerald-500'
                       : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-amber-500'
                   }`}
@@ -1922,7 +1974,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFontSize((f) => Math.min(24, f + 1))}
+                    onClick={() => setFontSize((f) => Math.min(26, f + 1))}
                     className="h-7 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300"
                     title="Aumentar letra"
                   >
@@ -1932,89 +1984,29 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
             </div>
 
-            {/* ESTRUCTURA DE LA CANCIÓN */}
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Estructura / Orden de Secciones:
+            {/* ESTRUCTURA DE LA CANCIÓN (SOLO LECTURA LIMPIA EN UNA LÍNEA) */}
+            {activeSong.structure && activeSong.structure.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <span className="text-[11px] font-bold text-slate-400 shrink-0">
+                  Orden:
                 </span>
-                <div className="flex items-center gap-1 overflow-x-auto max-w-full pb-1">
-                  {QUICK_STRUCTURE_CHIPS.slice(0, 6).map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() => handleAddStructureSection(chip)}
-                      className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/20 text-[10px] font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap shrink-0"
-                    >
-                      + {chip}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(activeSong.structure || []).map((sec, idx) => (
+                {activeSong.structure.map((sec, idx) => (
                   <span
                     key={`${sec}-${idx}`}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap shrink-0"
                   >
                     <span className="text-amber-500 font-mono">{idx + 1}.</span>
                     <span>{sec}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveStructureSection(idx)}
-                      className="text-slate-400 hover:text-rose-500 ml-0.5"
-                      title="Quitar sección"
-                    >
-                      ×
-                    </button>
                   </span>
                 ))}
               </div>
-            </div>
+            )}
 
-            {/* PESTAÑAS: Cifrado Interactivo vs Imagen en Nube bajo Demanda (con Caché IndexedDB) */}
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-1.5 w-full max-w-full">
-                <div className="flex items-center gap-1 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => setSheetViewMode('interactive')}
-                    className={`h-8 px-2.5 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all whitespace-nowrap ${
-                      sheetViewMode === 'interactive'
-                        ? `${accent.bgClass}`
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <FileText className="w-3.5 h-3.5 shrink-0" />
-                    <span className="sm:hidden">Cifrado</span>
-                    <span className="hidden sm:inline">Cifrado Interactivo</span>
-                  </button>
-
-                  {activeSongHasImage && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSheetViewMode('image');
-                        if (!streamedImageUrl) {
-                          triggerOnDemandImageLoad(activeSong);
-                        }
-                      }}
-                      className={`h-8 px-2.5 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all whitespace-nowrap ${
-                        sheetViewMode === 'image'
-                          ? `${accent.bgClass}`
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      <ImageIcon className="w-3.5 h-3.5 shrink-0" />
-                      <span className="sm:hidden">Imagen</span>
-                      <span className="hidden sm:inline">Imagen Adjunta</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  {sheetViewMode === 'image' && streamedImageUrl && (
+            {/* VISOR PRINCIPAL: CIFRADO INTERACTIVO O IMAGEN EN NUBE BAJO DEMANDA */}
+            <div className="space-y-2.5">
+              {sheetViewMode === 'image' && activeSongHasImage && (
+                <div className="flex items-center justify-end gap-1.5">
+                  {streamedImageUrl && (
                     <button
                       type="button"
                       onClick={() => {
@@ -2022,46 +2014,25 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         setIsImageFullscreen(true);
                       }}
                       className="h-8 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] font-bold flex items-center gap-1 transition-colors whitespace-nowrap"
-                      title="Ver imagen en pantalla completa con zoom"
                     >
                       <Maximize2 className="w-3.5 h-3.5 shrink-0" />
-                      <span className="sm:hidden">Ampliar</span>
-                      <span className="hidden sm:inline">Pantalla Completa</span>
+                      <span>Pantalla Completa</span>
                     </button>
                   )}
-
-                  {sheetViewMode === 'image' && activeSongHasImage && (
-                    <button
-                      type="button"
-                      onClick={() => triggerOnDemandImageLoad(activeSong, true)}
-                      className="h-8 px-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1"
-                      title="Volver a sincronizar imagen desde la nube"
-                    >
-                      <RefreshCw
-                        className={`w-3.5 h-3.5 shrink-0 ${
-                          isLoadingStreamedImage ? 'animate-spin' : ''
-                        }`}
-                      />
-                      <span className="hidden sm:inline">Sincronizar</span>
-                    </button>
-                  )}
-
-                  <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors">
-                    <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
-                    <span>
-                      {activeSongHasImage
-                        ? 'Cambiar Imagen'
-                        : '+ Adjuntar Imagen'}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(e, 'direct')}
-                      className="hidden"
+                  <button
+                    type="button"
+                    onClick={() => triggerOnDemandImageLoad(activeSong, true)}
+                    className="h-8 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1"
+                  >
+                    <RefreshCw
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        isLoadingStreamedImage ? 'animate-spin' : ''
+                      }`}
                     />
-                  </label>
+                    <span>Sincronizar</span>
+                  </button>
                 </div>
-              </div>
+              )}
 
               {sheetViewMode === 'image' && activeSongHasImage ? (
                 <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-950 p-4 flex flex-col items-center justify-center min-h-[260px] group">
@@ -2069,10 +2040,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     <div className="flex flex-col items-center gap-2.5 py-12 text-slate-300">
                       <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
                       <p className="text-xs font-bold">
-                        Descargando imagen en streaming desde la nube...
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        Se guardará automáticamente en la caché de este dispositivo.
+                        Descargando imagen desde la nube...
                       </p>
                     </div>
                   ) : streamedImageUrl ? (
@@ -2091,7 +2059,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       <CloudDownload className="w-8 h-8 text-amber-400" />
                       <p className="text-xs font-semibold text-slate-300">
                         {streamedImageError ||
-                          'La imagen está almacenada en la nube lista para descargarse bajo demanda.'}
+                          'La imagen está almacenada en la nube lista para descargarse.'}
                       </p>
                       <button
                         type="button"
@@ -2120,24 +2088,28 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               )}
             </div>
 
-
-            {/* NOTAS GRUPALES Y PERSONALES DE LA CANCIÓN */}
+            {/* NOTAS GRUPALES Y PERSONALES COMPACTAS */}
             {savedFeedbackMessage && (
-              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-                <Check className="w-4 h-4" />
+              <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                <Check className="w-4 h-4 shrink-0" />
                 <span>{savedFeedbackMessage}</span>
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-slate-900 dark:text-white">
-                    Notas Grupales de la Canción
+                    Notas Grupales
                   </span>
-                  <span className="text-[10px] font-bold text-amber-500">
-                    Visible para todos
-                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSaveGroupNotes}
+                    className={`h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 ${accent.bgClass}`}
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>Guardar</span>
+                  </button>
                 </div>
                 <textarea
                   rows={2}
@@ -2154,25 +2126,21 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   placeholder="Indicaciones de cortes, intensidad, entradas..."
                   className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                 />
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleSaveGroupNotes}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold ${accent.bgClass}`}
-                  >
-                    Guardar Nota Grupal
-                  </button>
-                </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-2.5">
-                <div className="flex items-center justify-between">
+              <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/25 space-y-2">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-slate-900 dark:text-white">
-                    Mis Apuntes Personales ({activeMember.name.split(' ')[0]})
+                    Mis Apuntes ({activeMember.name.split(' ')[0]})
                   </span>
-                  <span className="text-[10px] font-bold text-emerald-500">
-                    Solo para ti
-                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSavePersonalNotes}
+                    className="h-7 px-2.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1"
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>Guardar</span>
+                  </button>
                 </div>
                 <textarea
                   rows={2}
@@ -2193,15 +2161,6 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   placeholder="Tus efectos, presets, capo o recordatorios..."
                   className="w-full p-2.5 rounded-xl border border-emerald-500/30 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
                 />
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleSavePersonalNotes}
-                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"
-                  >
-                    Guardar Mi Apunte
-                  </button>
-                </div>
               </div>
             </div>
           </div>
