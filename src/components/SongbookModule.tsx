@@ -1226,17 +1226,17 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
     return (
       <div className="fixed inset-0 z-50 bg-slate-950 text-slate-100 flex flex-col">
         {/* Cabecera del Modo Escenario */}
-        <div className="px-4 sm:px-6 py-3 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="px-3.5 sm:px-6 py-3 bg-slate-900 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 w-full max-w-full overflow-hidden">
+          <div className="flex items-center gap-2.5 min-w-0">
             {setlistOrderIds.length > 1 && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => handleNavigateAdjacentSong(-1)}
-                  className="min-h-[42px] px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold"
+                  className="min-h-[44px] min-w-[44px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center gap-1 text-base font-bold"
                   title="Canción anterior"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">Anterior</span>
                 </button>
                 <span className="px-2 py-1 rounded-lg bg-slate-800/80 font-mono text-xs text-amber-400 font-bold">
@@ -1245,11 +1245,11 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => handleNavigateAdjacentSong(1)}
-                  className="min-h-[42px] px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 text-xs font-bold"
+                  className="min-h-[44px] min-w-[44px] px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center gap-1 text-base font-bold"
                   title="Siguiente canción"
                 >
                   <span className="hidden sm:inline">Siguiente</span>
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4 shrink-0" />
                 </button>
               </div>
             )}
@@ -1272,14 +1272,14 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             </div>
           </div>
 
-          {/* Controles en Vivo: Auto-Scroll, Clic de Referencia, Transposición, Letra y Salir */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Controles en Vivo en una sola fila deslizable sin romper márgenes */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full flex-nowrap pb-0.5">
             {/* Auto-scroll */}
-            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsAutoScrolling((prev) => !prev)}
-                className={`min-h-[36px] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`min-h-[44px] px-3 py-1.5 rounded-lg text-base font-bold flex items-center gap-1.5 transition-all whitespace-nowrap shrink-0 ${
                   isAutoScrolling
                     ? 'bg-emerald-600 text-white'
                     : 'text-slate-300 hover:text-white'
@@ -1287,12 +1287,12 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               >
                 {isAutoScrolling ? (
                   <>
-                    <Pause className="w-3.5 h-3.5" />
-                    <span>Pausar Scroll</span>
+                    <Pause className="w-4 h-4 shrink-0" />
+                    <span>Pausar</span>
                   </>
                 ) : (
                   <>
-                    <Play className="w-3.5 h-3.5" />
+                    <Play className="w-4 h-4 shrink-0" />
                     <span>Auto-Scroll</span>
                   </>
                 )}
@@ -1305,7 +1305,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       e.target.value as 'slow' | 'bpm' | 'medium' | 'fast'
                     )
                   }
-                  className="bg-slate-900 text-amber-400 text-xs font-bold px-2 py-1 rounded-lg border border-slate-700"
+                  className="min-h-[44px] bg-slate-900 text-amber-400 text-base font-bold px-2.5 py-1.5 rounded-lg border border-slate-700"
                 >
                   <option value="bpm">Sync ({activeSong.bpm} BPM)</option>
                   <option value="slow">Lento</option>
@@ -1319,40 +1319,40 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             <button
               type="button"
               onClick={() => setIsStageClickPlaying((prev) => !prev)}
-              className={`min-h-[42px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+              className={`min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold flex items-center gap-1.5 border transition-all whitespace-nowrap shrink-0 ${
                 isStageClickPlaying
                   ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse'
                   : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
               }`}
               title="Escuchar clic/pulso de referencia al BPM de la canción"
             >
-              <Volume2 className="w-4 h-4" />
+              <Volume2 className="w-4 h-4 shrink-0" />
               <span>{isStageClickPlaying ? 'Clic ON' : `${activeSong.bpm} BPM`}</span>
             </button>
 
             {/* Transposición rápida */}
-            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700 shrink-0">
               <button
                 type="button"
                 onClick={() => setSemitoneOffset((s) => s - 1)}
-                className="min-h-[36px] min-w-[36px] rounded-lg hover:bg-slate-700 flex items-center justify-center font-mono font-bold text-sm"
+                className="min-h-[44px] min-w-[44px] rounded-lg hover:bg-slate-700 flex items-center justify-center font-mono font-bold text-base"
               >
                 -1
               </button>
-              <span className="px-2.5 font-mono text-sm font-extrabold text-amber-400">
+              <span className="px-2 font-mono text-base font-extrabold text-amber-400">
                 {currentKey}
               </span>
               <button
                 type="button"
                 onClick={() => setSemitoneOffset((s) => s + 1)}
-                className="min-h-[36px] min-w-[36px] rounded-lg hover:bg-slate-700 flex items-center justify-center font-mono font-bold text-sm"
+                className="min-h-[44px] min-w-[44px] rounded-lg hover:bg-slate-700 flex items-center justify-center font-mono font-bold text-base"
               >
                 +1
               </button>
             </div>
 
             {/* Conmutador compacto: Acordes vs Solo Letra + Imagen */}
-            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -1362,7 +1362,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     setShowLyricsOnly((prev) => !prev);
                   }
                 }}
-                className={`min-h-[34px] px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`min-h-[44px] px-3 py-1.5 rounded-lg text-base font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                   sheetViewMode === 'interactive' && showLyricsOnly
                     ? 'bg-emerald-600 text-white'
                     : sheetViewMode === 'interactive'
@@ -1371,8 +1371,8 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 }`}
                 title="Alternar entre Acordes + Letra y Solo Letra"
               >
-                <FileText className="w-3.5 h-3.5" />
-                <span>{showLyricsOnly ? 'Solo Letra' : 'Acordes + Letra'}</span>
+                <FileText className="w-4 h-4 shrink-0" />
+                <span>{showLyricsOnly ? 'Solo Letra' : 'Acordes'}</span>
               </button>
               {activeSongHasImage && (
                 <button
@@ -1382,32 +1382,32 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       m === 'image' ? 'interactive' : 'image'
                     )
                   }
-                  className={`min-h-[34px] px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                  className={`min-h-[44px] px-3 py-1.5 rounded-lg text-base font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                     sheetViewMode === 'image'
                       ? 'bg-sky-600 text-white'
                       : 'text-slate-300 hover:text-white'
                   }`}
                   title="Ver imagen de la canción (descarga bajo demanda + caché)"
                 >
-                  <ImageIcon className="w-3.5 h-3.5" />
+                  <ImageIcon className="w-4 h-4 shrink-0" />
                   <span>Imagen</span>
                 </button>
               )}
             </div>
 
             {/* Tamaño de letra */}
-            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700">
+            <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl border border-slate-700 shrink-0">
               <button
                 type="button"
                 onClick={() => setFontSize((f) => Math.max(13, f - 1))}
-                className="min-h-[36px] px-2 rounded-lg hover:bg-slate-700 text-xs font-bold"
+                className="min-h-[44px] min-w-[44px] px-2 rounded-lg hover:bg-slate-700 text-base font-bold flex items-center justify-center"
               >
                 A-
               </button>
               <button
                 type="button"
                 onClick={() => setFontSize((f) => Math.min(26, f + 1))}
-                className="min-h-[36px] px-2 rounded-lg hover:bg-slate-700 text-xs font-bold"
+                className="min-h-[44px] min-w-[44px] px-2 rounded-lg hover:bg-slate-700 text-base font-bold flex items-center justify-center"
               >
                 A+
               </button>
@@ -1420,9 +1420,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 setIsStageClickPlaying(false);
                 setIsStageMode(false);
               }}
-              className="min-h-[42px] px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5"
+              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-base font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0"
             >
-              <Minimize2 className="w-4 h-4" />
+              <Minimize2 className="w-4 h-4 shrink-0" />
               <span>Salir</span>
             </button>
           </div>
@@ -1516,7 +1516,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               <button
                 type="button"
                 onClick={onBackToGroup}
-                className="min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
+                className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
               >
                 <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
                 <span>Grupo</span>
@@ -1525,7 +1525,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
 
             <div className="flex items-center gap-2 px-1 min-w-0">
               <Music className={`w-4 h-4 shrink-0 ${accent.textClass}`} />
-              <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">
+              <span className="text-base font-bold text-slate-900 dark:text-white truncate">
                 Repertorio ({songs.length})
               </span>
               <span className="hidden sm:inline-block px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-mono font-bold text-slate-600 dark:text-slate-300 shrink-0">
@@ -1537,7 +1537,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
           <button
             type="button"
             onClick={() => setShowAddSongModal(true)}
-            className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 ${accent.bgClass}`}
+            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold flex items-center gap-1.5 shadow-xs whitespace-nowrap shrink-0 ${accent.bgClass}`}
           >
             <Plus className="w-4 h-4 shrink-0" />
             <span className="sm:hidden">Subir</span>
@@ -1556,13 +1556,14 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Buscar título, artista o letra..."
-                  className="w-full min-h-[42px] pl-9 pr-8 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:border-amber-500"
+                  className="w-full min-h-[44px] pl-9 pr-10 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-base text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none focus:border-amber-500"
                 />
                 {searchQuery && (
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="min-h-[34px] min-w-[34px] flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 dark:hover:text-white"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center absolute right-0.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 dark:hover:text-white"
+                    aria-label="Limpiar búsqueda"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1574,7 +1575,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 <select
                   value={selectedKeyFilter}
                   onChange={(e) => setSelectedKeyFilter(e.target.value)}
-                  className="w-full sm:w-auto min-w-0 min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate"
+                  className="w-full sm:w-auto min-w-0 min-h-[44px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 truncate"
                 >
                   <option value="all">Tono: Todos</option>
                   <optgroup label="Mayores">
@@ -1600,7 +1601,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       e.target.value as 'all' | 'slow' | 'medium' | 'fast'
                     )
                   }
-                  className="w-full sm:w-auto min-w-0 min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate"
+                  className="w-full sm:w-auto min-w-0 min-h-[44px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 truncate"
                 >
                   <option value="all">Tempo: Todos</option>
                   <option value="slow">Lento (&lt; 75 BPM)</option>
@@ -1610,13 +1611,13 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 max-w-full">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5 max-w-full flex-nowrap">
               {['all', ...STYLES].map((st) => (
                 <button
                   key={st}
                   type="button"
                   onClick={() => setSelectedStyle(st)}
-                  className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 ${
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold whitespace-nowrap transition-all shrink-0 ${
                     selectedStyle === st
                       ? `${accent.bgClass}`
                       : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -1703,9 +1704,9 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                             onClick={(e) => e.stopPropagation()}
                             title="Escuchar en Spotify"
                             aria-label={`Abrir ${song.title} en Spotify`}
-                            className="inline-flex min-h-[32px] items-center gap-1 px-2.5 py-1 rounded-xl bg-[#1DB954]/15 hover:bg-[#1DB954] text-[#15883e] dark:text-[#1ed760] hover:text-slate-950 border border-[#1DB954]/30 text-xs font-bold transition-colors shrink-0"
+                            className="inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1DB954]/15 hover:bg-[#1DB954] text-[#15883e] dark:text-[#1ed760] hover:text-slate-950 border border-[#1DB954]/30 text-sm font-bold transition-colors shrink-0"
                           >
-                            <Headphones className="w-3.5 h-3.5 shrink-0" />
+                            <Headphones className="w-4 h-4 shrink-0" />
                             <span>Spotify</span>
                           </a>
                         )}
@@ -1749,7 +1750,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             <button
               type="button"
               onClick={() => setSelectedSongId(null)}
-              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shadow-2xs shrink-0"
+              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shadow-2xs shrink-0"
             >
               <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
               <span>Repertorio</span>
@@ -1760,18 +1761,18 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => handleNavigateAdjacentSong(-1)}
-                  className="min-h-[40px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1"
+                  className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1"
                 >
                   <ChevronLeft className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">Anterior</span>
                 </button>
-                <span className="text-xs sm:text-sm font-mono font-bold text-slate-600 dark:text-slate-300 px-1.5">
+                <span className="text-xs sm:text-sm font-mono font-bold text-slate-600 dark:text-slate-300 px-1">
                   {currentIndexInOrder + 1}/{setlistOrderIds.length}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleNavigateAdjacentSong(1)}
-                  className="min-h-[40px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1"
+                  className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1"
                 >
                   <span className="hidden sm:inline">Siguiente</span>
                   <ChevronRight className="w-4 h-4 shrink-0" />
@@ -1807,17 +1808,17 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-1.5 w-full lg:w-auto min-w-0 max-w-full">
+              <div className="flex items-center gap-1.5 w-full lg:w-auto min-w-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap">
                 {activeSong.spotifyUrl?.trim() && (
                   <a
                     href={activeSong.spotifyUrl.trim()}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="min-h-[40px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs flex-1 lg:flex-initial min-w-0 truncate"
+                    className="min-h-[44px] px-3 py-2 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-base flex items-center justify-center gap-1.5 shadow-2xs shrink-0 whitespace-nowrap"
                     title="Escuchar en Spotify"
                   >
                     <Headphones className="w-4 h-4 shrink-0" />
-                    <span className="truncate">Spotify</span>
+                    <span>Spotify</span>
                   </a>
                 )}
 
@@ -1829,38 +1830,38 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       activeSong.timeSignature
                     )
                   }
-                  className="min-h-[40px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1.5 flex-1 lg:flex-initial min-w-0 truncate"
+                  className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap"
                   title={`Abrir en Metrónomo (${activeSong.bpm} BPM)`}
                 >
                   <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className="truncate">{activeSong.bpm} BPM</span>
+                  <span>{activeSong.bpm} BPM</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsStageMode(true)}
-                  className={`min-h-[40px] px-2.5 sm:px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs flex-1 lg:flex-initial min-w-0 truncate ${accent.bgClass}`}
+                  className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 shadow-xs shrink-0 whitespace-nowrap ${accent.bgClass}`}
                   title="Modo Atril en pantalla completa"
                 >
                   <Maximize2 className="w-4 h-4 shrink-0" />
-                  <span className="truncate">Atril</span>
+                  <span>Atril</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={openEditModalForActiveSong}
-                  className="min-h-[40px] px-2.5 sm:px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center justify-center gap-1.5 flex-1 lg:flex-initial min-w-0 truncate"
+                  className="min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap"
                   title="Editar canción"
                 >
                   <Edit3 className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span className="truncate">Editar</span>
+                  <span>Editar</span>
                 </button>
 
                 {isLeader && (
                   <button
                     type="button"
                     onClick={() => setShowDeleteConfirmModal(true)}
-                    className="min-h-[40px] w-[40px] rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center shrink-0"
+                    className="min-h-[44px] min-w-[44px] rounded-xl border border-rose-200 dark:border-rose-900/50 text-base font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center shrink-0"
                     title="Eliminar canción"
                     aria-label="Eliminar canción"
                   >
@@ -1871,26 +1872,26 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
             </div>
 
             {/* BARRA TÁCTIL EN UNA SOLA LÍNEA: TONALIDAD (-1/+1), SOLO LETRA Y TAMAÑO (A-/A+) */}
-            <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 flex-nowrap w-full max-w-full overflow-x-auto no-scrollbar">
+            <div className="p-2 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 flex-nowrap w-full max-w-full overflow-x-auto no-scrollbar">
               <div className="flex items-center gap-1.5 shrink-0">
                 <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
                   <button
                     type="button"
                     onClick={() => setSemitoneOffset((s) => s - 1)}
-                    className="min-h-[36px] min-w-[38px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100"
+                    className="min-h-[44px] min-w-[44px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center"
                     title="Bajar medio tono (-1)"
                   >
                     -1
                   </button>
                   <span
-                    className={`px-2.5 py-1 rounded-lg font-mono text-xs sm:text-sm font-extrabold ${accent.softBgClass}`}
+                    className={`px-2.5 py-1.5 rounded-lg font-mono text-base font-extrabold ${accent.softBgClass}`}
                   >
                     {currentKey}
                   </span>
                   <button
                     type="button"
                     onClick={() => setSemitoneOffset((s) => s + 1)}
-                    className="min-h-[36px] min-w-[38px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100"
+                    className="min-h-[44px] min-w-[44px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-mono text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center"
                     title="Subir medio tono (+1)"
                   >
                     +1
@@ -1901,10 +1902,10 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setSemitoneOffset(0)}
-                    className="min-h-[40px] px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5 shrink-0"
+                    className="min-h-[44px] px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-base font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
                     title={`Volver al tono original (${activeSong.originalKey})`}
                   >
-                    <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                    <RotateCcw className="w-4 h-4 shrink-0" />
                     <span>{activeSong.originalKey}</span>
                   </button>
                 )}
@@ -1922,7 +1923,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         triggerOnDemandImageLoad(activeSong);
                       }
                     }}
-                    className={`min-h-[40px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 border transition-all whitespace-nowrap shrink-0 ${
+                    className={`min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold flex items-center gap-1.5 border transition-all whitespace-nowrap shrink-0 ${
                       sheetViewMode === 'image'
                         ? `${accent.bgClass} border-transparent`
                         : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700 hover:border-amber-500'
@@ -1944,7 +1945,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                     }
                     setShowLyricsOnly((prev) => !prev);
                   }}
-                  className={`min-h-[40px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 border transition-all whitespace-nowrap shrink-0 ${
+                  className={`min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold flex items-center gap-1.5 border transition-all whitespace-nowrap shrink-0 ${
                     showLyricsOnly && sheetViewMode === 'interactive'
                       ? 'bg-emerald-600 text-white border-emerald-500'
                       : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700 hover:border-amber-500'
@@ -1967,7 +1968,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setFontSize((f) => Math.max(13, f - 1))}
-                    className="min-h-[36px] min-w-[38px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100"
+                    className="min-h-[44px] min-w-[44px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center"
                     title="Reducir letra"
                   >
                     A-
@@ -1975,7 +1976,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setFontSize((f) => Math.min(28, f + 1))}
-                    className="min-h-[36px] min-w-[38px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100"
+                    className="min-h-[44px] min-w-[44px] px-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center"
                     title="Aumentar letra"
                   >
                     A+
@@ -2421,7 +2422,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   )}
                 </div>
 
-                <div className="flex items-center sm:flex-wrap gap-1.5 overflow-x-auto pb-1">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 max-w-full flex-nowrap">
                   {QUICK_STRUCTURE_CHIPS.map((chip) => (
                     <button
                       key={chip}
@@ -2429,7 +2430,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       onClick={() =>
                         setNewStructureList((prev) => [...prev, chip])
                       }
-                      className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap shrink-0"
+                      className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-base font-bold text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap shrink-0"
                     >
                       + {chip}
                     </button>
@@ -2452,7 +2453,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       }
                     }}
                     placeholder="Otra sección personalizada (ej. Tag, Corte)..."
-                    className="flex-1 min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                    className="flex-1 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-base text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
@@ -2463,7 +2464,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         setNewCustomSection('');
                       }
                     }}
-                    className="min-h-[36px] px-3 py-1 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-base font-bold text-slate-800 dark:text-slate-200 shrink-0"
                   >
                     + Añadir
                   </button>
@@ -2858,7 +2859,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                   )}
                 </div>
 
-                <div className="flex items-center sm:flex-wrap gap-1.5 overflow-x-auto pb-1">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 max-w-full flex-nowrap">
                   {QUICK_STRUCTURE_CHIPS.map((chip) => (
                     <button
                       key={chip}
@@ -2866,7 +2867,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       onClick={() =>
                         setEditStructureList((prev) => [...prev, chip])
                       }
-                      className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap shrink-0"
+                      className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-amber-500/15 border border-slate-200 dark:border-slate-700 hover:border-amber-500/40 text-base font-bold text-slate-700 dark:text-slate-200 transition-colors whitespace-nowrap shrink-0"
                     >
                       + {chip}
                     </button>
@@ -2889,7 +2890,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       }
                     }}
                     placeholder="Otra sección personalizada..."
-                    className="flex-1 min-h-[36px] px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                    className="flex-1 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-base text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
@@ -2900,7 +2901,7 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         setEditCustomSection('');
                       }
                     }}
-                    className="min-h-[36px] px-3 py-1 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-base font-bold text-slate-800 dark:text-slate-200 shrink-0"
                   >
                     + Añadir
                   </button>

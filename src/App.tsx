@@ -3347,14 +3347,14 @@ export default function App() {
         {/* TOP BAR MINIMALISTA Y ESPACIADA: Wordmark + Navegación Desktop + Notificaciones y Menú Usuario */}
         <header className="sticky top-0 z-30 h-16 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3.5 sm:px-6 flex items-center justify-between gap-3">
           {/* Zona 1: Wordmark jesustone + indicador sutil de grupo activo sin saturar */}
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={() => {
                 setReturnToGroupScreen(false);
                 setActiveTab('inicio');
               }}
-              className="min-h-[42px] py-1 text-left min-w-0 flex items-center gap-2.5 group"
+              className="min-h-[44px] py-1 text-left min-w-0 flex items-center gap-2 group"
               title="Ir a Inicio"
             >
               <div
@@ -3366,7 +3366,7 @@ export default function App() {
                 <span className="block text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
                   jesustone
                 </span>
-                <span className="block text-xs font-medium text-slate-600 dark:text-slate-300 truncate max-w-[125px] sm:max-w-[190px] leading-tight">
+                <span className="block text-xs font-medium text-slate-600 dark:text-slate-300 truncate max-w-[115px] sm:max-w-[190px] leading-tight">
                   {identity.ministryName}
                 </span>
               </div>
@@ -3375,7 +3375,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
-              className="hidden sm:inline-flex min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 items-center gap-1.5 transition-colors shrink-0"
+              className="hidden sm:inline-flex min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-700 dark:text-slate-200 items-center gap-1.5 transition-colors shrink-0"
               title="Cambiar o crear grupo musical"
             >
               <span>Cambiar grupo</span>
@@ -3384,7 +3384,7 @@ export default function App() {
           </div>
 
           {/* Zona 2: Navegación Principal en Escritorio */}
-          <nav className="hidden md:flex items-center gap-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+          <nav className="hidden md:flex items-center gap-2 text-base font-semibold text-slate-700 dark:text-slate-300">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -3399,7 +3399,7 @@ export default function App() {
                     }
                     setActiveTab(item.id);
                   }}
-                  className={`min-h-[42px] px-3 py-2 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
+                  className={`min-h-[44px] px-3 py-2 text-base transition-colors whitespace-nowrap shrink-0 border-b-2 ${
                     isActive
                       ? `text-slate-950 dark:text-white font-bold border-current ${accent.textClass}`
                       : 'border-transparent hover:text-slate-950 dark:hover:text-white'
@@ -3412,14 +3412,14 @@ export default function App() {
           </nav>
 
           {/* Zona 3: Notificaciones + Menú General de Usuario con holgura y separación limpia */}
-          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 relative">
+          <div className="flex items-center gap-2 shrink-0 relative">
             <button
               type="button"
               onClick={() => {
                 setIsUserMenuOpen(false);
                 setIsNotificationsModalOpen(true);
               }}
-              className="relative min-h-[42px] min-w-[42px] px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1.5 text-xs font-bold transition-colors"
+              className="relative min-h-[44px] min-w-[44px] px-2.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1 text-base font-bold transition-colors"
               title="Notificaciones"
               aria-label="Notificaciones"
             >
@@ -3434,7 +3434,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsUserMenuOpen((prev) => !prev)}
-              className={`min-h-[42px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 shadow-2xs ${accent.bgClass}`}
+              className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 shadow-2xs ${accent.bgClass}`}
               title="Menú de Usuario y Ajustes Generales"
             >
               {currentUser.avatarUrl ? (
@@ -3448,7 +3448,7 @@ export default function App() {
               ) : (
                 <User className="w-4 h-4 shrink-0" />
               )}
-              <span className="max-w-[95px] sm:max-w-[140px] truncate">
+              <span className="max-w-[90px] sm:max-w-[140px] truncate">
                 @{currentUser.username}
               </span>
               {friendRequests.some(
@@ -3490,17 +3490,17 @@ export default function App() {
                       setIsUserMenuOpen(false);
                       handleOpenMusicianProfile(currentUser.id, 'perfil');
                     }}
-                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                    className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between text-base font-semibold text-slate-800 dark:text-slate-200 transition-colors"
                   >
-                    <span className="flex items-center gap-2.5">
-                      <Users className="w-4 h-4 text-indigo-500" />
-                      <span>Mi Perfil y Red de Amigos</span>
+                    <span className="flex items-center gap-2.5 truncate">
+                      <Users className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <span className="truncate">Mi Perfil y Amigos</span>
                     </span>
                     {friendRequests.some(
                       (r) =>
                         r.status === 'pending' && r.toUserId === currentUser.id
                     ) && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono text-[10px] font-bold">
+                      <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono text-xs font-bold shrink-0">
                         {
                           friendRequests.filter(
                             (r) =>
@@ -3518,10 +3518,10 @@ export default function App() {
                       setIsUserMenuOpen(false);
                       setIsAuthModalOpen(true);
                     }}
-                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                    className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-base font-semibold text-slate-800 dark:text-slate-200 transition-colors"
                   >
-                    <FolderPlus className="w-4 h-4 text-sky-500" />
-                    <span>Mis Grupos / Cambiar Grupo</span>
+                    <FolderPlus className="w-4 h-4 text-sky-500 shrink-0" />
+                    <span className="truncate">Mis Grupos</span>
                   </button>
 
                   <button
@@ -3530,10 +3530,10 @@ export default function App() {
                       setIsUserMenuOpen(false);
                       setIdentityModalState({ open: true, section: 'temas' });
                     }}
-                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                    className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-base font-semibold text-slate-800 dark:text-slate-200 transition-colors"
                   >
-                    <Palette className="w-4 h-4 text-amber-500" />
-                    <span>Apariencia y Colores</span>
+                    <Palette className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span className="truncate">Apariencia y Colores</span>
                   </button>
 
                   <button
@@ -3542,10 +3542,10 @@ export default function App() {
                       setIsUserMenuOpen(false);
                       setShowInstallModal(true);
                     }}
-                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                    className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-base font-semibold text-slate-800 dark:text-slate-200 transition-colors"
                   >
-                    <Download className="w-4 h-4 text-indigo-400" />
-                    <span>Compartir / Instalar App</span>
+                    <Download className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span className="truncate">Instalar App</span>
                   </button>
 
                   <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
@@ -3555,9 +3555,9 @@ export default function App() {
                         setIsUserMenuOpen(false);
                         handleLogout();
                       }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-rose-500/10 flex items-center gap-2.5 text-xs font-semibold text-rose-500 transition-colors"
+                      className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-rose-500/10 flex items-center gap-2.5 text-base font-semibold text-rose-500 transition-colors"
                     >
-                      <LogOut className="w-4 h-4" />
+                      <LogOut className="w-4 h-4 shrink-0" />
                       <span>Cerrar sesión</span>
                     </button>
                   </div>
@@ -3668,10 +3668,10 @@ export default function App() {
                     setReturnToGroupScreen(true);
                     setActiveTab('inicio');
                   }}
-                  className="min-h-[42px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 shadow-2xs transition-colors"
+                  className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 shadow-2xs transition-colors truncate max-w-full"
                 >
                   <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span>Volver a {activeGroup.identity.ministryName}</span>
+                  <span className="truncate">Volver a {activeGroup.identity.ministryName}</span>
                 </button>
               </div>
 
@@ -3741,10 +3741,10 @@ export default function App() {
           )}
         </main>
 
-        {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL CON BOTONES GRANDES TÁCTILES */}
+        {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL CON BOTONES TÁCTILES DE 44x44px+ Y TEXTO 16px */}
         <nav
           aria-label="Navegación móvil jesustone"
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-4 items-center h-[68px] pb-safe px-1.5"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-4 items-center h-[70px] pb-safe px-1"
         >
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -3761,14 +3761,14 @@ export default function App() {
                   }
                   setActiveTab(item.id);
                 }}
-                className={`min-h-[52px] py-1.5 flex flex-col items-center justify-center rounded-2xl transition-all ${
+                className={`min-h-[54px] py-1 px-1 flex flex-col items-center justify-center rounded-2xl transition-all min-w-0 ${
                   isActive
                     ? `${accent.textClass} font-bold`
                     : 'text-slate-600 dark:text-slate-300'
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                <span className="text-xs font-bold tracking-tight mt-1 truncate max-w-full">
+                <Icon className="w-5 h-5 shrink-0" />
+                <span className="text-base font-bold tracking-tight mt-0.5 truncate max-w-full leading-tight">
                   {item.shortLabel}
                 </span>
               </button>
@@ -3887,7 +3887,8 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowInstallModal(false)}
-                  className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                  aria-label="Cerrar"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -3916,10 +3917,10 @@ export default function App() {
                       setCopiedShareLink(true);
                       window.setTimeout(() => setCopiedShareLink(false), 3000);
                     }}
-                    className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 ${accent.bgClass}`}
+                    className={`min-h-[44px] px-4 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-2 ${accent.bgClass}`}
                   >
                     <span>
-                      {copiedShareLink ? '¡Enlace copiado!' : 'Copiar Enlace de la App'}
+                      {copiedShareLink ? '¡Enlace copiado!' : 'Copiar Enlace'}
                     </span>
                   </button>
 
@@ -3929,7 +3930,7 @@ export default function App() {
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2"
+                    className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-base font-bold flex items-center justify-center gap-2"
                   >
                     <span>Enviar por WhatsApp</span>
                   </a>

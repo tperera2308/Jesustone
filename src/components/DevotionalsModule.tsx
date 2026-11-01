@@ -247,7 +247,7 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className={`min-h-[40px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
+            className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-base font-bold shadow-xs transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
           >
             <Plus className="w-4 h-4 shrink-0" />
             <span>Nuevo Estudio</span>
@@ -625,10 +625,10 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
                       </div>
                     )}
 
-                    {/* Barra rápida para etiquetar miembros en comentarios */}
+                    {/* Barra rápida para etiquetar miembros en comentarios en una sola fila deslizable */}
                     {members.length > 0 && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] font-semibold text-slate-400">
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 max-w-full flex-nowrap">
+                        <span className="text-xs font-semibold text-slate-400 shrink-0">
                           Etiquetar:
                         </span>
                         {members.map((m) => {
@@ -647,7 +647,7 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
                                     }@${handle} `
                                 )
                               }
-                              className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/20 text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300"
+                              className="min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-amber-500/20 text-base font-mono font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap shrink-0"
                             >
                               @{handle}
                             </button>
@@ -658,21 +658,21 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
 
                     <form
                       onSubmit={handleSendComment}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 min-w-0 max-w-full"
                     >
                       <input
                         type="text"
                         value={commentInput}
                         onChange={(e) => setCommentInput(e.target.value)}
                         placeholder={`Escribe un comentario o etiqueta con @usuario como ${activeMember?.name}...`}
-                        className="flex-1 min-h-[46px] px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none"
+                        className="flex-1 min-w-0 min-h-[46px] px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-base text-slate-900 dark:text-white focus:outline-none"
                       />
                       <button
                         type="submit"
-                        className={`min-h-[46px] px-5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                        className={`min-h-[46px] px-4 py-2.5 rounded-2xl text-base font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 ${accent.bgClass}`}
                       >
-                        <Send className="w-3.5 h-3.5" />
-                        Comentar
+                        <Send className="w-4 h-4 shrink-0" />
+                        <span>Comentar</span>
                       </button>
                     </form>
                   </div>
@@ -699,7 +699,7 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="min-h-[40px] min-w-[40px] rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                className="min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-800 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>

@@ -271,11 +271,11 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   type="button"
                   disabled={pushLoading}
                   onClick={handleEnableNativePush}
-                  className={`min-h-[34px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${accent.bgClass} disabled:opacity-50`}
+                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold flex items-center gap-1.5 transition-all ${accent.bgClass} disabled:opacity-50`}
                 >
-                  <BellRing className="w-3.5 h-3.5" />
+                  <BellRing className="w-4 h-4 shrink-0" />
                   <span>
-                    {pushLoading ? 'Activando...' : 'Activar notificaciones'}
+                    {pushLoading ? 'Activando...' : 'Activar avisos'}
                   </span>
                 </button>
               ) : (
@@ -283,11 +283,11 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   type="button"
                   disabled={pushLoading}
                   onClick={handleDisableNativePush}
-                  className="min-h-[34px] px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/70 text-slate-300 hover:text-rose-300 text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
+                  className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/70 text-slate-300 hover:text-rose-300 text-base font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
                 >
-                  <BellOff className="w-3.5 h-3.5" />
+                  <BellOff className="w-4 h-4 shrink-0" />
                   <span>
-                    {pushLoading ? 'Desactivando...' : 'Desactivar notificaciones'}
+                    {pushLoading ? 'Desactivando...' : 'Desactivar'}
                   </span>
                 </button>
               )}
@@ -296,7 +296,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
           {pushFeedback && (
             <div
-              className={`px-3 py-1.5 rounded-xl text-[11px] font-medium flex items-center justify-between gap-2 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center justify-between gap-2 ${
                 pushFeedback.ok
                   ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                   : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
@@ -306,29 +306,29 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPushFeedback(null)}
-                className="text-slate-400 hover:text-white"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           )}
         </div>
 
-        {/* Barra de Filtros y Acciones Rápidas */}
-        <div className="p-3.5 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        {/* Barra de Filtros y Acciones Rápidas en una sola línea deslizable */}
+        <div className="p-3.5 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 space-y-2.5">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full flex-nowrap">
             {[
               { id: 'all', label: `Todas (${notifications.length})` },
               { id: 'unread', label: `No leídas (${unreadCount})` },
-              { id: 'mentions', label: 'Etiquetas (@), DM y Roles' },
-              { id: 'events', label: 'Eventos y Suplencias' },
+              { id: 'mentions', label: 'Etiquetas y DM' },
+              { id: 'events', label: 'Eventos' },
               { id: 'songs', label: 'Canciones' },
             ].map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setFilter(tab.id as typeof filter)}
-                className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
+                className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold whitespace-nowrap shrink-0 transition-all ${
                   filter === tab.id
                     ? `${accent.bgClass} shadow-xs`
                     : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
@@ -339,26 +339,26 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div className="flex items-center gap-3 ml-auto">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+            <div className="flex items-center gap-2 ml-auto">
               {unreadCount > 0 && (
                 <button
                   type="button"
                   onClick={onMarkAllAsRead}
-                  className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:underline"
+                  className="min-h-[44px] px-2.5 rounded-xl text-base font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 hover:bg-emerald-500/10"
                 >
-                  <CheckCheck className="w-3.5 h-3.5" />
-                  Marcar todas como leídas
+                  <CheckCheck className="w-4 h-4 shrink-0" />
+                  <span>Marcar leídas</span>
                 </button>
               )}
               {notifications.length > 0 && (
                 <button
                   type="button"
                   onClick={onClearReadNotifications}
-                  className="text-xs font-semibold text-slate-500 hover:text-rose-500 flex items-center gap-1"
+                  className="min-h-[44px] px-2.5 rounded-xl text-base font-semibold text-slate-500 hover:text-rose-500 flex items-center gap-1.5 hover:bg-rose-500/10"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Limpiar leídas
+                  <Trash2 className="w-4 h-4 shrink-0" />
+                  <span>Limpiar</span>
                 </button>
               )}
             </div>

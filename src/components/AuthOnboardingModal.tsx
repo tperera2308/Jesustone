@@ -403,14 +403,14 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 setAuthTab('login');
                 setLoginError(null);
               }}
-              className={`min-h-[48px] px-3 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+              className={`min-h-[48px] px-3 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-2 transition-all ${
                 authTab === 'login'
                   ? `${accent.bgClass} shadow-md`
                   : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
               }`}
             >
-              <LogIn className="w-4 h-4" />
-              <span>Iniciar Sesión</span>
+              <LogIn className="w-4 h-4 shrink-0" />
+              <span className="truncate">Iniciar Sesión</span>
             </button>
 
             <button
@@ -419,22 +419,22 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 setAuthTab('register');
                 setRegError(null);
               }}
-              className={`min-h-[48px] px-3 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+              className={`min-h-[48px] px-3 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-2 transition-all ${
                 authTab === 'register'
                   ? `${accent.bgClass} shadow-md`
                   : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
               }`}
             >
-              <UserPlus className="w-4 h-4" />
-              <span>Crear Cuenta</span>
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span className="truncate">Crear Cuenta</span>
             </button>
           </div>
 
           {/* FORMULARIO 1: INICIAR SESIÓN */}
           {authTab === 'login' ? (
-            <form onSubmit={handleLoginSubmit} noValidate className="p-6 space-y-4">
+            <form onSubmit={handleLoginSubmit} noValidate className="p-5 sm:p-6 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Correo Electrónico o Nombre de Usuario
                 </label>
                 <div className="relative">
@@ -451,13 +451,13 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                       setLoginError(null);
                     }}
                     placeholder="correo@ejemplo.com o @usuario"
-                    className="w-full min-h-[48px] pl-10 pr-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    className="w-full min-h-[48px] pl-10 pr-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Contraseña
                 </label>
                 <div className="relative">
@@ -474,12 +474,13 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                       setLoginError(null);
                     }}
                     placeholder="••••••••"
-                    className="w-full min-h-[48px] pl-10 pr-11 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    className="w-full min-h-[48px] pl-10 pr-12 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    aria-label="Mostrar u ocultar contraseña"
                   >
                     {showLoginPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -492,7 +493,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
 
               {loginError && (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30">
-                  <p className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                  <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
                     {loginError}
                   </p>
                 </div>
@@ -501,9 +502,9 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
               <button
                 type="submit"
                 disabled={isLoggingIn}
-                className={`w-full min-h-[52px] py-3 rounded-2xl text-sm font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 ${accent.bgClass}`}
+                className={`w-full min-h-[52px] py-3 rounded-2xl text-base font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 ${accent.bgClass}`}
               >
-                <LogIn className="w-4 h-4" />
+                <LogIn className="w-4 h-4 shrink-0" />
                 <span>
                   {isLoggingIn
                     ? 'Verificando e ingresando...'
@@ -515,37 +516,37 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
               <button
                 type="button"
                 onClick={handleGoogleAccess}
-                className="w-full min-h-[48px] py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2.5 transition-colors"
+                className="w-full min-h-[48px] py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2.5 transition-colors"
               >
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <span>Continuar con Google (Firebase Auth)</span>
+                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="truncate">Continuar con Google</span>
               </button>
 
               {/* Recuperación de contraseña */}
               <div className="pt-1 border-t border-slate-200/70 dark:border-slate-800/70 space-y-2">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setShowResetBox(!showResetBox);
                       setResetFeedback(null);
                     }}
-                    className="font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                    className="min-h-[44px] px-2 font-semibold text-base text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
                   >
-                    ¿Olvidaste tu contraseña?
+                    ¿Olvidaste tu clave?
                   </button>
                   <button
                     type="button"
                     onClick={() => setAuthTab('register')}
-                    className={`font-bold hover:underline ${accent.textClass}`}
+                    className={`min-h-[44px] px-2 font-bold text-base hover:underline ${accent.textClass}`}
                   >
-                    Crear cuenta nueva
+                    Crear cuenta
                   </button>
                 </div>
 
                 {showResetBox && (
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2.5">
-                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                       Ingresa tu correo o <code>@usuario</code> arriba y define una nueva
                       contraseña (o envía correo de recuperación de Firebase Auth):
                     </p>
@@ -555,18 +556,18 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                         value={resetNewPassword}
                         onChange={(e) => setResetNewPassword(e.target.value)}
                         placeholder="Nueva contraseña (mín. 4 caracteres)"
-                        className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                        className="flex-1 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-base text-slate-900 dark:text-white"
                       />
                       <button
                         type="button"
                         onClick={handlePasswordRecoverySubmit}
-                        className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 ${accent.bgClass}`}
+                        className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold shrink-0 ${accent.bgClass}`}
                       >
                         Restablecer Clave
                       </button>
                     </div>
                     {resetFeedback && (
-                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                         {resetFeedback}
                       </p>
                     )}
@@ -613,7 +614,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                     <button
                       type="button"
                       onClick={() => regAvatarInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs font-bold text-slate-800 dark:text-slate-100 hover:opacity-90"
+                      className="min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 hover:opacity-90"
                     >
                       {regAvatarUrl ? 'Cambiar foto' : 'Subir foto'}
                     </button>
@@ -621,7 +622,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                       <button
                         type="button"
                         onClick={() => setRegAvatarUrl(undefined)}
-                        className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 text-rose-500 text-xs font-bold"
+                        className="min-h-[44px] px-2.5 py-1.5 rounded-xl bg-rose-500/15 text-rose-500 text-base font-bold"
                       >
                         Quitar
                       </button>
@@ -631,7 +632,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Nombre Completo *
                 </label>
                 <input
@@ -640,12 +641,12 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
                   placeholder="Ej. Daniel Morales"
-                  className="w-full min-h-[46px] px-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  className="w-full min-h-[46px] px-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base text-slate-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Nombre de Usuario *
                 </label>
                 <div className="relative">
@@ -656,13 +657,13 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                     value={regUsername}
                     onChange={(e) => setRegUsername(e.target.value)}
                     placeholder="daniel_morales"
-                    className="w-full min-h-[46px] pl-10 pr-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-sm text-slate-900 dark:text-white"
+                    className="w-full min-h-[46px] pl-10 pr-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono text-base text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Correo Electrónico *
                 </label>
                 <div className="relative">
@@ -673,13 +674,13 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
                     placeholder="correo@ejemplo.com"
-                    className="w-full min-h-[46px] pl-10 pr-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    className="w-full min-h-[46px] pl-10 pr-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Contraseña *
                 </label>
                 <div className="relative">
@@ -690,12 +691,13 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     placeholder="Mínimo 4 caracteres"
-                    className="w-full min-h-[46px] pl-10 pr-11 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                    className="w-full min-h-[46px] pl-10 pr-12 py-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowRegPassword(!showRegPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    aria-label="Mostrar u ocultar contraseña"
                   >
                     {showRegPassword ? (
                       <EyeOff className="w-4 h-4" />
@@ -707,10 +709,10 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Tus Instrumentos o Roles Musicales (Puedes elegir varios)
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Tus Instrumentos o Roles (desliza y elige uno o varios)
                 </label>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 max-w-full flex-nowrap">
                   {Array.from(
                     new Set([...ALL_INSTRUMENT_ROLES, ...selectedInstruments])
                   ).map((inst) => {
@@ -720,13 +722,13 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                         key={inst}
                         type="button"
                         onClick={() => toggleInstrument(inst)}
-                        className={`min-h-[38px] px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                        className={`min-h-[44px] px-3 py-1.5 rounded-xl border text-base font-bold transition-all whitespace-nowrap shrink-0 ${
                           active
                             ? `${accent.bgClass} border-transparent`
                             : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                         }`}
                       >
-                        {active ? '✓ ' : ''}
+                        {active ? '✓ ' : '+ '}
                         {inst}
                       </button>
                     );
@@ -737,8 +739,8 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                     type="text"
                     value={customRegInstrument}
                     onChange={(e) => setCustomRegInstrument(e.target.value)}
-                    placeholder="Agregar otro instrumento/rol personalizado..."
-                    className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                    placeholder="Otro instrumento/rol..."
+                    className="flex-1 min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base text-slate-900 dark:text-white min-w-0"
                   />
                   <button
                     type="button"
@@ -750,7 +752,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                       }
                       setCustomRegInstrument('');
                     }}
-                    className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-bold"
+                    className="min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-800 text-white text-base font-bold shrink-0"
                   >
                     + Añadir
                   </button>
@@ -758,26 +760,26 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
               </div>
 
               {regError && (
-                <p className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                <p className="text-sm font-bold text-rose-600 dark:text-rose-400">
                   {regError}
                 </p>
               )}
 
               <button
                 type="submit"
-                className={`w-full min-h-[52px] py-3 rounded-2xl text-sm font-bold shadow-lg flex items-center justify-center gap-2 ${accent.bgClass}`}
+                className={`w-full min-h-[52px] py-3 rounded-2xl text-base font-bold shadow-lg flex items-center justify-center gap-2 ${accent.bgClass}`}
               >
-                <UserPlus className="w-4 h-4" />
+                <UserPlus className="w-4 h-4 shrink-0" />
                 <span>Crear Cuenta y Entrar</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleGoogleAccess}
-                className="w-full min-h-[46px] py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2.5 transition-colors"
+                className="w-full min-h-[46px] py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-2.5 transition-colors"
               >
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <span>Registrarme rápido con Google</span>
+                <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="truncate">Registrarme rápido con Google</span>
               </button>
             </form>
           )}
@@ -927,26 +929,24 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 </strong>
               </p>
               {onUpdateUserAvatar && (
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mt-1.5 max-w-full flex-nowrap">
                   <button
                     type="button"
                     onClick={() => currentUserAvatarInputRef.current?.click()}
-                    className="text-[11px] font-bold text-amber-400 hover:underline flex items-center gap-1"
+                    className="min-h-[44px] px-2.5 py-1.5 rounded-xl bg-white/10 text-base font-bold text-amber-400 hover:bg-white/15 flex items-center gap-1.5 whitespace-nowrap shrink-0"
                   >
-                    <Camera className="w-3 h-3" />
+                    <Camera className="w-4 h-4 shrink-0" />
                     <span>
-                      {currentUser.avatarUrl
-                        ? 'Cambiar foto de perfil'
-                        : 'Añadir foto de perfil'}
+                      {currentUser.avatarUrl ? 'Cambiar foto' : 'Añadir foto'}
                     </span>
                   </button>
                   {currentUser.avatarUrl && (
                     <button
                       type="button"
                       onClick={() => onUpdateUserAvatar(undefined)}
-                      className="text-[11px] font-bold text-rose-400 hover:underline"
+                      className="min-h-[44px] px-2.5 py-1.5 rounded-xl bg-rose-500/15 text-base font-bold text-rose-400 whitespace-nowrap shrink-0"
                     >
-                      · Quitar foto
+                      Quitar foto
                     </button>
                   )}
                   {onUpdateUserInstruments && (
@@ -955,9 +955,9 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                       onClick={() =>
                         setShowProfileInstrumentsEditor(!showProfileInstrumentsEditor)
                       }
-                      className="text-[11px] font-bold text-emerald-400 hover:underline ml-1"
+                      className="min-h-[44px] px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-base font-bold text-emerald-400 whitespace-nowrap shrink-0"
                     >
-                      · Editar mis instrumentos ({currentUser.instruments.join(', ')})
+                      Instrumentos ({currentUser.instruments.length})
                     </button>
                   )}
                 </div>
@@ -965,20 +965,21 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center">
+          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
             <button
               type="button"
               onClick={onLogout}
-              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-colors"
+              className="min-h-[44px] px-3 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-base font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"
             >
-              <LogOut className="w-4 h-4" />
-              <span>Cerrar Sesión</span>
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span>Salir</span>
             </button>
             {canClose && (
               <button
                 type="button"
                 onClick={onClose}
-                className="min-h-[40px] min-w-[40px] rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+                className="min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+                aria-label="Cerrar"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -986,22 +987,22 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
           </div>
         </div>
 
-        {/* Panel Desplegable para Editar Instrumentos y Roles del Perfil */}
+        {/* Panel Desplegable para Editar Instrumentos y Roles del Perfil (en 1 sola línea deslizable) */}
         {showProfileInstrumentsEditor && onUpdateUserInstruments && (
-          <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 bg-slate-950 border-b border-slate-800 space-y-3">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-                Mis Instrumentos y Roles Base (Puedes elegir más de uno):
+                Mis Instrumentos y Roles (Desliza para elegir):
               </span>
               <button
                 type="button"
                 onClick={() => setShowProfileInstrumentsEditor(false)}
-                className="text-xs font-bold text-slate-400 hover:text-white"
+                className="min-h-[44px] px-3 rounded-xl bg-white/10 text-base font-bold text-slate-200 hover:text-white"
               >
                 Listo
               </button>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 max-w-full flex-nowrap">
               {Array.from(
                 new Set([...ALL_INSTRUMENT_ROLES, ...currentUser.instruments])
               ).map((role) => {
@@ -1018,7 +1019,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                         onUpdateUserInstruments(next);
                       }
                     }}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    className={`min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold border transition-all whitespace-nowrap shrink-0 ${
                       isSelected
                         ? `${accent.bgClass} border-transparent`
                         : 'bg-slate-900 border-slate-700 text-slate-300'
@@ -1035,8 +1036,8 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 type="text"
                 value={customProfileInstrument}
                 onChange={(e) => setCustomProfileInstrument(e.target.value)}
-                placeholder="Otro rol o instrumento personalizado (ej. Metales, Violín, Danza, Proyección)..."
-                className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white"
+                placeholder="Otro rol o instrumento..."
+                className="flex-1 min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-base text-white min-w-0"
               />
               <button
                 type="button"
@@ -1048,7 +1049,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                   }
                   setCustomProfileInstrument('');
                 }}
-                className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                className={`min-h-[44px] px-3.5 py-1.5 rounded-xl text-base font-bold shrink-0 ${accent.bgClass}`}
               >
                 + Añadir
               </button>
@@ -1057,22 +1058,22 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
         )}
 
         {/* Pestañas de Gestión de Grupos */}
-        <div className="grid grid-cols-3 gap-2 p-3 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+        <div className="grid grid-cols-3 gap-1.5 p-2.5 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={() => {
               setGroupHubTab('my_groups');
               setGroupActionError(null);
             }}
-            className={`min-h-[48px] px-3 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`min-h-[46px] px-2 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 ${
               groupHubTab === 'my_groups'
                 ? `${accent.bgClass} shadow-sm`
                 : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
             }`}
           >
-            <Users className="w-4 h-4 shrink-0" />
+            <Users className="w-4 h-4 shrink-0 hidden sm:inline" />
             <span className="truncate">
-              Mis Grupos ({myGroups.length}/{MAX_GROUPS_PER_USER})
+              Grupos ({myGroups.length})
             </span>
           </button>
 
@@ -1082,14 +1083,14 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
               setGroupHubTab('create_group');
               setGroupActionError(null);
             }}
-            className={`min-h-[48px] px-3 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`min-h-[46px] px-2 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 ${
               groupHubTab === 'create_group'
                 ? `${accent.bgClass} shadow-sm`
                 : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
             }`}
           >
-            <FolderPlus className="w-4 h-4 shrink-0" />
-            <span className="truncate">Crear Grupo</span>
+            <FolderPlus className="w-4 h-4 shrink-0 hidden sm:inline" />
+            <span className="truncate">Crear</span>
           </button>
 
           <button
@@ -1098,15 +1099,15 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
               setGroupHubTab('join_group');
               setGroupActionError(null);
             }}
-            className={`min-h-[48px] px-3 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`min-h-[46px] px-2 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 ${
               groupHubTab === 'join_group'
                 ? `${accent.bgClass} shadow-sm`
                 : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
             }`}
           >
-            <KeyRound className="w-4 h-4 shrink-0" />
+            <KeyRound className="w-4 h-4 shrink-0 hidden sm:inline" />
             <span className="truncate">
-              Unirme a Grupo
+              Unirme
               {pendingInvitationsForMe.length > 0
                 ? ` (${pendingInvitationsForMe.length})`
                 : ''}

@@ -428,37 +428,37 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
         </div>
 
         {/* Botones Grandes de Pestañas */}
-        <div className="grid grid-cols-3 gap-2 p-3 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+        <div className="grid grid-cols-3 gap-1.5 p-2.5 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setActiveTab('grupo')}
-            className={`min-h-[48px] px-3 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`min-h-[48px] px-2.5 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
               activeTab === 'grupo'
                 ? `${accent.bgClass} shadow-sm`
                 : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900'
             }`}
           >
             <GuitarPickCrossIcon className="w-4 h-4 shrink-0" />
-            <span className="truncate">Datos del Grupo</span>
+            <span className="truncate">Grupo</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('temas')}
-            className={`min-h-[48px] px-3 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`min-h-[48px] px-2.5 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
               activeTab === 'temas'
                 ? `${accent.bgClass} shadow-sm`
                 : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900'
             }`}
           >
             <Palette className="w-4 h-4 shrink-0" />
-            <span className="truncate">Selector de Temas</span>
+            <span className="truncate">Temas</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('invitaciones')}
-            className={`min-h-[48px] px-3 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`min-h-[48px] px-2.5 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
               activeTab === 'invitaciones'
                 ? `${accent.bgClass} shadow-sm`
                 : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900'
@@ -983,10 +983,10 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                     Mis Instrumentos y Roles Base ({activeMember.name})
                   </h4>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Elige uno o varios instrumentos/roles (o agrega uno personalizado):
+                    Desliza para elegir tus instrumentos o agrega uno personalizado:
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 max-w-full flex-nowrap">
                   {Array.from(
                     new Set([...ALL_INSTRUMENT_ROLES, ...activeMember.instruments])
                   ).map((role) => {
@@ -1004,7 +1004,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                             onUpdateUserInstruments(next);
                           }
                         }}
-                        className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                        className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold border transition-all whitespace-nowrap shrink-0 ${
                           isSelected
                             ? `${accent.bgClass} border-transparent shadow-xs`
                             : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
@@ -1022,7 +1022,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                     value={customInstrumentInput}
                     onChange={(e) => setCustomInstrumentInput(e.target.value)}
                     placeholder="Otro instrumento o rol personalizado (ej. Saxofón, Chelo, Sonido)..."
-                    className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                    className="flex-1 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-base text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
@@ -1034,9 +1034,9 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                       }
                       setCustomInstrumentInput('');
                     }}
-                    className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 ${accent.bgClass}`}
+                    className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold flex items-center gap-1.5 shrink-0 ${accent.bgClass}`}
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4 shrink-0" />
                     <span>Agregar</span>
                   </button>
                 </div>
@@ -1156,7 +1156,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                             </p>
                           </div>
                         </button>
-                        <div className="flex flex-wrap items-center justify-end gap-1.5 self-end sm:self-center max-w-full">
+                        <div className="flex items-center justify-end gap-1.5 self-end sm:self-center max-w-full overflow-x-auto no-scrollbar flex-nowrap">
                           {onOpenMusicianProfile && (
                             <button
                               type="button"
@@ -1164,9 +1164,9 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                                 onClose();
                                 onOpenMusicianProfile(m.id);
                               }}
-                              className="min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-500/40"
+                              className="min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-500/40 whitespace-nowrap shrink-0"
                             >
-                              Ver Perfil
+                              Perfil
                             </button>
                           )}
                           {userRole === 'leader' && !isMainFounder && m.id !== activeMember.id && (
@@ -1175,28 +1175,28 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => onToggleMemberGuestStatus(m.id)}
-                                  className="min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-500/40"
+                                  className="min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-500/40 whitespace-nowrap shrink-0"
                                   title={
                                     m.isGuest
                                       ? 'Convertir en Miembro Titular'
                                       : 'Cambiar a Suplente / Invitado Temporal'
                                   }
                                 >
-                                  {m.isGuest ? 'Hacer Titular' : 'Pasar a Suplente'}
+                                  {m.isGuest ? 'Titular' : 'Suplente'}
                                 </button>
                               )}
                               {!m.isGuest && onToggleMemberRole && (
                                 <button
                                   type="button"
                                   onClick={() => onToggleMemberRole(m.id)}
-                                  className={`min-h-[32px] px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 border transition-colors ${
+                                  className={`min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold flex items-center gap-1 border transition-colors whitespace-nowrap shrink-0 ${
                                     m.role === 'leader'
                                       ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400'
                                       : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-500/40'
                                   }`}
                                   title="Asignar o quitar permisos de Co-Líder"
                                 >
-                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  <ShieldCheck className="w-4 h-4 shrink-0" />
                                   <span>
                                     {m.role === 'leader' ? 'Quitar Co-Líder' : 'Co-Líder'}
                                   </span>
@@ -1205,7 +1205,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onRemoveMember(m.id)}
-                                className="p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                                className="min-h-[44px] min-w-[44px] p-2 rounded-xl text-slate-400 hover:text-rose-500 transition-colors flex items-center justify-center shrink-0"
                                 title="Eliminar del grupo"
                               >
                                 <Trash2 className="w-4 h-4" />

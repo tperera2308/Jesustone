@@ -1448,7 +1448,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
                 {/* Botón exclusivo del Líder para invitar a este Amigo como Suplente / a un Evento */}
                 {selectedFriend &&
                   activeMember.role === 'leader' &&
@@ -1459,9 +1459,9 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                         onClick={() =>
                           setShowInviteFriendEventPicker((prev) => !prev)
                         }
-                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5"
+                        className="min-h-[44px] px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-base font-bold flex items-center gap-1.5"
                       >
-                        <Calendar className="w-3.5 h-3.5" />
+                        <Calendar className="w-4 h-4 shrink-0" />
                         <span className="hidden sm:inline">
                           Invitar como Suplente
                         </span>
@@ -1479,9 +1479,9 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                               onClick={() =>
                                 setShowInviteFriendEventPicker(false)
                               }
-                              className="text-slate-400 hover:text-white"
+                              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white"
                             >
-                              <X className="w-3.5 h-3.5" />
+                              <X className="w-4 h-4" />
                             </button>
                           </div>
                           <p className="text-[11px] text-slate-400">
@@ -1498,10 +1498,10 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                                 setSocialFeedback(res.message);
                                 setShowInviteFriendEventPicker(false);
                               }}
-                              className="w-full p-2 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-left text-xs font-bold text-white flex items-center justify-between"
+                              className="w-full min-h-[44px] p-2.5 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-left text-base font-bold text-white flex items-center justify-between"
                             >
                               <span>Añadir al Directorio de Suplentes</span>
-                              <Plus className="w-3.5 h-3.5 text-amber-400" />
+                              <Plus className="w-4 h-4 text-amber-400 shrink-0" />
                             </button>
                             {upcomingGroupEvents.map((ev) => (
                               <button
@@ -1515,7 +1515,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                                   setSocialFeedback(res.message);
                                   setShowInviteFriendEventPicker(false);
                                 }}
-                                className="w-full p-2 rounded-xl bg-[#2b2d31] hover:bg-indigo-600/30 border border-white/5 text-left text-xs text-slate-200 flex items-center justify-between gap-2"
+                                className="w-full min-h-[44px] p-2.5 rounded-xl bg-[#2b2d31] hover:bg-indigo-600/30 border border-white/5 text-left text-base text-slate-200 flex items-center justify-between gap-2"
                               >
                                 <div className="min-w-0">
                                   <p className="font-bold text-white truncate">
@@ -1525,7 +1525,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                                     {ev.date} · Cit: {ev.callTime}
                                   </p>
                                 </div>
-                                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold shrink-0">
+                                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-bold shrink-0">
                                   Convocar
                                 </span>
                               </button>
@@ -1542,20 +1542,20 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                     setSocialTab('search');
                     setMobileDrawerOpen(true);
                   }}
-                  className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors"
+                  className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-base font-bold text-slate-200 flex items-center justify-center gap-1.5 transition-colors"
                   title="Buscar Músicos"
                 >
-                  <UserPlus className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
+                  <UserPlus className="w-4 h-4 text-indigo-400 shrink-0" />
                   <span className="hidden sm:inline">Buscar Músicos</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={onExitFullScreenChat}
-                  className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
+                  className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-base font-bold text-white flex items-center justify-center gap-1.5 transition-colors"
                   title="Volver al menú principal"
                 >
-                  <ArrowLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <ArrowLeft className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">Salir</span>
                 </button>
               </div>
@@ -1788,12 +1788,12 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
 
                   <form
                     onSubmit={handleSubmit}
-                    className="flex items-center gap-2 bg-[#383a40] rounded-2xl px-3 py-2"
+                    className="flex items-center gap-1.5 bg-[#383a40] rounded-2xl px-2.5 py-1.5 min-w-0 max-w-full"
                   >
                     <button
                       type="button"
                       onClick={() => setShowSongPicker((prev) => !prev)}
-                      className="p-2 rounded-xl text-indigo-400 hover:text-indigo-300 hover:bg-white/10 transition-colors"
+                      className="min-h-[44px] min-w-[44px] p-2 rounded-xl text-indigo-400 hover:text-indigo-300 hover:bg-white/10 transition-colors flex items-center justify-center shrink-0"
                       title="Compartir copia de canción con este amigo"
                     >
                       <Music className="w-5 h-5" />
@@ -1803,7 +1803,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                       <button
                         type="button"
                         onClick={handleStartVoiceRecording}
-                        className="p-2 rounded-xl text-emerald-400 hover:text-emerald-300 hover:bg-white/10 transition-colors"
+                        className="min-h-[44px] min-w-[44px] p-2 rounded-xl text-emerald-400 hover:text-emerald-300 hover:bg-white/10 transition-colors flex items-center justify-center shrink-0"
                         title="Grabar nota de voz"
                       >
                         <Mic className="w-5 h-5" />
@@ -1812,9 +1812,9 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                       <button
                         type="button"
                         onClick={handleStopVoiceRecording}
-                        className="px-2.5 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-mono font-bold flex items-center gap-1.5 animate-pulse"
+                        className="min-h-[44px] px-3 py-1.5 rounded-xl bg-rose-600 text-white text-base font-mono font-bold flex items-center gap-1.5 animate-pulse shrink-0"
                       >
-                        <Square className="w-3.5 h-3.5 fill-current" />
+                        <Square className="w-4 h-4 fill-current" />
                         <span>{voiceSeconds}s</span>
                       </button>
                     )}
@@ -1824,14 +1824,14 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
                       placeholder={`Escribe un mensaje directo a ${selectedFriend.name}...`}
-                      className="flex-1 bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
+                      className="flex-1 min-w-0 min-h-[44px] bg-transparent text-base text-white placeholder-slate-400 focus:outline-none"
                     />
 
                     <button
                       type="submit"
-                      className="min-h-[38px] px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5"
+                      className="min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-base font-bold flex items-center justify-center gap-1.5 shrink-0"
                     >
-                      <Send className="w-4 h-4" />
+                      <Send className="w-4 h-4 shrink-0" />
                       <span className="hidden sm:inline">Enviar</span>
                     </button>
                   </form>
@@ -1945,7 +1945,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setMobileDrawerOpen(true)}
-                  className="md:hidden min-h-[38px] min-w-[38px] rounded-xl bg-[#2b2d31] hover:bg-[#383a40] flex items-center justify-center text-slate-200 shrink-0 transition-colors"
+                  className="md:hidden min-h-[44px] min-w-[44px] rounded-xl bg-[#2b2d31] hover:bg-[#383a40] flex items-center justify-center text-slate-200 shrink-0 transition-colors"
                   aria-label="Abrir canales y grupos"
                   title="Canales"
                 >
@@ -1984,10 +1984,10 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setChatMode('social')}
-                  className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 text-xs font-bold text-white flex items-center gap-1.5 transition-colors relative"
+                  className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3 py-2 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 text-base font-bold text-white flex items-center justify-center gap-1.5 transition-colors relative"
                   title="Amigos y Mensajes Directos (DM)"
                 >
-                  <Users className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <Users className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">Amigos y DM</span>
                   {incomingFriendRequests.length > 0 && (
                     <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-bold">
@@ -1999,20 +1999,20 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setMobileMembersOpen(!mobileMembersOpen)}
-                  className="lg:hidden min-h-[36px] px-2.5 py-1.5 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors"
+                  className="lg:hidden min-h-[44px] min-w-[44px] px-2.5 py-2 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-base font-bold text-slate-200 flex items-center justify-center gap-1.5 transition-colors"
                   title={`${currentGroupMembers.length} miembros en este grupo`}
                 >
-                  <Users className="w-4 h-4 text-amber-400" />
+                  <Users className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>{currentGroupMembers.length}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={onExitFullScreenChat}
-                  className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-xs font-bold text-white flex items-center gap-1.5 transition-colors"
+                  className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3 py-2 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-base font-bold text-white flex items-center justify-center gap-1.5 transition-colors"
                   title="Volver al menú principal"
                 >
-                  <ArrowLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                  <ArrowLeft className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">Salir</span>
                 </button>
               </div>
@@ -2339,12 +2339,12 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                         <button
                           type="button"
                           onClick={() => setShowMentionPicker(false)}
-                          className="hover:text-white"
+                          className="min-h-[44px] px-2.5 hover:text-white"
                         >
                           Cerrar
                         </button>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 max-w-full flex-nowrap">
                         {currentGroupMembers.map((m) => {
                           const handle =
                             m.username ||
@@ -2362,7 +2362,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                                 );
                                 setShowMentionPicker(false);
                               }}
-                              className="px-2.5 py-1.5 rounded-lg bg-[#383a40] hover:bg-amber-500 hover:text-slate-950 text-xs font-mono font-bold text-slate-200 transition-colors"
+                              className="min-h-[44px] px-3 py-2 rounded-lg bg-[#383a40] hover:bg-amber-500 hover:text-slate-950 text-base font-mono font-bold text-slate-200 transition-colors whitespace-nowrap shrink-0"
                             >
                               @{handle} ({m.name.split(' ')[0]})
                             </button>
@@ -2374,7 +2374,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
 
                   <form
                     onSubmit={handleSubmit}
-                    className="flex items-center gap-2 bg-[#383a40] rounded-2xl px-3 py-2"
+                    className="flex items-center gap-1.5 bg-[#383a40] rounded-2xl px-2.5 py-1.5 min-w-0 max-w-full"
                   >
                     <button
                       type="button"
@@ -2382,7 +2382,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                         setShowSongPicker(!showSongPicker);
                         setShowMentionPicker(false);
                       }}
-                      className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                      className="min-h-[44px] min-w-[44px] p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center shrink-0"
                       title="Adjuntar canción del repertorio"
                     >
                       <PlusCircle className="w-5 h-5" />
@@ -2394,7 +2394,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                         setShowMentionPicker(!showMentionPicker);
                         setShowSongPicker(false);
                       }}
-                      className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-white/10 transition-colors"
+                      className="min-h-[44px] min-w-[44px] p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-white/10 transition-colors flex items-center justify-center shrink-0"
                       title="Etiquetar a un usuario (@usuario)"
                     >
                       <AtSign className="w-5 h-5" />
@@ -2404,7 +2404,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                       <button
                         type="button"
                         onClick={handleStartVoiceRecording}
-                        className="p-2 rounded-xl text-emerald-400 hover:text-emerald-300 hover:bg-white/10 transition-colors"
+                        className="min-h-[44px] min-w-[44px] p-2 rounded-xl text-emerald-400 hover:text-emerald-300 hover:bg-white/10 transition-colors flex items-center justify-center shrink-0"
                         title="Grabar nota de voz / clip de audio"
                       >
                         <Mic className="w-5 h-5" />
@@ -2413,10 +2413,10 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                       <button
                         type="button"
                         onClick={handleStopVoiceRecording}
-                        className="px-2.5 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-mono font-bold flex items-center gap-1.5 animate-pulse"
+                        className="min-h-[44px] px-3 py-1.5 rounded-xl bg-rose-600 text-white text-base font-mono font-bold flex items-center gap-1.5 animate-pulse shrink-0"
                         title="Detener grabación de voz"
                       >
-                        <Square className="w-3.5 h-3.5 fill-current" />
+                        <Square className="w-4 h-4 fill-current" />
                         <span>{voiceSeconds}s</span>
                       </button>
                     )}
@@ -2426,14 +2426,14 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                       value={messageText}
                       onChange={(e) => setMessageText(e.target.value)}
                       placeholder={`Enviar mensaje, @etiqueta o nota de voz en #${channelMeta.name}...`}
-                      className="flex-1 bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
+                      className="flex-1 min-w-0 min-h-[44px] bg-transparent text-base text-white placeholder-slate-400 focus:outline-none"
                     />
 
                     <button
                       type="submit"
-                      className={`min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                      className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
                     >
-                      <Send className="w-4 h-4" />
+                      <Send className="w-4 h-4 shrink-0" />
                       <span className="hidden sm:inline">Enviar</span>
                     </button>
                   </form>

@@ -349,16 +349,16 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleOpenProfileOf(currentUser.id)}
-                  className="min-h-[34px] px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold text-slate-200 flex items-center gap-1.5 shrink-0 transition-colors"
+                  className="min-h-[44px] px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-base font-bold text-slate-200 flex items-center gap-1.5 shrink-0 transition-colors"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5 text-amber-400" />
+                  <ArrowLeft className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>Mi Perfil</span>
                 </button>
               ) : (
                 <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${accent.bgClass}`}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${accent.bgClass}`}
                 >
-                  <Users className="w-4 h-4" />
+                  <Users className="w-5 h-5" />
                 </div>
               )}
               <div className="min-w-0">
@@ -380,7 +380,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors flex items-center justify-center shrink-0"
               aria-label="Cerrar perfil"
             >
               <X className="w-5 h-5" />
@@ -392,13 +392,13 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveModalTab('perfil')}
-              className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+              className={`min-h-[44px] px-2.5 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
                 activeModalTab === 'perfil'
                   ? `${accent.bgClass} shadow-xs`
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Award className="w-3.5 h-3.5 shrink-0" />
+              <Award className="w-4 h-4 shrink-0" />
               <span className="truncate">
                 {isOwnProfile ? 'Mi Perfil' : `@${viewedUser.username}`}
               </span>
@@ -407,16 +407,16 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveModalTab('amigos')}
-              className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all relative ${
+              className={`min-h-[44px] px-2.5 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 transition-all relative min-w-0 truncate ${
                 activeModalTab === 'amigos'
                   ? `${accent.bgClass} shadow-xs`
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Users className="w-3.5 h-3.5 shrink-0" />
+              <Users className="w-4 h-4 shrink-0" />
               <span className="truncate">Amigos ({friends.length})</span>
               {incomingAllRequests.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-mono">
+                <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-mono shrink-0">
                   {incomingAllRequests.length}
                 </span>
               )}
@@ -425,14 +425,14 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveModalTab('explorar')}
-              className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+              className={`min-h-[44px] px-2.5 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
                 activeModalTab === 'explorar'
                   ? `${accent.bgClass} shadow-xs`
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Search className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">Explorar Red</span>
+              <Search className="w-4 h-4 shrink-0" />
+              <span className="truncate">Explorar</span>
             </button>
           </div>
         </div>
@@ -892,9 +892,9 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                        Mis Instrumentos y Roles ({editInstruments.length})
+                        Mis Instrumentos y Roles ({editInstruments.length}) · Desliza para elegir
                       </label>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 max-w-full flex-nowrap">
                         {ALL_INSTRUMENT_ROLES.map((inst) => {
                           const selected = editInstruments.includes(inst);
                           return (
@@ -902,7 +902,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                               key={inst}
                               type="button"
                               onClick={() => toggleEditInstrument(inst)}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                              className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold border transition-all whitespace-nowrap shrink-0 ${
                                 selected
                                   ? `${accent.bgClass} border-transparent`
                                   : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
@@ -919,13 +919,13 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsEditingMyProfile(false)}
-                        className="min-h-[38px] px-4 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300"
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-base font-bold text-slate-600 dark:text-slate-300"
                       >
                         Cancelar
                       </button>
                       <button
                         type="submit"
-                        className={`min-h-[38px] px-4 py-1.5 rounded-xl text-xs font-bold ${accent.bgClass}`}
+                        className={`min-h-[44px] px-4 py-2 rounded-xl text-base font-bold ${accent.bgClass}`}
                       >
                         Guardar Cambios
                       </button>
@@ -1275,9 +1275,9 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenProfileOf(friend.id)}
-                            className="min-h-[34px] px-2 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500/50"
+                            className="min-h-[44px] px-2 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-700 dark:text-slate-200 hover:border-amber-500/50 truncate"
                           >
-                            Ver Perfil
+                            Perfil
                           </button>
                           <button
                             type="button"
@@ -1285,10 +1285,10 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                               onOpenDirectMessageWithUser(friend);
                               onClose();
                             }}
-                            className="min-h-[34px] px-2 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-1"
+                            className="min-h-[44px] px-2 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-base font-bold flex items-center justify-center gap-1 truncate"
                           >
-                            <MessageSquare className="w-3 h-3" />
-                            <span>Chatear</span>
+                            <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Chat</span>
                           </button>
                           <button
                             type="button"
@@ -1296,10 +1296,10 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                               handleOpenProfileOf(friend.id);
                               setShowConvokePanel(true);
                             }}
-                            className="min-h-[34px] px-2 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-1"
+                            className="min-h-[44px] px-2 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-base font-bold flex items-center justify-center gap-1 truncate"
                           >
-                            <Calendar className="w-3 h-3" />
-                            <span>+ Suplente</span>
+                            <Calendar className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Suplente</span>
                           </button>
                         </div>
                       </div>
@@ -1452,9 +1452,9 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenProfileOf(musician.id)}
-                            className="min-h-[34px] px-2 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 hover:border-amber-500/50"
+                            className="min-h-[44px] px-2 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-800 dark:text-slate-200 hover:border-amber-500/50 truncate"
                           >
-                            Ver Perfil
+                            Perfil
                           </button>
                           <button
                             type="button"
@@ -1462,10 +1462,10 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                               onOpenDirectMessageWithUser(musician);
                               onClose();
                             }}
-                            className="min-h-[34px] px-2 py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center gap-1"
+                            className="min-h-[44px] px-2 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-base font-bold flex items-center justify-center gap-1 truncate"
                           >
-                            <MessageSquare className="w-3 h-3" />
-                            <span>Chatear</span>
+                            <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Chat</span>
                           </button>
                           <button
                             type="button"
@@ -1473,10 +1473,10 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                               handleOpenProfileOf(musician.id);
                               setShowConvokePanel(true);
                             }}
-                            className="min-h-[34px] px-2 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center justify-center gap-1"
+                            className="min-h-[44px] px-2 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-base font-bold flex items-center justify-center gap-1 truncate"
                           >
-                            <Calendar className="w-3 h-3" />
-                            <span>+ Suplente</span>
+                            <Calendar className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">Suplente</span>
                           </button>
                         </div>
                       </div>
