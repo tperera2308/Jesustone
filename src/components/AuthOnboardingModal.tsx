@@ -18,6 +18,7 @@ import {
   getAccentClasses,
 } from './IdentityModal';
 import {
+  authenticateUserInCloud,
   sendOfficialPasswordReset,
   signInWithGoogleOfficial,
   uploadMediaDataUrlToStorage,
@@ -53,7 +54,11 @@ interface AuthOnboardingModalProps {
   currentUser: AppUser | null;
   groups: WorshipGroup[];
   activeGroupId: string;
-  onLoginUser: (userId: string) => void;
+  onLoginUser: (
+    userId: string,
+    resolvedUser?: AppUser,
+    discoveredGroups?: WorshipGroup[]
+  ) => void;
   onRegisterStandardUser: (data: {
     id?: string;
     name: string;
@@ -107,18 +112,19 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
   const [customProfileInstrument, setCustomProfileInstrument] = useState('');
 
   // Auth tabs (only when not logged in): 'login' | 'register'
-  const [authTab, setAuthTab] = useState<'login' | 'register'>(() =>
-    users.length > 0 ? 'login' : 'register'
-  );
+  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
 
   // Login State
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [showResetBox, setShowResetBox] = useState(false);
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
+  const loginIdentifierInputRef = useRef<HTMLInputElement | null>(null);
+  const loginPasswordInputRef = useRef<HTMLInputElement | null>(null);
 
   // Standard Registration State
   const [regName, setRegName] = useState('');
@@ -219,10 +225,10 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
     }
 
     const existing = users.find(
-      (u) => u.email.toLowerCase() === res.email!.toLowerCase()
+      (u) => (u.email || '').toLowerCase() === res.email!.toLowerCase()
     );
     if (existing) {
-      onLoginUser(existing.id);
+      onLoginUser(existing.id, existing);
       return;
     }
 
@@ -230,7 +236,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
       .split('@')[0]
       .toLowerCase()
       .replace(/[^a-z0-9_]/g, '_');
-    const uniqueHandle = users.some((u) => u.username === baseHandle)
+    const uniqueHandle = users.some((u) => (u.username || '') === baseHandle)
       ? `${baseHandle}_${Math.floor(100 + Math.random() * 900)}`
       : baseHandle;
 
@@ -276,31 +282,58 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
   // 1. VISTA DE INICIO DE SESIÓN / REGISTRO SIMPLE (CUENTA ESTÁNDAR EN LA APP)
   // ============================================================================
   if (!currentUser) {
-    const handleLoginSubmit = (e: React.FormEvent) => {
+    const handleLoginSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      const cleanId = loginIdentifier.trim().toLowerCase().replace(/^@/, '');
-      if (!cleanId || !loginPassword) return;
+      if (isLoggingIn) return;
 
-      const matchedUser = users.find(
-        (u) =>
-          u.email.toLowerCase() === cleanId ||
-          u.username.toLowerCase() === cleanId
-      );
+      // Soportar tanto el estado de React como el autocompletado nativo de Safari / Llavero de Mac
+      const rawIdentifier =
+        loginIdentifier.trim() ||
+        loginIdentifierInputRef.current?.value?.trim() ||
+        '';
+      const rawPassword =
+        loginPassword || loginPasswordInputRef.current?.value || '';
 
-      if (!matchedUser) {
+      const cleanId = rawIdentifier.toLowerCase().replace(/^@/, '');
+      if (!cleanId || !rawPassword) {
         setLoginError(
-          'No existe ninguna cuenta con ese correo o nombre de usuario. Regístrate en la pestaña "Crear Cuenta".'
+          'Por favor ingresa tu correo electrónico (o @usuario) y tu contraseña.'
         );
         return;
       }
 
-      if (matchedUser.password !== loginPassword) {
-        setLoginError('Contraseña incorrecta. Inténtalo de nuevo.');
-        return;
-      }
-
       setLoginError(null);
-      onLoginUser(matchedUser.id);
+      setIsLoggingIn(true);
+
+      try {
+        const authResult = await authenticateUserInCloud(
+          cleanId,
+          rawPassword,
+          users
+        );
+
+        if (!authResult.ok || !authResult.user) {
+          setLoginError(
+            authResult.error ||
+              'No se pudo iniciar sesión. Verifica tu correo/usuario y contraseña.'
+          );
+          setIsLoggingIn(false);
+          return;
+        }
+
+        setLoginError(null);
+        setIsLoggingIn(false);
+        onLoginUser(
+          authResult.user.id,
+          authResult.user,
+          authResult.discoveredGroups
+        );
+      } catch {
+        setIsLoggingIn(false);
+        setLoginError(
+          'Ocurrió un error al verificar tu cuenta. Revisa tu conexión e inténtalo de nuevo.'
+        );
+      }
     };
 
     const handleRegisterSubmit = (e: React.FormEvent) => {
@@ -399,7 +432,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
 
           {/* FORMULARIO 1: INICIAR SESIÓN */}
           {authTab === 'login' ? (
-            <form onSubmit={handleLoginSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleLoginSubmit} noValidate className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Correo Electrónico o Nombre de Usuario
@@ -407,7 +440,10 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
+                    ref={loginIdentifierInputRef}
                     type="text"
+                    name="username"
+                    autoComplete="username"
                     required
                     value={loginIdentifier}
                     onChange={(e) => {
@@ -427,7 +463,10 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
+                    ref={loginPasswordInputRef}
                     type={showLoginPassword ? 'text' : 'password'}
+                    name="password"
+                    autoComplete="current-password"
                     required
                     value={loginPassword}
                     onChange={(e) => {
@@ -452,17 +491,24 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
               </div>
 
               {loginError && (
-                <p className="text-xs font-bold text-rose-600 dark:text-rose-400">
-                  {loginError}
-                </p>
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                  <p className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                    {loginError}
+                  </p>
+                </div>
               )}
 
               <button
                 type="submit"
-                className={`w-full min-h-[52px] py-3 rounded-2xl text-sm font-bold shadow-lg flex items-center justify-center gap-2 ${accent.bgClass}`}
+                disabled={isLoggingIn}
+                className={`w-full min-h-[52px] py-3 rounded-2xl text-sm font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 ${accent.bgClass}`}
               >
                 <LogIn className="w-4 h-4" />
-                <span>Ingresar a mi Cuenta</span>
+                <span>
+                  {isLoggingIn
+                    ? 'Verificando e ingresando...'
+                    : 'Ingresar a mi Cuenta'}
+                </span>
               </button>
 
               {/* Acceso oficial con Google (Firebase Auth) */}
@@ -743,22 +789,35 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
   // ============================================================================
   // 2. VISTA YA CON CUENTA INICIADA: MIS GRUPOS (LÍMITE DE 6) / CREAR O UNIRSE
   // ============================================================================
-  const myGroups = groups.filter((g) =>
-    g.members.some((m) => m.id === currentUser.id)
-  );
+  const uEmailLower = (currentUser.email || '').trim().toLowerCase();
+  const uNameLower = (currentUser.username || '').trim().toLowerCase();
+
+  const isMemberOfGroup = (g: WorshipGroup) => {
+    if (g.leaderUserId === currentUser.id) return true;
+    return (g.members || []).some(
+      (m) =>
+        m.id === currentUser.id ||
+        (uEmailLower && (m.email || '').trim().toLowerCase() === uEmailLower) ||
+        (uNameLower && (m.username || '').trim().toLowerCase() === uNameLower)
+    );
+  };
+
+  const myGroups = groups.filter((g) => isMemberOfGroup(g));
   const hasReachedLimit = myGroups.length >= MAX_GROUPS_PER_USER;
 
   // Pending invitations sent to this user's email or username across any group they haven't joined yet
   const pendingInvitationsForMe = groups.flatMap((g) => {
-    const alreadyMember = g.members.some((m) => m.id === currentUser.id);
-    if (alreadyMember) return [];
-    return g.invitations
+    if (isMemberOfGroup(g)) return [];
+    return (g.invitations || [])
       .filter(
         (inv) =>
-          inv.email.toLowerCase() === currentUser.email.toLowerCase() ||
-          inv.username?.toLowerCase() === currentUser.username.toLowerCase() ||
-          inv.identifier.toLowerCase().replace(/^@/, '') ===
-            currentUser.username.toLowerCase()
+          (uEmailLower &&
+            (inv.email || '').trim().toLowerCase() === uEmailLower) ||
+          (uNameLower &&
+            (inv.username || '').trim().toLowerCase() === uNameLower) ||
+          (uNameLower &&
+            (inv.identifier || '').trim().toLowerCase().replace(/^@/, '') ===
+              uNameLower)
       )
       .map((inv) => ({ group: g, invitation: inv }));
   });

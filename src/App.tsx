@@ -138,19 +138,39 @@ const STORAGE_KEYS = {
 };
 
 function generateMusicianCodeFromSeed(seed: string): string {
+  const safeSeed = String(seed || 'jst');
   let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) & 0x7fffffff;
+  for (let i = 0; i < safeSeed.length; i++) {
+    hash = (hash * 31 + safeSeed.charCodeAt(i)) & 0x7fffffff;
   }
   const num = (hash % 9000) + 1000;
   return `JST-${num}`;
 }
 
 function ensureUserMusicianCode(u: AppUser): AppUser {
-  if (u.musicianCode) return u;
+  const safeEmail = typeof u.email === 'string' ? u.email : '';
+  const safeUsername =
+    typeof u.username === 'string' && u.username
+      ? u.username
+      : safeEmail.split('@')[0] || 'musico';
+  const safeName =
+    typeof u.name === 'string' && u.name ? u.name : safeUsername;
+  const safeId = typeof u.id === 'string' && u.id ? u.id : `u-${safeUsername}`;
   return {
     ...u,
-    musicianCode: generateMusicianCodeFromSeed(u.id || u.username || u.email),
+    id: safeId,
+    name: safeName,
+    username: safeUsername,
+    email: safeEmail,
+    instruments:
+      Array.isArray(u.instruments) && u.instruments.length > 0
+        ? u.instruments
+        : ['Vocalista líder'],
+    avatarInitials:
+      u.avatarInitials || safeName.slice(0, 2).toUpperCase() || 'JS',
+    musicianCode:
+      u.musicianCode ||
+      generateMusicianCodeFromSeed(safeId || safeUsername || safeEmail || 'jst'),
   };
 }
 
@@ -734,9 +754,19 @@ export default function App() {
     ? ensureUserMusicianCode(rawCurrentUser)
     : null;
 
-  // All groups where currentUser is a member (max 6)
+  // All groups where currentUser is a member (matched by id, email, or username)
   const myGroups = currentUser
-    ? groups.filter((g) => g.members.some((m) => m.id === currentUser.id))
+    ? groups.filter((g) => {
+        if (g.leaderUserId === currentUser.id) return true;
+        const uEmail = (currentUser.email || '').trim().toLowerCase();
+        const uName = (currentUser.username || '').trim().toLowerCase();
+        return (g.members || []).some(
+          (m) =>
+            m.id === currentUser.id ||
+            (uEmail && (m.email || '').trim().toLowerCase() === uEmail) ||
+            (uName && (m.username || '').trim().toLowerCase() === uName)
+        );
+      })
     : [];
 
   const activeGroup =
@@ -1044,15 +1074,52 @@ export default function App() {
     );
   };
 
-  const handleLoginUser = (userId: string) => {
-    const matched = users.find((u) => u.id === userId);
+  const handleLoginUser = (
+    userId: string,
+    resolvedUser?: AppUser,
+    discoveredGroups?: WorshipGroup[]
+  ) => {
+    const matched =
+      resolvedUser || users.find((u) => u.id === userId);
+
     if (matched) {
-      syncFirebaseEmailAuth(matched.email, matched.password, false);
+      const normalized = ensureUserMusicianCode(matched);
+      setUsers((prev) => {
+        const exists = prev.some((u) => u.id === normalized.id);
+        return exists
+          ? prev.map((u) => (u.id === normalized.id ? normalized : u))
+          : [normalized, ...prev];
+      });
+      safeSaveToStorage(STORAGE_KEYS.SESSION_USER_CACHE, normalized);
+      syncFirebaseEmailAuth(normalized.email, normalized.password, false);
     }
+
+    let combinedGroups = groups;
+    if (discoveredGroups && discoveredGroups.length > 0) {
+      const existingMap = new Map(groups.map((g) => [g.id, g]));
+      for (const cg of discoveredGroups) {
+        if (!existingMap.has(cg.id)) {
+          existingMap.set(cg.id, enrichGroupIndexes(cg));
+        }
+      }
+      combinedGroups = Array.from(existingMap.values());
+      setGroups(combinedGroups);
+    }
+
     setCurrentUserId(userId);
-    const userGroups = groups.filter((g) =>
-      g.members.some((m) => m.id === userId)
-    );
+    const uEmail = (matched?.email || '').trim().toLowerCase();
+    const uName = (matched?.username || '').trim().toLowerCase();
+
+    const userGroups = combinedGroups.filter((g) => {
+      if (g.leaderUserId === userId) return true;
+      return (g.members || []).some(
+        (m) =>
+          m.id === userId ||
+          (uEmail && (m.email || '').trim().toLowerCase() === uEmail) ||
+          (uName && (m.username || '').trim().toLowerCase() === uName)
+      );
+    });
+
     if (userGroups.length > 0) {
       setActiveGroupId(userGroups[0].id);
     }
@@ -1315,11 +1382,35 @@ export default function App() {
   // ============================================================================
   // DENTRO DE UN GRUPO ACTIVO: DATOS, ROL, RED DE AMIGOS Y PASE DE SUPLENTE
   // ============================================================================
+  const uEmailActive = (currentUser.email || '').trim().toLowerCase();
+  const uNameActive = (currentUser.username || '').trim().toLowerCase();
   const activeMember =
-    activeGroup.members.find((m) => m.id === currentUser.id) ||
-    activeGroup.members[0];
+    (activeGroup.members || []).find(
+      (m) =>
+        m.id === currentUser.id ||
+        (uEmailActive &&
+          (m.email || '').trim().toLowerCase() === uEmailActive) ||
+        (uNameActive &&
+          (m.username || '').trim().toLowerCase() === uNameActive)
+    ) ||
+    (activeGroup.members || [])[0] || {
+      id: currentUser.id,
+      name: currentUser.name,
+      username: currentUser.username,
+      email: currentUser.email,
+      role: 'leader',
+      instruments: currentUser.instruments || ['Vocalista líder'],
+      phone: '',
+      avatarInitials: currentUser.avatarInitials || 'JS',
+      avatarUrl: currentUser.avatarUrl,
+      joinedAt: 'Miembro',
+    };
   const userRole =
-    activeGroup.leaderUserId === currentUser.id ? 'leader' : activeMember.role;
+    activeGroup.leaderUserId === currentUser.id ||
+    activeMember.isLeader ||
+    activeMember.role === 'leader'
+      ? 'leader'
+      : activeMember.role;
   const accent = getAccentClasses(identity.accentColor);
 
   // Red de Amigos del usuario actual (combinando friendIds y solicitudes aceptadas)

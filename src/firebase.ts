@@ -254,27 +254,281 @@ export async function syncFirebaseEmailAuth(
   password: string,
   isRegistration: boolean
 ): Promise<string | null> {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@') || !password) return null;
   const paddedPassword =
     password.length < 6 ? `${password}_jstn` : password;
   try {
     if (isRegistration) {
       const cred = await createUserWithEmailAndPassword(
         auth,
-        email,
+        cleanEmail,
         paddedPassword
       );
       return cred.user.uid;
     } else {
-      const cred = await signInWithEmailAndPassword(
-        auth,
-        email,
-        paddedPassword
-      );
-      return cred.user.uid;
+      try {
+        const cred = await signInWithEmailAndPassword(
+          auth,
+          cleanEmail,
+          paddedPassword
+        );
+        return cred.user.uid;
+      } catch {
+        if (paddedPassword !== password && password.length >= 6) {
+          const credRaw = await signInWithEmailAndPassword(
+            auth,
+            cleanEmail,
+            password
+          );
+          return credRaw.user.uid;
+        }
+        return null;
+      }
     }
   } catch {
     return null;
   }
+}
+
+export async function authenticateUserInCloud(
+  identifier: string,
+  password: string,
+  localUsers: AppUser[]
+): Promise<{
+  ok: boolean;
+  user?: AppUser;
+  discoveredGroups?: WorshipGroup[];
+  error?: string;
+}> {
+  const cleanId = (identifier || '').trim().toLowerCase().replace(/^@/, '');
+  const rawPassword = password || '';
+
+  if (!cleanId || !rawPassword) {
+    return {
+      ok: false,
+      error: 'Por favor escribe tu correo o @usuario y tu contraseña.',
+    };
+  }
+
+  const matchesIdentifier = (u: Partial<AppUser> | null | undefined) => {
+    if (!u) return false;
+    const uEmail = typeof u.email === 'string' ? u.email.trim().toLowerCase() : '';
+    const uName =
+      typeof u.username === 'string'
+        ? u.username.trim().toLowerCase().replace(/^@/, '')
+        : '';
+    return uEmail === cleanId || uName === cleanId;
+  };
+
+  // 1. Si el identificador parece un correo, intentamos autenticar primero en Firebase Auth
+  // para que la sesión del navegador quede autenticada antes de consultar Firestore.
+  let firebaseAuthUid: string | null = null;
+  let firebaseAuthDisplayName: string | null = null;
+  let firebaseAuthEmail: string | null = null;
+
+  if (cleanId.includes('@')) {
+    const paddedPassword =
+      rawPassword.length < 6 ? `${rawPassword}_jstn` : rawPassword;
+    const candidates =
+      paddedPassword !== rawPassword
+        ? [paddedPassword, rawPassword]
+        : [rawPassword, `${rawPassword}_jstn`];
+
+    for (const candidatePwd of candidates) {
+      try {
+        const cred = await signInWithEmailAndPassword(auth, cleanId, candidatePwd);
+        firebaseAuthUid = cred.user.uid;
+        firebaseAuthDisplayName = cred.user.displayName;
+        firebaseAuthEmail = cred.user.email || cleanId;
+        break;
+      } catch {
+        // continuar probando o verificar en Firestore
+      }
+    }
+  }
+
+  // 2. Buscar en usuarios ya cargados en memoria
+  let candidateUser: AppUser | undefined = (localUsers || []).find((u) =>
+    matchesIdentifier(u)
+  );
+
+  // 3. Si no está en memoria (o si queremos asegurarnos con la nube en un navegador nuevo como Mac),
+  // consultar directamente la colección `jesustone_users` en Firestore
+  let cloudUsers: AppUser[] = [];
+  try {
+    const usersSnap = await getDocs(collection(db, 'jesustone_users'));
+    cloudUsers = usersSnap.docs
+      .map((d) => d.data() as AppUser)
+      .filter((u) => Boolean(u && (u.id || u.email || u.username)));
+    const cloudMatch = cloudUsers.find((u) => matchesIdentifier(u));
+    if (cloudMatch) {
+      candidateUser = cloudMatch;
+    }
+  } catch {
+    // Usar fallback local si está offline
+  }
+
+  // 4. Si el usuario ingresó con @usuario (sin @correo) y encontramos su correo en Firestore,
+  // intentar también iniciar sesión en Firebase Auth con su correo real
+  if (!firebaseAuthUid && candidateUser?.email) {
+    const uEmail = candidateUser.email.trim().toLowerCase();
+    const paddedPassword =
+      rawPassword.length < 6 ? `${rawPassword}_jstn` : rawPassword;
+    for (const candidatePwd of [paddedPassword, rawPassword]) {
+      try {
+        const cred = await signInWithEmailAndPassword(auth, uEmail, candidatePwd);
+        firebaseAuthUid = cred.user.uid;
+        firebaseAuthDisplayName = cred.user.displayName;
+        firebaseAuthEmail = cred.user.email || uEmail;
+        break;
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // 5. Descargar también los grupos reales desde `jesustone_groups` por si la cuenta estaba
+  // registrada dentro de los miembros de un grupo o para hidratar sus grupos al instante en Mac
+  let fetchedGroups: WorshipGroup[] = [];
+  try {
+    const groupsSnap = await getDocs(collection(db, 'jesustone_groups'));
+    fetchedGroups = groupsSnap.docs
+      .filter((d) => isRealWorshipGroupDoc(d.data(), d.id))
+      .map((d) => d.data() as WorshipGroup);
+  } catch {
+    // ignore
+  }
+
+  // 6. Si tenemos `candidateUser` en `jesustone_users`:
+  if (candidateUser) {
+    const storedPassword =
+      typeof candidateUser.password === 'string' ? candidateUser.password : '';
+    const isPasswordValid =
+      storedPassword === rawPassword ||
+      storedPassword.trim() === rawPassword.trim() ||
+      Boolean(firebaseAuthUid);
+
+    if (!isPasswordValid) {
+      return {
+        ok: false,
+        error:
+          'Contraseña incorrecta. Verifica mayúsculas/minúsculas o usa "¿Olvidaste tu contraseña?" abajo para restablecerla.',
+      };
+    }
+
+    // Si autenticó por Firebase Auth con nueva contraseña, sincronizarla en su documento
+    const normalizedUser: AppUser = {
+      ...candidateUser,
+      id: candidateUser.id || `u-${Date.now()}`,
+      name:
+        candidateUser.name ||
+        firebaseAuthDisplayName ||
+        candidateUser.username ||
+        cleanId.split('@')[0],
+      username:
+        (candidateUser.username || cleanId.split('@')[0])
+          .toLowerCase()
+          .replace(/^@/, ''),
+      email: (candidateUser.email || firebaseAuthEmail || cleanId).toLowerCase(),
+      password: rawPassword,
+      instruments:
+        Array.isArray(candidateUser.instruments) &&
+        candidateUser.instruments.length > 0
+          ? candidateUser.instruments
+          : ['Vocalista líder'],
+      avatarInitials:
+        candidateUser.avatarInitials ||
+        (candidateUser.name || cleanId).slice(0, 2).toUpperCase(),
+      createdAt: candidateUser.createdAt || new Date().toISOString(),
+    };
+
+    syncUserToFirestore(normalizedUser);
+    return {
+      ok: true,
+      user: normalizedUser,
+      discoveredGroups: fetchedGroups,
+    };
+  }
+
+  // 7. ¿Qué pasa si el usuario SÍ existe como miembro dentro de un grupo en `jesustone_groups`
+  // o SÍ autenticó en Firebase Auth, pero su documento en `jesustone_users` no estaba?
+  let memberFromGroup:
+    | {
+        id: string;
+        name: string;
+        username?: string;
+        email: string;
+        instruments: string[];
+        avatarInitials: string;
+        avatarUrl?: string;
+      }
+    | undefined;
+
+  for (const grp of fetchedGroups) {
+    const matchedMember = (grp.members || []).find((m) => {
+      const mEmail = (m.email || '').trim().toLowerCase();
+      const mUser = (m.username || '').trim().toLowerCase().replace(/^@/, '');
+      return mEmail === cleanId || mUser === cleanId;
+    });
+    if (matchedMember) {
+      memberFromGroup = matchedMember;
+      break;
+    }
+  }
+
+  if (firebaseAuthUid || memberFromGroup) {
+    const resolvedEmail = (
+      memberFromGroup?.email ||
+      firebaseAuthEmail ||
+      (cleanId.includes('@') ? cleanId : `${cleanId}@jesustone.app`)
+    )
+      .trim()
+      .toLowerCase();
+    const resolvedUsername = (
+      memberFromGroup?.username ||
+      resolvedEmail.split('@')[0] ||
+      cleanId
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_.-]/g, '_');
+    const resolvedName =
+      memberFromGroup?.name ||
+      firebaseAuthDisplayName ||
+      resolvedUsername;
+
+    const recoveredUser: AppUser = {
+      id: memberFromGroup?.id || `u-${firebaseAuthUid || Date.now()}`,
+      name: resolvedName,
+      username: resolvedUsername,
+      email: resolvedEmail,
+      password: rawPassword,
+      instruments:
+        memberFromGroup?.instruments && memberFromGroup.instruments.length > 0
+          ? memberFromGroup.instruments
+          : ['Vocalista líder'],
+      avatarInitials:
+        memberFromGroup?.avatarInitials ||
+        resolvedName.slice(0, 2).toUpperCase(),
+      avatarUrl: memberFromGroup?.avatarUrl,
+      friendIds: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    await syncUserToFirestore(recoveredUser);
+    return {
+      ok: true,
+      user: recoveredUser,
+      discoveredGroups: fetchedGroups,
+    };
+  }
+
+  return {
+    ok: false,
+    error:
+      'No encontramos una cuenta con ese correo o @usuario. Verifica que esté bien escrito o regístrate en la pestaña "Crear Cuenta".',
+  };
 }
 
 export async function sendOfficialPasswordReset(
