@@ -2288,41 +2288,53 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   const isModifiedKey = weeklyKey !== songObj.originalKey;
                   const backingList = item.backingVocals || [];
                   const cleanSpotifyUrl = songObj.spotifyUrl?.trim();
+                  const hasSheetImage = Boolean(
+                    songObj.hasChordSheetImage ||
+                      (songObj.chordSheetImageUrl &&
+                        !songObj.chordSheetImageUrl.startsWith(
+                          'data:image/svg+xml'
+                        ))
+                  );
+                  const formattedNumber = String(index + 1).padStart(2, '0');
 
                   return (
                     <div
                       key={`${item.songId}-${index}`}
-                      className="p-4 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-800/40 hover:border-amber-500/60 transition-all flex flex-col justify-between gap-3"
+                      className="p-3.5 sm:p-4 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-800/40 hover:border-amber-500/60 transition-all flex flex-col justify-between gap-2.5 min-w-0 max-w-full overflow-hidden"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onOpenSongInSongbook(
-                              songObj.id,
-                              weeklyKey,
-                              activeEvent.id,
-                              false
-                            )
-                          }
-                          className="text-left min-w-0 flex-1 py-0.5"
-                        >
-                          <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate hover:text-amber-500 leading-snug">
-                            0{index + 1}. {songObj.title}
-                          </p>
-                          <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5 font-medium">
-                            Tono Base: {songObj.originalKey} · {songObj.bpm} BPM
-                          </p>
-                        </button>
+                      <div className="space-y-2.5 min-w-0">
+                        {/* Fila 1: Número y Título completo de la canción + Flechas de orden */}
+                        <div className="flex items-start justify-between gap-2 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenSongInSongbook(
+                                songObj.id,
+                                weeklyKey,
+                                activeEvent.id,
+                                false
+                              )
+                            }
+                            className="text-left min-w-0 flex-1 group"
+                          >
+                            <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors leading-snug break-words">
+                              <span className="font-mono text-amber-600 dark:text-amber-400 mr-1">
+                                {formattedNumber}.
+                              </span>
+                              {songObj.title}
+                            </p>
+                            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium break-words">
+                              Tono Base: {songObj.originalKey} · {songObj.bpm} BPM
+                            </p>
+                          </button>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
                           {isLeader && activeEvent.songs.length > 1 && (
-                            <div className="flex items-center gap-1 mr-0.5">
+                            <div className="flex items-center gap-1 shrink-0">
                               <button
                                 type="button"
                                 disabled={index === 0}
                                 onClick={() => moveSongInActiveEvent(index, -1)}
-                                className="min-h-[32px] min-w-[32px] p-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center"
+                                className="min-h-[30px] min-w-[30px] p-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center transition-colors"
                                 title="Subir canción en la playlist"
                               >
                                 <ArrowUp className="w-3.5 h-3.5" />
@@ -2331,60 +2343,73 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 type="button"
                                 disabled={index === activeEvent.songs.length - 1}
                                 onClick={() => moveSongInActiveEvent(index, 1)}
-                                className="min-h-[32px] min-w-[32px] p-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center"
+                                className="min-h-[30px] min-w-[30px] p-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center transition-colors"
                                 title="Bajar canción en la playlist"
                               >
                                 <ArrowDown className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           )}
+                        </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {cleanSpotifyUrl && (
-                              <a
-                                href={cleanSpotifyUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                title="Escuchar en Spotify"
-                                aria-label={`Abrir ${songObj.title} en Spotify`}
-                                className="min-h-[30px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#1DB954]/15 hover:bg-[#1DB954] text-[#15883e] dark:text-[#1ed760] hover:text-slate-950 border border-[#1DB954]/30 text-xs font-bold transition-colors shrink-0"
-                              >
-                                <Headphones className="w-3.5 h-3.5 shrink-0" />
-                                <span>Spotify</span>
-                              </a>
-                            )}
-                            {(songObj.hasChordSheetImage ||
-                              (songObj.chordSheetImageUrl &&
-                                !songObj.chordSheetImageUrl.startsWith(
-                                  'data:image/svg+xml'
-                                ))) && (
-                                <span className="min-h-[30px] inline-flex items-center gap-1 px-2 py-0.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold shrink-0">
-                                  <ImageIcon className="w-3.5 h-3.5" />
-                                  <span>Imagen</span>
-                                </span>
-                              )}
-                            <span
-                              className={`min-h-[30px] inline-flex items-center font-mono text-xs font-bold px-2.5 py-0.5 rounded-xl shrink-0 ${
-                                isModifiedKey
-                                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                                  : accent.softBgClass
-                              }`}
+                        {/* Fila 2: Insignias de Tono, Spotify e Imagen (con flex-wrap para no cortar ni encimar nunca) */}
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                          <span
+                            className={`min-h-[28px] inline-flex items-center font-mono text-xs font-bold px-2.5 py-0.5 rounded-xl shrink-0 ${
+                              isModifiedKey
+                                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                : accent.softBgClass
+                            }`}
+                          >
+                            Tono: {weeklyKey}
+                          </span>
+
+                          {cleanSpotifyUrl && (
+                            <a
+                              href={cleanSpotifyUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Escuchar en Spotify"
+                              aria-label={`Abrir ${songObj.title} en Spotify`}
+                              className="min-h-[28px] inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl bg-[#1DB954]/15 hover:bg-[#1DB954] text-[#15883e] dark:text-[#1ed760] hover:text-slate-950 border border-[#1DB954]/30 text-xs font-bold transition-colors shrink-0"
                             >
-                              Tono: {weeklyKey}
-                            </span>
-                          </div>
+                              <Headphones className="w-3.5 h-3.5 shrink-0" />
+                              <span>Spotify</span>
+                            </a>
+                          )}
+
+                          {hasSheetImage && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onOpenSongInSongbook(
+                                  songObj.id,
+                                  weeklyKey,
+                                  activeEvent.id,
+                                  false
+                                )
+                              }
+                              className="min-h-[28px] inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold transition-colors shrink-0"
+                              title="Abrir cifrado / imagen de la canción"
+                            >
+                              <ImageIcon className="w-3.5 h-3.5 shrink-0" />
+                              <span>Imagen</span>
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Voces asignadas en esta canción (Voz Principal y Coros) */}
-                      <div className="pt-2.5 border-t border-slate-200 dark:border-slate-700/70 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1">
-                          <Mic className="w-3.5 h-3.5" />
-                          Voz Principal: {item.vocalLeader || 'Por definir'}
+                      {/* Fila 3: Voces asignadas en esta canción (Voz Principal y Coros) */}
+                      <div className="pt-2.5 border-t border-slate-200 dark:border-slate-700/70 flex flex-col gap-1.5 text-xs min-w-0">
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold inline-flex items-center gap-1.5 self-start max-w-full">
+                          <Mic className="w-3.5 h-3.5 shrink-0" />
+                          <span className="break-words">
+                            Voz Principal: {item.vocalLeader || 'Por definir'}
+                          </span>
                         </span>
                         {backingList.length > 0 && (
-                          <span className="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-700 dark:text-sky-300 font-semibold">
+                          <span className="px-2.5 py-1.5 rounded-lg bg-sky-500/15 text-sky-700 dark:text-sky-300 font-semibold break-words leading-relaxed">
                             Coros: {backingList.join(', ')}
                           </span>
                         )}
@@ -3304,12 +3329,12 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         className="p-3.5 rounded-2xl border border-amber-500/40 bg-amber-500/5 space-y-3"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-lg bg-amber-500 text-slate-950 font-mono text-xs font-extrabold flex items-center justify-center">
-                              {idx + 1}
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="w-6 h-6 rounded-lg bg-amber-500 text-slate-950 font-mono text-xs font-extrabold flex items-center justify-center shrink-0">
+                              {String(idx + 1).padStart(2, '0')}
                             </span>
-                            <div>
-                              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold text-slate-900 dark:text-white break-words leading-snug">
                                 {song.title}
                               </p>
                               <p className="text-[11px] text-slate-500">
@@ -4311,8 +4336,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <span className="text-[10px] font-mono font-bold text-slate-400">
-                              0{idx + 1}
+                            <span className="text-[10px] font-mono font-bold text-slate-400 shrink-0">
+                              {String(idx + 1).padStart(2, '0')}
                             </span>
                             <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
                               {song.title}

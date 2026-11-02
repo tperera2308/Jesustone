@@ -1681,11 +1681,11 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                         setIsFullSheetExpanded(true);
                       }
                     }}
-                    className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-md transition-all flex flex-col justify-between gap-3 group cursor-pointer"
+                    className="w-full text-left p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-500/60 hover:shadow-md transition-all flex flex-col justify-between gap-3 group cursor-pointer min-w-0 max-w-full overflow-hidden"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors truncate">
+                    <div className="flex items-start justify-between gap-2 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors leading-snug break-words">
                           {song.title}
                         </h3>
                         <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 truncate mt-0.5">
@@ -1699,12 +1699,12 @@ export const SongbookModule: React.FC<SongbookModuleProps> = ({
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300">
-                      <div className="flex items-center gap-2 font-mono font-semibold">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 font-mono font-semibold min-w-0">
                         <span>{song.bpm} BPM</span>
                         {songHasCloudOrInlineImage(song) && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-300 font-sans text-[11px] font-bold">
-                            <ImageIcon className="w-3 h-3" />
+                            <ImageIcon className="w-3 h-3 shrink-0" />
                             <span>Hoja</span>
                           </span>
                         )}
