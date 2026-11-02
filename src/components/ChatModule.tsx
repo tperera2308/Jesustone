@@ -1984,7 +1984,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setChatMode('social')}
-                  className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3 py-2 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 text-base font-bold text-white flex items-center justify-center gap-1.5 transition-colors relative"
+                  className="min-h-[36px] min-w-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-600 text-xs sm:text-sm font-bold text-white flex items-center justify-center gap-1.5 transition-colors relative"
                   title="Amigos y Mensajes Directos (DM)"
                 >
                   <Users className="w-4 h-4 shrink-0" />
@@ -1999,7 +1999,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setMobileMembersOpen(!mobileMembersOpen)}
-                  className="lg:hidden min-h-[44px] min-w-[44px] px-2.5 py-2 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-base font-bold text-slate-200 flex items-center justify-center gap-1.5 transition-colors"
+                  className="lg:hidden min-h-[36px] min-w-[36px] px-2.5 py-1.5 rounded-xl bg-[#2b2d31] hover:bg-[#383a40] text-xs sm:text-sm font-bold text-slate-200 flex items-center justify-center gap-1.5 transition-colors"
                   title={`${currentGroupMembers.length} miembros en este grupo`}
                 >
                   <Users className="w-4 h-4 text-amber-400 shrink-0" />
@@ -2009,7 +2009,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                 <button
                   type="button"
                   onClick={onExitFullScreenChat}
-                  className="min-h-[44px] min-w-[44px] px-2.5 sm:px-3 py-2 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-base font-bold text-white flex items-center justify-center gap-1.5 transition-colors"
+                  className="min-h-[36px] min-w-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-xs sm:text-sm font-bold text-white flex items-center justify-center gap-1.5 transition-colors"
                   title="Volver al menú principal"
                 >
                   <ArrowLeft className="w-4 h-4 shrink-0" />

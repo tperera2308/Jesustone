@@ -390,9 +390,6 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
             <h1 className="text-2xl font-bold tracking-tight text-white">
               jesustone
             </h1>
-            <p className="text-xs text-slate-400">
-              Inicia sesión o crea tu cuenta en la aplicación
-            </p>
           </div>
 
           {/* Dos Pestañas Simples: Iniciar Sesión | Crear Cuenta */}
@@ -598,10 +595,7 @@ export const AuthOnboardingModal: React.FC<AuthOnboardingModalProps> = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-slate-900 dark:text-white">
-                    Tu Foto de Perfil (Opcional)
-                  </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Elige una imagen para tu cuenta
+                    Foto de Perfil (Opcional)
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <input

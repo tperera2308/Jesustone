@@ -43,15 +43,12 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Guía Apple HIG / Google Material:
-     1) Fuente mínima de 16px (1rem) en inputs, selects, textareas y botones para máxima legibilidad y evitar auto-zoom en iOS/Safari.
-     2) Área táctil mínima de 44x44px en todos los controles interactivos, manteniendo padding compacto para no desbordar bordes ni inflar la interfaz. */
+  /* Inputs con 16px para evitar auto-zoom en iOS/Safari, manteniendo botones compactos y proporcionados */
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
   select,
   textarea {
-    font-size: max(16px, 1rem) !important;
-    line-height: 1.25 !important;
-    min-height: 44px;
+    font-size: 16px;
+    line-height: 1.3;
     max-width: 100%;
     box-sizing: border-box;
     touch-action: manipulation;
@@ -60,9 +57,6 @@
   button,
   [role="button"],
   label.cursor-pointer {
-    font-size: max(16px, 1rem) !important;
-    line-height: 1.2 !important;
-    min-height: 44px;
     max-width: 100%;
     box-sizing: border-box;
     touch-action: manipulation;
@@ -70,8 +64,8 @@
 
   input[type="checkbox"],
   input[type="radio"] {
-    min-width: 20px;
-    min-height: 20px;
+    min-width: 18px;
+    min-height: 18px;
     cursor: pointer;
     touch-action: manipulation;
   }

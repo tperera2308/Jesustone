@@ -208,16 +208,13 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold">Centro de Notificaciones</h2>
+                <h2 className="text-lg font-bold">Notificaciones</h2>
                 {unreadCount > 0 && (
                   <span className="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-mono font-bold">
                     {unreadCount} nuevas
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400">
-                Avisos de eventos, suplencias, canciones y mensajes para @{currentUser.username}
-              </p>
             </div>
           </div>
 
@@ -247,7 +244,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold text-white">
-                    Notificaciones en este dispositivo
+                    Avisos en este dispositivo
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
@@ -256,12 +253,9 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                         : 'bg-slate-800 text-slate-400'
                     }`}
                   >
-                    {pushSubscribed ? 'Activadas' : 'Desactivadas'}
+                    {pushSubscribed ? 'Activados' : 'Desactivados'}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 truncate">
-                  Recibe avisos de eventos y mensajes aunque no tengas la app abierta.
-                </p>
               </div>
             </div>
 
@@ -271,9 +265,9 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   type="button"
                   disabled={pushLoading}
                   onClick={handleEnableNativePush}
-                  className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold flex items-center gap-1.5 transition-all ${accent.bgClass} disabled:opacity-50`}
+                  className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all ${accent.bgClass} disabled:opacity-50`}
                 >
-                  <BellRing className="w-4 h-4 shrink-0" />
+                  <BellRing className="w-3.5 h-3.5 shrink-0" />
                   <span>
                     {pushLoading ? 'Activando...' : 'Activar avisos'}
                   </span>
@@ -283,9 +277,9 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
                   type="button"
                   disabled={pushLoading}
                   onClick={handleDisableNativePush}
-                  className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/70 text-slate-300 hover:text-rose-300 text-base font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
+                  className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/70 text-slate-300 hover:text-rose-300 text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
                 >
-                  <BellOff className="w-4 h-4 shrink-0" />
+                  <BellOff className="w-3.5 h-3.5 shrink-0" />
                   <span>
                     {pushLoading ? 'Desactivando...' : 'Desactivar'}
                   </span>
@@ -324,68 +318,60 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
               { id: 'events', label: 'Eventos' },
               { id: 'songs', label: 'Canciones' },
             ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setFilter(tab.id as typeof filter)}
-                className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold whitespace-nowrap shrink-0 transition-all ${
-                  filter === tab.id
-                    ? `${accent.bgClass} shadow-xs`
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setFilter(tab.id as typeof filter)}
+                  className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap shrink-0 transition-all ${
+                    filter === tab.id
+                      ? `${accent.bgClass} shadow-xs`
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-            <div className="flex items-center gap-2 ml-auto">
-              {unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={onMarkAllAsRead}
-                  className="min-h-[44px] px-2.5 rounded-xl text-base font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 hover:bg-emerald-500/10"
-                >
-                  <CheckCheck className="w-4 h-4 shrink-0" />
-                  <span>Marcar leídas</span>
-                </button>
-              )}
-              {notifications.length > 0 && (
-                <button
-                  type="button"
-                  onClick={onClearReadNotifications}
-                  className="min-h-[44px] px-2.5 rounded-xl text-base font-semibold text-slate-500 hover:text-rose-500 flex items-center gap-1.5 hover:bg-rose-500/10"
-                >
-                  <Trash2 className="w-4 h-4 shrink-0" />
-                  <span>Limpiar</span>
-                </button>
-              )}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+              <div className="flex items-center gap-2 ml-auto">
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={onMarkAllAsRead}
+                    className="min-h-[34px] px-2.5 rounded-xl text-xs sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 hover:bg-emerald-500/10"
+                  >
+                    <CheckCheck className="w-4 h-4 shrink-0" />
+                    <span>Marcar leídas</span>
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={onClearReadNotifications}
+                    className="min-h-[34px] px-2.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-500 hover:text-rose-500 flex items-center gap-1.5 hover:bg-rose-500/10"
+                  >
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    <span>Limpiar</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Lista de Notificaciones */}
-        <div className="p-4 sm:p-5 space-y-3 max-h-[68vh] overflow-y-auto">
-          {filteredNotifications.length === 0 ? (
-            <div className="p-10 rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-center space-y-3">
-              <div
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto ${accent.softBgClass}`}
-              >
-                <Bell className="w-7 h-7" />
-              </div>
-              <div className="max-w-sm mx-auto space-y-1">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  No tienes notificaciones en esta vista
+          {/* Lista de Notificaciones */}
+          <div className="p-4 sm:p-5 space-y-3 max-h-[68vh] overflow-y-auto">
+            {filteredNotifications.length === 0 ? (
+              <div className="p-8 rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-center space-y-2">
+                <div
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto ${accent.softBgClass}`}
+                >
+                  <Bell className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
+                  Sin notificaciones
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Recibirás notificaciones automáticamente cuando se programen nuevos
-                  eventos, se suban canciones al repertorio o alguien te etiquete con{' '}
-                  <strong className="font-mono">@{currentUser.username}</strong> en el chat,
-                  estudios o roles.
-                </p>
               </div>
-            </div>
           ) : (
             filteredNotifications.map((notif) => {
               const Icon = getNotificationIcon(notif.category);

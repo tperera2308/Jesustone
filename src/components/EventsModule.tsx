@@ -1380,7 +1380,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               key={tab.id}
               type="button"
               onClick={() => setFilterType(tab.id as typeof filterType)}
-              className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold transition-colors whitespace-nowrap shrink-0 ${
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap shrink-0 ${
                 filterType === tab.id
                   ? `${accent.bgClass} shadow-xs`
                   : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -1393,29 +1393,45 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           <button
             type="button"
             onClick={() => setOnlyMyEvents((prev) => !prev)}
-            className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+            className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
               onlyMyEvents
                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                 : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
             title="Ver únicamente eventos donde estás convocado"
           >
-            <User className="w-4 h-4 shrink-0" />
+            <User className="w-3.5 h-3.5 shrink-0" />
             <span>Mis Eventos</span>
           </button>
+
+          {filterType === 'past' && pastEventsCount > 0 && isLeader && (
+            <button
+              type="button"
+              onClick={() => {
+                events
+                  .filter((ev) => ev.date < todayStr)
+                  .forEach((ev) => onDeleteEvent(ev.id));
+              }}
+              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold whitespace-nowrap shrink-0 flex items-center gap-1.5"
+              title="Limpiar todos los eventos pasados"
+            >
+              <Trash2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Limpiar pasados</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap">
           <button
             type="button"
             onClick={() => setShowAvailabilityModal(true)}
-            className="min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-base font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500/60 transition-colors flex-1 sm:flex-initial min-w-0 truncate"
+            className="min-h-[36px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500/60 transition-colors flex-1 sm:flex-initial min-w-0 truncate"
             title="Mi Disponibilidad / Bloquear Fechas"
           >
-            <CalendarOff className="w-4 h-4 text-rose-500 shrink-0" />
+            <CalendarOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
             <span className="truncate">Disponibilidad</span>
             {availabilityRecords.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 font-mono text-xs shrink-0">
+              <span className="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 font-mono text-[11px] shrink-0">
                 {availabilityRecords.length}
               </span>
             )}
@@ -1426,10 +1442,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAlertModal(true)}
-                className="min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-base font-bold text-slate-800 dark:text-slate-100 flex-1 sm:flex-initial min-w-0 truncate"
+                className="min-h-[36px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex-1 sm:flex-initial min-w-0 truncate"
                 title="Publicar Aviso"
               >
-                <Bell className="w-4 h-4 text-amber-500 shrink-0" />
+                <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 <span className="truncate">Aviso</span>
               </button>
               <button
@@ -1438,9 +1454,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   setSongSearchCreate('');
                   setShowCreateModal(true);
                 }}
-                className={`min-h-[44px] flex items-center justify-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl text-base font-bold shadow-xs flex-1 sm:flex-initial min-w-0 truncate ${accent.bgClass}`}
+                className={`min-h-[36px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-xs flex-1 sm:flex-initial min-w-0 truncate ${accent.bgClass}`}
               >
-                <Plus className="w-4 h-4 shrink-0" />
+                <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">Nuevo Evento</span>
               </button>
             </>
@@ -1456,33 +1472,28 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
           >
             <Calendar className="w-8 h-8" />
           </div>
-          <div className="max-w-md mx-auto space-y-1.5">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
-              Aún no hay eventos ni ensayos programados
+          <div className="max-w-md mx-auto">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              Sin eventos programados
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              {isLeader
-                ? 'Usa plantillas rápidas o series recurrentes para programar los domingos y ensayos del mes viendo en vivo quién está disponible.'
-                : 'Puedes registrar desde ahora tus fechas disponibles o bloqueadas para que el Líder lo vea al armar el rol.'}
-            </p>
           </div>
-          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+          <div className="pt-1 flex flex-wrap items-center justify-center gap-2.5">
             <button
               type="button"
               onClick={() => setShowAvailabilityModal(true)}
-              className="min-h-[52px] px-5 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 inline-flex items-center gap-2"
+              className="min-h-[42px] px-4 py-2 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 inline-flex items-center gap-2"
             >
               <CalendarOff className="w-4 h-4 text-rose-500" />
-              <span>Ingresar Mis Fechas Disponibles / Bloqueadas</span>
+              <span>Mi Disponibilidad</span>
             </button>
             {isLeader && (
               <button
                 type="button"
                 onClick={() => setShowCreateModal(true)}
-                className={`min-h-[52px] px-6 py-3 rounded-2xl text-sm font-bold inline-flex items-center gap-2 shadow-lg ${accent.bgClass}`}
+                className={`min-h-[42px] px-5 py-2 rounded-2xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 shadow-md ${accent.bgClass}`}
               >
-                <Plus className="w-5 h-5" />
-                <span>Programar Primer Evento</span>
+                <Plus className="w-4 h-4" />
+                <span>Nuevo Evento</span>
               </button>
             )}
           </div>
@@ -1572,35 +1583,27 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       </div>
                     )}
 
-                    {/* Estado resumido de mi propia invitación en la tarjeta */}
-                    {myAssigns.length > 0 ? (
-                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 block">
-                            Tu Invitación ({myRolesList.join(', ')})
-                          </span>
-                          <span
-                            className={`text-xs sm:text-sm font-bold ${
-                              myStatus === 'confirmed'
-                                ? 'text-emerald-600 dark:text-emerald-400'
-                                : myStatus === 'declined'
-                                ? 'text-rose-600 dark:text-rose-400'
-                                : 'text-amber-600 dark:text-amber-400'
-                            }`}
-                          >
-                            {myStatus === 'confirmed'
-                              ? '✓ Aceptada / Confirmada'
+                    {/* Estado minimalista de mi participación en 1 sola línea */}
+                    {myAssigns.length > 0 && (
+                      <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 text-xs">
+                        <span className="font-bold text-slate-700 dark:text-slate-200 truncate">
+                          {myRolesList.join(', ')}
+                        </span>
+                        <span
+                          className={`font-bold shrink-0 ${
+                            myStatus === 'confirmed'
+                              ? 'text-emerald-600 dark:text-emerald-400'
                               : myStatus === 'declined'
-                              ? '✕ Declinada'
-                              : '⏳ Pendiente de responder'}
-                          </span>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
-                      </div>
-                    ) : (
-                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-xs text-slate-600 dark:text-slate-300 font-medium flex items-center justify-between">
-                        <span>No estás asignado en este evento</span>
-                        <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
+                              ? 'text-rose-600 dark:text-rose-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }`}
+                        >
+                          {myStatus === 'confirmed'
+                            ? '✓ Confirmado'
+                            : myStatus === 'declined'
+                            ? '✕ Declinado'
+                            : '⏳ Pendiente'}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -1622,7 +1625,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           e.stopPropagation();
                           setSyncCalendarEvent(ev);
                         }}
-                        className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-colors shrink-0 shadow-2xs flex items-center justify-center"
+                        className="min-h-[34px] min-w-[34px] p-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition-colors shrink-0 shadow-2xs flex items-center justify-center"
                         title="Añadir a mi Calendario (Google / Apple / Celular)"
                         aria-label="Añadir a mi Calendario"
                       >
@@ -1632,7 +1635,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         confirmDeleteEventId === ev.id ? (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-rose-500/15 border border-rose-500/40"
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded-xl bg-rose-500/15 border border-rose-500/40"
                           >
                             <button
                               type="button"
@@ -1641,7 +1644,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 onDeleteEvent(ev.id);
                                 setConfirmDeleteEventId(null);
                               }}
-                              className="min-h-[44px] px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-base font-sans font-bold"
+                              className="min-h-[30px] px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-sans font-bold"
                             >
                               Borrar
                             </button>
@@ -1651,7 +1654,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 e.stopPropagation();
                                 setConfirmDeleteEventId(null);
                               }}
-                              className="min-h-[44px] px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-base font-sans font-bold"
+                              className="min-h-[30px] px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-sans font-bold"
                             >
                               No
                             </button>
@@ -1663,7 +1666,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                               e.stopPropagation();
                               setConfirmDeleteEventId(ev.id);
                             }}
-                            className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/25 transition-colors shrink-0 flex items-center justify-center"
+                            className="min-h-[34px] min-w-[34px] p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/25 transition-colors shrink-0 flex items-center justify-center"
                             title="Eliminar evento definitivamente para todos"
                             aria-label="Eliminar evento"
                           >
@@ -1691,7 +1694,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 setOpenedEventId(null);
                 if (onClearInitialEventId) onClearInitialEventId();
               }}
-              className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center gap-1.5 shadow-2xs shrink-0"
+              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 flex items-center gap-1.5 shadow-2xs shrink-0"
             >
               <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
               <span>Todos los Eventos</span>
@@ -1716,7 +1719,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           setOpenedEventId(target.id);
                         }
                       }}
-                      className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-amber-500 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1"
+                      className="min-h-[36px] min-w-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-amber-500 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1"
                     >
                       <ChevronLeft className="w-4 h-4 shrink-0" />
                       <span className="hidden sm:inline">Anterior</span>
@@ -1735,7 +1738,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           setOpenedEventId(target.id);
                         }
                       }}
-                      className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-amber-500 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1"
+                      className="min-h-[36px] min-w-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-amber-500 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1"
                     >
                       <span className="hidden sm:inline">Siguiente</span>
                       <ChevronRight className="w-4 h-4 shrink-0" />
@@ -1780,10 +1783,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setSyncCalendarEvent(activeEvent)}
-                  className="min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-base font-bold text-amber-600 dark:text-amber-400 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
+                  className="min-h-[36px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-xs sm:text-sm font-bold text-amber-600 dark:text-amber-400 transition-colors shadow-2xs shrink-0 whitespace-nowrap"
                   title="Sincronizar con Google Calendar, Apple Calendar o Celular"
                 >
-                  <CalendarPlus className="w-4 h-4 text-amber-500 shrink-0" />
+                  <CalendarPlus className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span>Calendario</span>
                 </button>
 
@@ -1792,24 +1795,24 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => handleOpenEditEventModal(activeEvent)}
-                      className="min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-amber-500/40 bg-amber-500/10 text-base font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 shrink-0 whitespace-nowrap"
+                      className="min-h-[36px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs sm:text-sm font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 shrink-0 whitespace-nowrap"
                     >
-                      <Edit3 className="w-4 h-4 shrink-0" />
+                      <Edit3 className="w-3.5 h-3.5 shrink-0" />
                       <span>Editar</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleDuplicateEventNextWeek(activeEvent)}
-                      className="min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 shrink-0 whitespace-nowrap"
+                      className="min-h-[36px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500 shrink-0 whitespace-nowrap"
                       title="Duplicar este evento para la próxima semana (+7 días)"
                     >
-                      <Copy className="w-4 h-4 text-amber-500 shrink-0" />
+                      <Copy className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                       <span>+7 días</span>
                     </button>
 
                     {confirmDeleteEventId === activeEvent.id ? (
-                      <div className="flex items-center gap-1.5 px-2 min-h-[44px] rounded-xl bg-rose-500/10 border border-rose-500/30 shrink-0">
+                      <div className="flex items-center gap-1 px-1.5 min-h-[36px] rounded-xl bg-rose-500/10 border border-rose-500/30 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
@@ -1817,14 +1820,14 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             setConfirmDeleteEventId(null);
                             setOpenedEventId(null);
                           }}
-                          className="min-h-[44px] px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-base font-bold"
+                          className="min-h-[28px] px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
                         >
                           Borrar
                         </button>
                         <button
                           type="button"
                           onClick={() => setConfirmDeleteEventId(null)}
-                          className="min-h-[44px] px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-base font-bold"
+                          className="min-h-[28px] px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold"
                         >
                           No
                         </button>
@@ -1833,7 +1836,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteEventId(activeEvent.id)}
-                        className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-rose-200 dark:border-rose-900/50 text-base font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 shrink-0"
+                        className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl border border-rose-200 dark:border-rose-900/50 text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 shrink-0"
                         title="Eliminar evento"
                         aria-label="Eliminar evento"
                       >
@@ -2016,9 +2019,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowAddRehearsalInDetail((prev) => !prev)}
-                      className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold flex items-center gap-1.5 shrink-0 ${accent.bgClass}`}
+                      className={`min-h-[34px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shrink-0 ${accent.bgClass}`}
                     >
-                      <Plus className="w-4 h-4 shrink-0" />
+                      <Plus className="w-3.5 h-3.5 shrink-0" />
                       <span>
                         {showAddRehearsalInDetail ? 'Cerrar' : '+ Ensayo'}
                       </span>
@@ -2039,7 +2042,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           value={rehTitleDraft}
                           onChange={(e) => setRehTitleDraft(e.target.value)}
                           placeholder="Ej. Ensayo General / Voces"
-                          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base text-slate-900 dark:text-white"
+                          className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                         />
                       </div>
                       <InteractiveDatePicker
@@ -2059,23 +2062,23 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         value={rehLocationDraft}
                         onChange={(e) => setRehLocationDraft(e.target.value)}
                         placeholder="Lugar del ensayo (ej. Salón de Ensayo)"
-                        className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base text-slate-900 dark:text-white"
+                        className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                       />
                       <input
                         type="text"
                         value={rehNotesDraft}
                         onChange={(e) => setRehNotesDraft(e.target.value)}
                         placeholder="Nota para el ensayo (opcional)"
-                        className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-base text-slate-900 dark:text-white"
+                        className="w-full min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
                       />
                     </div>
                     <div className="flex justify-end">
                       <button
                         type="button"
                         onClick={() => handleAddRehearsalToActiveEvent()}
-                        className={`min-h-[44px] px-4 py-2 rounded-xl text-base font-bold flex items-center gap-1.5 ${accent.bgClass}`}
+                        className={`min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 ${accent.bgClass}`}
                       >
-                        <Check className="w-4 h-4 shrink-0" />
+                        <Check className="w-3.5 h-3.5 shrink-0" />
                         <span>Guardar Ensayo</span>
                       </button>
                     </div>
@@ -2238,10 +2241,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           true
                         );
                       }}
-                      className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 font-bold text-base flex items-center justify-center gap-1.5 shadow-xs shrink-0 whitespace-nowrap"
+                      className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs shrink-0 whitespace-nowrap"
                       title="Abrir todas las canciones de este evento en Modo Escenario / Atril"
                     >
-                      <Maximize2 className="w-4 h-4 shrink-0" />
+                      <Maximize2 className="w-3.5 h-3.5 shrink-0" />
                       <span>Atril</span>
                     </button>
                   )}
@@ -2251,10 +2254,10 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       href={activeEvent.spotifyPlaylistUrl.trim()}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="min-h-[44px] px-3 py-2 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-base flex items-center justify-center gap-1.5 shadow-xs transition-colors shrink-0 whitespace-nowrap"
+                      className="min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs transition-colors shrink-0 whitespace-nowrap"
                       title="Abrir playlist en Spotify"
                     >
-                      <Headphones className="w-4 h-4 text-black shrink-0" />
+                      <Headphones className="w-3.5 h-3.5 text-black shrink-0" />
                       <span>Spotify</span>
                     </a>
                   )}
@@ -2263,9 +2266,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowPlaylistEditor(true)}
-                      className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap ${accent.bgClass}`}
+                      className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap ${accent.bgClass}`}
                     >
-                      <ShieldCheck className="w-4 h-4 shrink-0" />
+                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                       <span>Editar Setlist</span>
                     </button>
                   ) : (
@@ -2304,7 +2307,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           }
                           className="text-left min-w-0 flex-1 py-0.5"
                         >
-                          <p className="text-base font-bold text-slate-900 dark:text-white truncate hover:text-amber-500 leading-snug">
+                          <p className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate hover:text-amber-500 leading-snug">
                             0{index + 1}. {songObj.title}
                           </p>
                           <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5 font-medium">
@@ -2319,19 +2322,19 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 type="button"
                                 disabled={index === 0}
                                 onClick={() => moveSongInActiveEvent(index, -1)}
-                                className="min-h-[44px] min-w-[44px] p-1.5 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center"
+                                className="min-h-[32px] min-w-[32px] p-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center"
                                 title="Subir canción en la playlist"
                               >
-                                <ArrowUp className="w-4 h-4" />
+                                <ArrowUp className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 type="button"
                                 disabled={index === activeEvent.songs.length - 1}
                                 onClick={() => moveSongInActiveEvent(index, 1)}
-                                className="min-h-[44px] min-w-[44px] p-1.5 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center"
+                                className="min-h-[32px] min-w-[32px] p-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 disabled:opacity-30 hover:bg-amber-500 hover:text-slate-950 flex items-center justify-center"
                                 title="Bajar canción en la playlist"
                               >
-                                <ArrowDown className="w-4 h-4" />
+                                <ArrowDown className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           )}
@@ -2345,9 +2348,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 onClick={(e) => e.stopPropagation()}
                                 title="Escuchar en Spotify"
                                 aria-label={`Abrir ${songObj.title} en Spotify`}
-                                className="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1DB954]/15 hover:bg-[#1DB954] text-[#15883e] dark:text-[#1ed760] hover:text-slate-950 border border-[#1DB954]/30 text-sm font-bold transition-colors shrink-0"
+                                className="min-h-[30px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#1DB954]/15 hover:bg-[#1DB954] text-[#15883e] dark:text-[#1ed760] hover:text-slate-950 border border-[#1DB954]/30 text-xs font-bold transition-colors shrink-0"
                               >
-                                <Headphones className="w-4 h-4 shrink-0" />
+                                <Headphones className="w-3.5 h-3.5 shrink-0" />
                                 <span>Spotify</span>
                               </a>
                             )}
@@ -2356,13 +2359,13 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                 !songObj.chordSheetImageUrl.startsWith(
                                   'data:image/svg+xml'
                                 ))) && (
-                                <span className="min-h-[32px] inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold shrink-0">
+                                <span className="min-h-[30px] inline-flex items-center gap-1 px-2 py-0.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold shrink-0">
                                   <ImageIcon className="w-3.5 h-3.5" />
                                   <span>Imagen</span>
                                 </span>
                               )}
                             <span
-                              className={`min-h-[32px] inline-flex items-center font-mono text-xs font-bold px-2.5 py-1 rounded-xl shrink-0 ${
+                              className={`min-h-[30px] inline-flex items-center font-mono text-xs font-bold px-2.5 py-0.5 rounded-xl shrink-0 ${
                                 isModifiedKey
                                   ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
                                   : accent.softBgClass
@@ -2407,13 +2410,13 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowAddMemberInDetail((prev) => !prev)}
-                    className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold flex items-center gap-1.5 shrink-0 ${
+                    className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shrink-0 ${
                       showAddMemberInDetail
                         ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200'
                         : accent.bgClass
                     }`}
                   >
-                    <Plus className="w-4 h-4 shrink-0" />
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
                     <span>
                       {showAddMemberInDetail ? 'Cerrar' : '+ Integrante'}
                     </span>
@@ -2441,7 +2444,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                             setAddActiveRoles(['Coros']);
                           }
                         }}
-                        className="w-full max-w-full min-w-0 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-base font-bold text-slate-900 dark:text-white flex-1 truncate"
+                        className="w-full max-w-full min-w-0 min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex-1 truncate"
                       >
                         {members.map((m) => {
                           const av = getMemberAvailabilityForDate(
@@ -2483,9 +2486,9 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         ]);
                         setShowAddMemberInDetail(false);
                       }}
-                      className={`w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
+                      className={`w-full sm:w-auto min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 shrink-0 ${accent.bgClass}`}
                     >
-                      <Plus className="w-4 h-4 shrink-0" />
+                      <Plus className="w-3.5 h-3.5 shrink-0" />
                       <span>Asignar al Evento</span>
                     </button>
                   </div>
@@ -2511,7 +2514,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                                   : [...prev, r]
                               )
                             }
-                            className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold border transition-all whitespace-nowrap shrink-0 ${
+                            className={`min-h-[34px] px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold border transition-all whitespace-nowrap shrink-0 ${
                               active
                                 ? `${accent.bgClass} border-transparent`
                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
@@ -2530,7 +2533,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                         value={customInstrumentInput}
                         onChange={(e) => setCustomInstrumentInput(e.target.value)}
                         placeholder="Otro instrumento o rol personalizado..."
-                        className="flex-1 min-h-[44px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-base text-slate-900 dark:text-white"
+                        className="flex-1 min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs sm:text-sm text-slate-900 dark:text-white"
                       />
                       <button
                         type="button"
@@ -2542,7 +2545,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                           }
                           setCustomInstrumentInput('');
                         }}
-                        className="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-base font-bold text-slate-800 dark:text-slate-200 shrink-0"
+                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 shrink-0"
                       >
                         + Rol
                       </button>
@@ -3251,11 +3254,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Playlist, Orden y Voces para «{activeEvent.title}»
+                  Playlist: «{activeEvent.title}»
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Reordena las canciones, elige el tono de la semana y asigna Voz Principal y Coros en cada canción.
-                </p>
               </div>
               <button
                 type="button"
@@ -3588,11 +3588,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Programar Evento, Serie Recurrente y Asignar Miembros Disponibles
+                  Programar Evento
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Usa plantillas rápidas y revisa en tiempo real quiénes están disponibles para la fecha elegida.
-                </p>
               </div>
               <button
                 type="button"
@@ -3743,11 +3740,8 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   <div>
                     <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                       <Calendar className="w-4 h-4 text-indigo-500" />
-                      Fechas de Ensayo para este Evento ({draftRehearsals.length})
+                      Ensayos ({draftRehearsals.length})
                     </span>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Los ensayos quedan dentro de este evento con los mismos convocados y la misma setlist.
-                    </p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -3924,11 +3918,11 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   <div>
                     <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                       <Users className="w-4 h-4 text-emerald-500" />
-                      Equipo Convocado ({draftAssignments.length})
+                      Equipo Convocado ({draftAssignments.length}) ·{' '}
+                      <span className="text-emerald-600 dark:text-emerald-400 font-normal">
+                        {membersAvailableOnNewDate.length} disp.
+                      </span>
                     </span>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Marca quiénes participan el <span className="font-mono">{newDate}</span> ({membersAvailableOnNewDate.length} disp. / {membersUnavailableOnNewDate.length} no disp.)
-                    </p>
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -4505,9 +4499,6 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white truncate">
                     Sincronizar con Calendario
                   </h3>
-                  <p className="text-[11px] text-slate-500 truncate">
-                    Agrega la fecha y citación a tu agenda personal
-                  </p>
                 </div>
               </div>
               <button

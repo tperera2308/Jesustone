@@ -598,9 +598,11 @@ export function enrichGroupIndexes(group: WorshipGroup): WorshipGroup {
   };
 }
 
-export const MAX_CHAT_MESSAGES_PER_GROUP = 100;
-export const MAX_DMS_PER_CONVERSATION = 100;
-export const MAX_NOTIFICATIONS = 50;
+export const MAX_CHAT_MESSAGES_PER_GROUP = 60;
+export const MAX_DMS_PER_CONVERSATION = 80;
+export const MAX_NOTIFICATIONS = 35;
+export const MAX_PAST_EVENTS_RETAINED = 8;
+export const PAST_EVENT_RETENTION_DAYS = 30;
 
 const SOCIAL_HUB_DOC_ID = 'social_hub_global_v1';
 
@@ -672,13 +674,51 @@ export function isLegacyZombieRecurringEvent(ev: {
   return true;
 }
 
+function getLocalDateIsoString(offsetDays = 0): string {
+  const d = new Date();
+  if (offsetDays !== 0) {
+    d.setDate(d.getDate() + offsetDays);
+  }
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
   const indexedGroup = enrichGroupIndexes(group);
+  const todayIso = getLocalDateIsoString(0);
+  const pastCutoffIso = getLocalDateIsoString(-PAST_EVENT_RETENTION_DAYS);
 
   // Detectar y registrar cualquier evento serie huérfano 2/4, 3/4, 4/4 que ya había sido eliminado
   for (const ev of indexedGroup.events || []) {
     if (isLegacyZombieRecurringEvent(ev)) {
       registerPermanentDeletedIds(group.id, ev.id);
+    }
+  }
+
+  // Auto-limpieza de eventos pasados antiguos (>30 días o excediendo los 8 más recientes)
+  const rawEvents = indexedGroup.events || [];
+  const pastEventsSorted = rawEvents
+    .filter((ev) => ev.date && ev.date < todayIso)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const keptPastEventIds = new Set<string>();
+  for (const ev of pastEventsSorted) {
+    if (
+      ev.date >= pastCutoffIso &&
+      keptPastEventIds.size < MAX_PAST_EVENTS_RETAINED
+    ) {
+      keptPastEventIds.add(ev.id);
+    } else {
+      registerPermanentDeletedIds(group.id, ev.id);
+    }
+  }
+
+  // Auto-limpieza de registros de disponibilidad vencidos (fechas anteriores a hoy)
+  for (const rec of indexedGroup.availabilityRecords || []) {
+    if (rec.date && rec.date < todayIso) {
+      registerPermanentDeletedIds(group.id, rec.id);
     }
   }
 
@@ -688,7 +728,7 @@ function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
       ...(indexedGroup.deletedIds || []),
       ...getPermanentDeletedIds(group.id),
     ].filter(Boolean))
-  ).slice(-300);
+  ).slice(-200);
 
   registerPermanentDeletedIds(group.id, ...combinedDeletedIds);
   const deletedSet = new Set<string>(combinedDeletedIds);
@@ -747,33 +787,44 @@ function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
 
   // Filtrar estrictamente eventos, estudios, avisos, canales y mensajes contra deletedSet
   const cleanEvents = (indexedGroup.events || [])
-    .filter((ev) => !deletedSet.has(ev.id))
+    .filter(
+      (ev) =>
+        !deletedSet.has(ev.id) &&
+        (!ev.date || ev.date >= todayIso || keptPastEventIds.has(ev.id))
+    )
     .map((ev) => ({
       ...ev,
       songs: (ev.songs || []).filter((item) => !deletedSet.has(item.songId)),
     }));
 
-  const cleanDevotionals = (indexedGroup.devotionals || []).filter(
-    (d) => !deletedSet.has(d.id)
-  );
+  const cleanDevotionals = (indexedGroup.devotionals || [])
+    .filter((d) => !deletedSet.has(d.id))
+    .slice(0, 30);
 
-  const cleanAlerts = (indexedGroup.alerts || []).filter(
-    (a) => !deletedSet.has(a.id)
-  );
+  const cleanAlerts = (indexedGroup.alerts || [])
+    .filter((a) => !deletedSet.has(a.id))
+    .slice(0, 15);
 
   const cleanAvailability = (indexedGroup.availabilityRecords || []).filter(
-    (r) => !deletedSet.has(r.id)
+    (r) => !deletedSet.has(r.id) && (!r.date || r.date >= todayIso)
   );
 
   const cleanCustomChannels = (indexedGroup.customChannels || []).filter(
     (ch) => !deletedSet.has(ch.id)
   );
 
-  // Mantener los mensajes de chat ligeros dentro del grupo (hasta 80 mensajes recientes)
-  const recentChatMessages = (indexedGroup.chatMessages || [])
-    .filter((m) => !deletedSet.has(m.id) && !deletedSet.has(m.channel))
-    .slice(-80)
-    .map((m) => ({
+  // Mantener los mensajes de chat ligeros dentro del grupo (hasta 60 mensajes recientes + fijados)
+  const validChatMessages = (indexedGroup.chatMessages || []).filter(
+    (m) => !deletedSet.has(m.id) && !deletedSet.has(m.channel)
+  );
+  const pinnedMessages = validChatMessages.filter((m) => m.isPinned).slice(-10);
+  const pinnedIds = new Set(pinnedMessages.map((m) => m.id));
+  const recentUnpinned = validChatMessages
+    .filter((m) => !pinnedIds.has(m.id))
+    .slice(-MAX_CHAT_MESSAGES_PER_GROUP);
+
+  const recentChatMessages = [...pinnedMessages, ...recentUnpinned].map(
+    (m) => ({
       ...m,
       voiceClipUrl:
         m.voiceClipUrl &&
@@ -781,7 +832,8 @@ function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
         m.voiceClipUrl.length > 35000
           ? undefined
           : m.voiceClipUrl,
-    }));
+    })
+  );
 
   const cleanActivityFeed = (indexedGroup.activityFeed || [])
     .filter((f) => !f.targetId || !deletedSet.has(f.targetId))
@@ -798,7 +850,7 @@ function prepareGroupForFirestore(group: WorshipGroup): WorshipGroup {
     chatMessages: recentChatMessages,
     deletedIds: combinedDeletedIds,
     activityFeed: cleanActivityFeed,
-    invitations: (indexedGroup.invitations || []).slice(0, 30),
+    invitations: (indexedGroup.invitations || []).slice(0, 20),
   });
 
   return candidate;
@@ -984,7 +1036,7 @@ export async function syncFriendRequestToFirestore(
   try {
     const current = await readSocialHubDoc();
     const filtered = current.friendRequests.filter((r) => r.id !== req.id);
-    const nextReqs = [stripUndefinedDeep(req), ...filtered].slice(0, 100);
+    const nextReqs = [stripUndefinedDeep(req), ...filtered].slice(0, 60);
     await setDoc(doc(db, 'jesustone_groups', SOCIAL_HUB_DOC_ID), {
       ...current,
       friendRequests: nextReqs,
@@ -1027,7 +1079,7 @@ export async function syncDirectMessageToFirestore(
         : undefined,
     });
     const filtered = current.directMessages.filter((m) => m.id !== cleanDm.id);
-    const nextDms = [...filtered, cleanDm].slice(-120);
+    const nextDms = [...filtered, cleanDm].slice(-MAX_DMS_PER_CONVERSATION);
     await setDoc(doc(db, 'jesustone_groups', SOCIAL_HUB_DOC_ID), {
       ...current,
       directMessages: nextDms,

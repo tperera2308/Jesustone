@@ -140,7 +140,7 @@ export function getAccentClasses(colorId: AccentColorId) {
  */
 export function compressImageFileToDataUrl(
   file: File,
-  maxSize = 144
+  maxSize = 128
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -160,9 +160,9 @@ export function compressImageFileToDataUrl(
         const sx = (img.width - minSide) / 2;
         const sy = (img.height - minSide) / 2;
         ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, maxSize, maxSize);
-        let dataUrl = canvas.toDataURL('image/webp', 0.72);
+        let dataUrl = canvas.toDataURL('image/webp', 0.68);
         if (!dataUrl.startsWith('data:image/webp')) {
-          dataUrl = canvas.toDataURL('image/jpeg', 0.74);
+          dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         }
         try {
           const uploadedUrl = await uploadMediaDataUrlToStorage(
@@ -411,11 +411,8 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold">
-                jesustone · Configuración del Grupo
+                Configuración del Grupo
               </h2>
-              <p className="text-xs text-slate-400">
-                Foto o icono del grupo, temas OLED e invitaciones
-              </p>
             </div>
           </div>
           <button
@@ -427,12 +424,12 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
           </button>
         </div>
 
-        {/* Botones Grandes de Pestañas */}
-        <div className="grid grid-cols-3 gap-1.5 p-2.5 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+        {/* Botones Compactos de Pestañas */}
+        <div className="grid grid-cols-3 gap-1.5 p-2 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setActiveTab('grupo')}
-            className={`min-h-[48px] px-2.5 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
+            className={`min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
               activeTab === 'grupo'
                 ? `${accent.bgClass} shadow-sm`
                 : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900'
@@ -445,7 +442,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('temas')}
-            className={`min-h-[48px] px-2.5 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
+            className={`min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
               activeTab === 'temas'
                 ? `${accent.bgClass} shadow-sm`
                 : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900'
@@ -458,7 +455,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('invitaciones')}
-            className={`min-h-[48px] px-2.5 py-2 rounded-2xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
+            className={`min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
               activeTab === 'invitaciones'
                 ? `${accent.bgClass} shadow-sm`
                 : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900'
@@ -530,10 +527,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-900 dark:text-white">
-                    Foto o Logo Personalizado del Grupo
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Sube una foto desde tu galería o elige un icono abajo
+                    Foto o Logo del Grupo
                   </p>
                 </div>
               </div>
@@ -856,7 +850,7 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
 
                   {inviteAsGuest && (
                     <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl">
-                      Modo <strong>Músico Invitado / Suplente</strong>: Solo verá los eventos específicos donde lo convoques y sus canciones asignadas (no verá todo el grupo ni el chat interno).
+                      <strong>Suplente:</strong> Solo verá los eventos donde lo convoques.
                     </p>
                   )}
 
@@ -980,11 +974,8 @@ export const IdentityModal: React.FC<IdentityModalProps> = ({
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
-                    Mis Instrumentos y Roles Base ({activeMember.name})
+                    Mis Instrumentos ({activeMember.name})
                   </h4>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Desliza para elegir tus instrumentos o agrega uno personalizado:
-                  </p>
                 </div>
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 max-w-full flex-nowrap">
                   {Array.from(

@@ -247,9 +247,9 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
           <button
             type="button"
             onClick={() => setShowCreateModal(true)}
-            className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-base font-bold shadow-xs transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
+            className={`min-h-[36px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-colors whitespace-nowrap shrink-0 ${accent.bgClass}`}
           >
-            <Plus className="w-4 h-4 shrink-0" />
+            <Plus className="w-3.5 h-3.5 shrink-0" />
             <span>Nuevo Estudio</span>
           </button>
         )}
@@ -263,25 +263,20 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
           >
             <BookOpen className="w-8 h-8" />
           </div>
-          <div className="max-w-md mx-auto space-y-1.5">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
-              Aún no hay estudios publicados
+          <div className="max-w-md mx-auto">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              Sin estudios publicados
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              {userRole === 'leader'
-                ? 'Como Líder / Admin puedes crear estudios desde una hasta varias sesiones, agregar los versículos de cada sesión y llevar el control de realizado del grupo.'
-                : 'Cuando el Líder / Admin del grupo publique un nuevo estudio, aparecerá aquí con sus sesiones, versículos y casillas de realizado.'}
-            </p>
           </div>
           {userRole === 'leader' && (
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 type="button"
                 onClick={() => setShowCreateModal(true)}
-                className={`min-h-[52px] px-6 py-3 rounded-2xl text-sm font-bold inline-flex items-center gap-2 shadow-lg ${accent.bgClass}`}
+                className={`min-h-[42px] px-5 py-2 rounded-2xl text-xs sm:text-sm font-bold inline-flex items-center gap-2 shadow-md ${accent.bgClass}`}
               >
-                <Plus className="w-5 h-5" />
-                <span>Crear Primer Estudio</span>
+                <Plus className="w-4 h-4" />
+                <span>Nuevo Estudio</span>
               </button>
             </div>
           )}
@@ -690,11 +685,8 @@ export const DevotionalsModule: React.FC<DevotionalsModuleProps> = ({
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Nuevo Estudio para el Grupo (1 o Varias Sesiones)
+                  Nuevo Estudio
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Agrega una o múltiples sesiones, incluye versículos bíblicos y habilita checks de realizado
-                </p>
               </div>
               <button
                 type="button"

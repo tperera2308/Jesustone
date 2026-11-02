@@ -3375,16 +3375,16 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
-              className="hidden sm:inline-flex min-h-[44px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-700 dark:text-slate-200 items-center gap-1.5 transition-colors shrink-0"
+              className="hidden sm:inline-flex min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 items-center gap-1.5 transition-colors shrink-0"
               title="Cambiar o crear grupo musical"
             >
               <span>Cambiar grupo</span>
-              <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-300 shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300 shrink-0" />
             </button>
           </div>
 
           {/* Zona 2: Navegación Principal en Escritorio */}
-          <nav className="hidden md:flex items-center gap-2 text-base font-semibold text-slate-700 dark:text-slate-300">
+          <nav className="hidden md:flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -3399,7 +3399,7 @@ export default function App() {
                     }
                     setActiveTab(item.id);
                   }}
-                  className={`min-h-[44px] px-3 py-2 text-base transition-colors whitespace-nowrap shrink-0 border-b-2 ${
+                  className={`min-h-[38px] px-2.5 py-1.5 text-sm transition-colors whitespace-nowrap shrink-0 border-b-2 ${
                     isActive
                       ? `text-slate-950 dark:text-white font-bold border-current ${accent.textClass}`
                       : 'border-transparent hover:text-slate-950 dark:hover:text-white'
@@ -3419,13 +3419,13 @@ export default function App() {
                 setIsUserMenuOpen(false);
                 setIsNotificationsModalOpen(true);
               }}
-              className="relative min-h-[44px] min-w-[44px] px-2.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1 text-base font-bold transition-colors"
+              className="relative min-h-[36px] min-w-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1 text-xs sm:text-sm font-bold transition-colors"
               title="Notificaciones"
               aria-label="Notificaciones"
             >
               <Bell className="w-4 h-4 text-amber-500 shrink-0" />
               {unreadNotificationsCount > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono text-xs font-bold">
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-mono text-[11px] font-bold">
                   {unreadNotificationsCount}
                 </span>
               )}
@@ -3434,7 +3434,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setIsUserMenuOpen((prev) => !prev)}
-              className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 shadow-2xs ${accent.bgClass}`}
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 shadow-2xs ${accent.bgClass}`}
               title="Menú de Usuario y Ajustes Generales"
             >
               {currentUser.avatarUrl ? (
@@ -3444,9 +3444,9 @@ export default function App() {
                   className="w-5 h-5 rounded-md object-cover border border-white/30 shrink-0"
                 />
               ) : userRole === 'leader' ? (
-                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
               ) : (
-                <User className="w-4 h-4 shrink-0" />
+                <User className="w-3.5 h-3.5 shrink-0" />
               )}
               <span className="max-w-[90px] sm:max-w-[140px] truncate">
                 @{currentUser.username}
@@ -3454,7 +3454,7 @@ export default function App() {
               {friendRequests.some(
                 (r) => r.status === 'pending' && r.toUserId === currentUser.id
               ) && (
-                <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono text-xs font-bold">
+                <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono text-[11px] font-bold">
                   {
                     friendRequests.filter(
                       (r) =>
@@ -3463,7 +3463,7 @@ export default function App() {
                   }
                 </span>
               )}
-              <ChevronDown className="w-4 h-4 opacity-80 shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 opacity-80 shrink-0" />
             </button>
 
             {/* Menú Desplegable de Opciones Generales del Usuario (sin opciones internas del grupo) */}
@@ -3473,7 +3473,7 @@ export default function App() {
                   className="fixed inset-0 z-40"
                   onClick={() => setIsUserMenuOpen(false)}
                 />
-                <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2 space-y-1">
+                <div className="absolute right-0 top-11 z-50 w-60 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-2 space-y-1">
                   <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                     <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
                       {currentUser.name}
@@ -3490,7 +3490,7 @@ export default function App() {
                       setIsUserMenuOpen(false);
                       handleOpenMusicianProfile(currentUser.id, 'perfil');
                     }}
-                    className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between text-base font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                    className="w-full min-h-[38px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 transition-colors"
                   >
                     <span className="flex items-center gap-2.5 truncate">
                       <Users className="w-4 h-4 text-indigo-500 shrink-0" />
@@ -3500,7 +3500,7 @@ export default function App() {
                       (r) =>
                         r.status === 'pending' && r.toUserId === currentUser.id
                     ) && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono text-xs font-bold shrink-0">
+                      <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono text-[11px] font-bold shrink-0">
                         {
                           friendRequests.filter(
                             (r) =>
@@ -3518,7 +3518,7 @@ export default function App() {
                       setIsUserMenuOpen(false);
                       setIsAuthModalOpen(true);
                     }}
-                    className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-base font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                    className="w-full min-h-[38px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 transition-colors"
                   >
                     <FolderPlus className="w-4 h-4 text-sky-500 shrink-0" />
                     <span className="truncate">Mis Grupos</span>
@@ -3530,7 +3530,7 @@ export default function App() {
                       setIsUserMenuOpen(false);
                       setIdentityModalState({ open: true, section: 'temas' });
                     }}
-                    className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-base font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                    className="w-full min-h-[38px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 transition-colors"
                   >
                     <Palette className="w-4 h-4 text-amber-500 shrink-0" />
                     <span className="truncate">Apariencia y Colores</span>
@@ -3542,7 +3542,7 @@ export default function App() {
                       setIsUserMenuOpen(false);
                       setShowInstallModal(true);
                     }}
-                    className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-base font-semibold text-slate-800 dark:text-slate-200 transition-colors"
+                    className="w-full min-h-[38px] px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 transition-colors"
                   >
                     <Download className="w-4 h-4 text-indigo-400 shrink-0" />
                     <span className="truncate">Instalar App</span>
@@ -3555,7 +3555,7 @@ export default function App() {
                         setIsUserMenuOpen(false);
                         handleLogout();
                       }}
-                      className="w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-rose-500/10 flex items-center gap-2.5 text-base font-semibold text-rose-500 transition-colors"
+                      className="w-full min-h-[38px] px-3 py-2 rounded-xl hover:bg-rose-500/10 flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-rose-500 transition-colors"
                     >
                       <LogOut className="w-4 h-4 shrink-0" />
                       <span>Cerrar sesión</span>
@@ -3668,7 +3668,7 @@ export default function App() {
                     setReturnToGroupScreen(true);
                     setActiveTab('inicio');
                   }}
-                  className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 shadow-2xs transition-colors truncate max-w-full"
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shadow-2xs transition-colors truncate max-w-full"
                 >
                   <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
                   <span className="truncate">Volver a {activeGroup.identity.ministryName}</span>
@@ -3741,10 +3741,10 @@ export default function App() {
           )}
         </main>
 
-        {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL CON BOTONES TÁCTILES DE 44x44px+ Y TEXTO 16px */}
+        {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL COMPACTA Y TÁCTIL */}
         <nav
           aria-label="Navegación móvil jesustone"
-          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-4 items-center h-[70px] pb-safe px-1"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 grid grid-cols-4 items-center h-16 pb-safe px-1"
         >
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -3761,14 +3761,14 @@ export default function App() {
                   }
                   setActiveTab(item.id);
                 }}
-                className={`min-h-[54px] py-1 px-1 flex flex-col items-center justify-center rounded-2xl transition-all min-w-0 ${
+                className={`min-h-[48px] py-1 px-1 flex flex-col items-center justify-center rounded-2xl transition-all min-w-0 ${
                   isActive
                     ? `${accent.textClass} font-bold`
                     : 'text-slate-600 dark:text-slate-300'
                 }`}
               >
                 <Icon className="w-5 h-5 shrink-0" />
-                <span className="text-base font-bold tracking-tight mt-0.5 truncate max-w-full leading-tight">
+                <span className="text-[11px] sm:text-xs font-bold tracking-tight mt-0.5 truncate max-w-full leading-tight">
                   {item.shortLabel}
                 </span>
               </button>

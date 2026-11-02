@@ -349,7 +349,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleOpenProfileOf(currentUser.id)}
-                  className="min-h-[44px] px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-base font-bold text-slate-200 flex items-center gap-1.5 shrink-0 transition-colors"
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-1.5 shrink-0 transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>Mi Perfil</span>
@@ -369,18 +369,15 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                       : `Perfil de ${viewedUser.name}`
                     : activeModalTab === 'amigos'
                     ? 'Mis Amigos y Solicitudes'
-                    : 'Comunidad y Buscador de Músicos'}
+                    : 'Comunidad de Músicos'}
                 </h2>
-                <p className="text-[11px] text-slate-400 truncate">
-                  Red social de músicos · Conecta, chatea e invita suplentes a tus eventos
-                </p>
               </div>
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors flex items-center justify-center shrink-0"
+              className="min-h-[36px] min-w-[36px] p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors flex items-center justify-center shrink-0"
               aria-label="Cerrar perfil"
             >
               <X className="w-5 h-5" />
@@ -392,7 +389,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveModalTab('perfil')}
-              className={`min-h-[44px] px-2.5 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
+              className={`min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
                 activeModalTab === 'perfil'
                   ? `${accent.bgClass} shadow-xs`
                   : 'text-slate-400 hover:text-white'
@@ -407,7 +404,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveModalTab('amigos')}
-              className={`min-h-[44px] px-2.5 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 transition-all relative min-w-0 truncate ${
+              className={`min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all relative min-w-0 truncate ${
                 activeModalTab === 'amigos'
                   ? `${accent.bgClass} shadow-xs`
                   : 'text-slate-400 hover:text-white'
@@ -425,7 +422,7 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveModalTab('explorar')}
-              className={`min-h-[44px] px-2.5 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
+              className={`min-h-[38px] px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all min-w-0 truncate ${
                 activeModalTab === 'explorar'
                   ? `${accent.bgClass} shadow-xs`
                   : 'text-slate-400 hover:text-white'
@@ -582,10 +579,6 @@ export const MusicianProfileModal: React.FC<MusicianProfileModalProps> = ({
                 {viewedUser.bio ? (
                   <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 bg-white/80 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-200/60 dark:border-slate-800">
                     {viewedUser.bio}
-                  </p>
-                ) : isOwnProfile && !isEditingMyProfile ? (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-                    Agrega una breve biografía musical, tu iglesia o ciudad para que otros músicos y líderes te conozcan.
                   </p>
                 ) : null}
 

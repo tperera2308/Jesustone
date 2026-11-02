@@ -408,102 +408,88 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
   // =========================================================================
   if (selectedToolScreen === null) {
     return (
-      <div className="space-y-6 w-full max-w-full min-w-0">
-        <div className="space-y-1">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Selecciona tu Herramienta Musical
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Toca cualquiera de las 3 herramientas para abrirla en su propia pantalla dedicada
-          </p>
-        </div>
+      <div className="space-y-4 w-full max-w-full min-w-0">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+          Herramientas Musicales
+        </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* Botón Gigante 1: Afinador Cromático */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Botón 1: Afinador Cromático */}
           <button
             type="button"
             onClick={() => setSelectedToolScreen('tuner')}
-            className="min-h-[240px] p-6 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-amber-500 shadow-md flex flex-col justify-between text-left transition-all active:scale-[0.98] group"
+            className="min-h-[160px] p-5 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-amber-500 shadow-sm flex flex-col justify-between text-left transition-all active:scale-[0.98] group"
           >
             <div className="flex items-center justify-between w-full">
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-md ${accent.bgClass}`}>
-                <Gauge className="w-8 h-8" />
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${accent.bgClass}`}>
+                <Gauge className="w-6 h-6" />
               </div>
               <span className="text-xs font-mono font-bold text-slate-400">
-                -25 a +25 cents
+                440 Hz
               </span>
             </div>
 
-            <div className="space-y-1.5 my-4">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors">
+            <div className="my-3">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-amber-500 transition-colors">
                 Afinador Cromático
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                Detección por micrófono en tiempo real, aguja de precisión, frecuencia en Hz y generador Pitch Pipe.
-              </p>
             </div>
 
-            <div className={`w-full py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-between ${accent.softBgClass}`}>
+            <div className={`w-full py-2.5 px-3.5 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-between ${accent.softBgClass}`}>
               <span>Abrir Afinador</span>
               <ArrowRight className="w-4 h-4" />
             </div>
           </button>
 
-          {/* Botón Gigante 2: Piano Interactivo 2 Octavas */}
+          {/* Botón 2: Piano Interactivo 2 Octavas */}
           <button
             type="button"
             onClick={() => setSelectedToolScreen('piano')}
-            className="min-h-[240px] p-6 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-indigo-500 shadow-md flex flex-col justify-between text-left transition-all active:scale-[0.98] group"
+            className="min-h-[160px] p-5 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-indigo-500 shadow-sm flex flex-col justify-between text-left transition-all active:scale-[0.98] group"
           >
             <div className="flex items-center justify-between w-full">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
-                <Piano className="w-8 h-8" />
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                <Piano className="w-6 h-6" />
               </div>
               <span className="text-xs font-mono font-bold text-slate-400">
-                24 Teclas (C3–B4)
+                C3–B4
               </span>
             </div>
 
-            <div className="space-y-1.5 my-4">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white group-hover:text-indigo-500 transition-colors">
-                Teclado / Piano 2 Octavas
+            <div className="my-3">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-indigo-500 transition-colors">
+                Teclado / Piano
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                24 teclas táctiles de C3 a B4 con sonidos de Grand Piano, Worship Pad y Rhodes para entonar voces.
-              </p>
             </div>
 
-            <div className="w-full py-3 px-4 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 font-bold text-xs sm:text-sm flex items-center justify-between">
-              <span>Abrir Teclado / Piano</span>
+            <div className="w-full py-2.5 px-3.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 font-bold text-xs sm:text-sm flex items-center justify-between">
+              <span>Abrir Piano</span>
               <ArrowRight className="w-4 h-4" />
             </div>
           </button>
 
-          {/* Botón Gigante 3: Metrónomo Profesional */}
+          {/* Botón 3: Metrónomo Profesional */}
           <button
             type="button"
             onClick={() => setSelectedToolScreen('metronome')}
-            className="min-h-[240px] p-6 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-emerald-500 shadow-md flex flex-col justify-between text-left transition-all active:scale-[0.98] group"
+            className="min-h-[160px] p-5 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 hover:border-emerald-500 shadow-sm flex flex-col justify-between text-left transition-all active:scale-[0.98] group"
           >
             <div className="flex items-center justify-between w-full">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
-                <Activity className="w-8 h-8" />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+                <Activity className="w-6 h-6" />
               </div>
               <span className="text-xs font-mono font-bold text-slate-400">
-                30 a 250 BPM
+                30–250 BPM
               </span>
             </div>
 
-            <div className="space-y-1.5 my-4">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white group-hover:text-emerald-500 transition-colors">
-                Metrónomo Profesional
+            <div className="my-3">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-emerald-500 transition-colors">
+                Metrónomo
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                Control de BPM, Tap Tempo, compases (2/4, 3/4, 4/4, 6/8), acento en tiempo 1 y tempos de canciones.
-              </p>
             </div>
 
-            <div className="w-full py-3 px-4 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 font-bold text-xs sm:text-sm flex items-center justify-between">
+            <div className="w-full py-2.5 px-3.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 font-bold text-xs sm:text-sm flex items-center justify-between">
               <span>Abrir Metrónomo</span>
               <ArrowRight className="w-4 h-4" />
             </div>
@@ -524,14 +510,14 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
       }}
     >
       {/* Barra Superior de Navegación para Volver al Menú de Herramientas */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-full overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-full overflow-hidden">
         <button
           type="button"
           onClick={() => {
             stopMicrophone();
             setSelectedToolScreen(null);
           }}
-          className="min-h-[48px] px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 self-start shrink-0"
+          className="min-h-[38px] px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 self-start shrink-0"
         >
           <ArrowLeft className="w-4 h-4 shrink-0" />
           <span>Menú de Herramientas</span>
@@ -541,7 +527,7 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
           <button
             type="button"
             onClick={() => setSelectedToolScreen('tuner')}
-            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold transition-colors whitespace-nowrap shrink-0 ${
+            className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap shrink-0 ${
               selectedToolScreen === 'tuner'
                 ? accent.bgClass
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
@@ -552,7 +538,7 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
           <button
             type="button"
             onClick={() => setSelectedToolScreen('piano')}
-            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold transition-colors whitespace-nowrap shrink-0 ${
+            className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap shrink-0 ${
               selectedToolScreen === 'piano'
                 ? accent.bgClass
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
@@ -563,7 +549,7 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
           <button
             type="button"
             onClick={() => setSelectedToolScreen('metronome')}
-            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-base font-bold transition-colors whitespace-nowrap shrink-0 ${
+            className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap shrink-0 ${
               selectedToolScreen === 'metronome'
                 ? accent.bgClass
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
@@ -584,11 +570,8 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                  Afinador Cromático en Tiempo Real
+                  Afinador Cromático · A4 = {referenceA4} Hz
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                  Motor McLeod NSDF a 60 FPS (-50 a +50 cents) · A4 = {referenceA4} Hz
-                </p>
               </div>
             </div>
 
@@ -932,11 +915,8 @@ export const ToolsModule: React.FC<ToolsModuleProps> = ({
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                  Teclado / Piano Interactivo (2 Octavas: C3 a B4)
+                  Teclado / Piano (C3 a B4)
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                  24 teclas táctiles con etiquetas de nota y sonido sintetizado en tiempo real
-                </p>
               </div>
             </div>
 

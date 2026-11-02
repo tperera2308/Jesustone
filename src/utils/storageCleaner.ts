@@ -91,6 +91,26 @@ export function runAutomaticStorageCleanup(): StorageCleanupStats {
         // ignore parse error
       }
     }
+
+    // 3. Podar registro de lecturas de canales (máximo 40 entradas recientes)
+    try {
+      const readRaw = localStorage.getItem('jesustone_chat_last_read_v4');
+      if (readRaw) {
+        const readMap = JSON.parse(readRaw);
+        if (readMap && typeof readMap === 'object') {
+          const entries = Object.entries(readMap as Record<string, number>);
+          if (entries.length > 40) {
+            entries.sort((a, b) => Number(b[1]) - Number(a[1]));
+            const compactMap = Object.fromEntries(entries.slice(0, 40));
+            const nextStr = JSON.stringify(compactMap);
+            bytesFreed += Math.max(0, readRaw.length - nextStr.length);
+            localStorage.setItem('jesustone_chat_last_read_v4', nextStr);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
   } catch (err) {
     console.warn('Advertencia en limpieza automática de storage:', err);
   }

@@ -402,9 +402,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               setIsGroupScreenOpen(false);
               if (onToggleGroupScreen) onToggleGroupScreen(false);
             }}
-            className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shadow-2xs transition-colors shrink-0 whitespace-nowrap"
+            className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 shadow-2xs transition-colors shrink-0 whitespace-nowrap"
           >
-            <ArrowLeft className="w-4 h-4 text-amber-500 shrink-0" />
+            <ArrowLeft className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             <span>Inicio Personal</span>
           </button>
 
@@ -419,7 +419,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                     onClick={() => {
                       if (onSelectGroup) onSelectGroup(g.id);
                     }}
-                    className={`min-h-[44px] px-3 py-2 rounded-xl text-base font-bold whitespace-nowrap shrink-0 transition-all ${
+                    className={`min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap shrink-0 transition-all ${
                       isCurrent
                         ? `${accent.bgClass} shadow-2xs`
                         : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
@@ -433,24 +433,24 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           )}
         </div>
 
-        {/* CABECERA EXCLUSIVA DEL GRUPO CON "CANCIONERO", "MIEMBROS" Y "⚙️" EN UNA SOLA LÍNEA */}
-        <div className="rounded-3xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-xs dark:shadow-md space-y-3.5 max-w-full overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
-            <div className="flex items-center gap-3 min-w-0">
+        {/* CABECERA EXCLUSIVA DEL GRUPO CON "CANCIONES", "MIEMBROS" Y "⚙️" COMPACTOS Y CONTENIDOS DENTRO DEL MARGEN */}
+        <div className="rounded-3xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-5 shadow-xs dark:shadow-md space-y-3 max-w-full overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-2.5 min-w-0 w-full">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div
-                className={`w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center shadow-md shrink-0 overflow-hidden ${accent.bgClass}`}
+                className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shadow-md shrink-0 overflow-hidden ${accent.bgClass}`}
               >
                 <BrandIconDisplay
                   iconId={identity.iconId}
                   customImageUrl={identity.customImageUrl}
                   className={
-                    identity.customImageUrl ? 'w-full h-full' : 'w-6 h-6'
+                    identity.customImageUrl ? 'w-full h-full' : 'w-5 h-5'
                   }
                 />
               </div>
 
-              <div className="min-w-0 space-y-0.5">
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+              <div className="min-w-0 space-y-0.5 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs text-slate-600 dark:text-slate-300">
                   <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
                     {isLeader
                       ? 'Líder / Admin'
@@ -459,31 +459,37 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       : 'Miembro Titular'}
                   </span>
                   <span>·</span>
-                  <span className="font-medium">{members.length} integrantes</span>
+                  <span className="font-medium">{members.length} int.</span>
                   {!activeMember.isGuest && (
                     <>
                       <span>·</span>
-                      <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
-                        Código: {identity.inviteCode}
+                      <span className="font-mono font-semibold text-slate-700 dark:text-slate-200 truncate">
+                        {identity.inviteCode}
                       </span>
                     </>
                   )}
                 </div>
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-950 dark:text-white truncate">
+                <h1 className="text-base sm:text-xl font-bold tracking-tight text-slate-950 dark:text-white truncate">
                   {identity.ministryName}
                 </h1>
               </div>
             </div>
 
-            {/* Tres botones táctiles de 44px en una sola línea sin desbordar: Cancionero, Miembros y Engrane ⚙️ */}
-            <div className="flex items-center gap-1.5 flex-nowrap shrink-0 max-w-full overflow-x-auto no-scrollbar">
+            {/* Tres botones compactos en una sola línea contenidos 100% dentro del margen: Canciones, Miembros y Engrane ⚙️ */}
+            <div
+              className={
+                activeMember.isGuest
+                  ? 'flex items-center w-full sm:w-auto min-w-0 max-w-full'
+                  : 'grid grid-cols-[1fr_1fr_auto] sm:flex items-center gap-1.5 w-full sm:w-auto min-w-0 max-w-full'
+              }
+            >
               <button
                 type="button"
                 onClick={() => onNavigate('cancionero')}
-                className={`min-h-[44px] px-3 py-2 rounded-xl flex items-center gap-1.5 text-base font-bold shadow-xs transition-all whitespace-nowrap shrink-0 ${accent.bgClass}`}
+                className={`min-h-[36px] px-2.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold shadow-xs transition-all min-w-0 truncate ${accent.bgClass}`}
               >
-                <Music className="w-4 h-4 shrink-0" />
-                <span>Cancionero ({songs.length})</span>
+                <Music className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Canciones ({songs.length})</span>
               </button>
 
               {!activeMember.isGuest && (
@@ -491,20 +497,20 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenIdentityModal('invitaciones')}
-                    className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center gap-1.5 text-base font-bold text-slate-800 dark:text-white transition-colors whitespace-nowrap shrink-0"
+                    className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center justify-center gap-1.5 text-xs sm:text-sm font-bold text-slate-800 dark:text-white transition-colors min-w-0 truncate"
                   >
-                    <Users className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                    <span>Miembros ({members.length})</span>
+                    <Users className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                    <span className="truncate">Miembros ({members.length})</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => onOpenIdentityModal('grupo')}
-                    title="Datos del Grupo"
-                    aria-label="Datos del Grupo"
-                    className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-colors shrink-0"
+                    title="Configuración del Grupo"
+                    aria-label="Configuración del Grupo"
+                    className="min-h-[36px] min-w-[36px] w-9 h-9 p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/10 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 flex items-center justify-center text-slate-700 dark:text-slate-200 transition-colors shrink-0"
                   >
-                    <Settings className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />
+                    <Settings className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0" />
                   </button>
                 </>
               )}
@@ -539,7 +545,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 onClick={() =>
                   setGroupSectionTab(t.id as typeof groupSectionTab)
                 }
-                className={`min-h-[44px] px-1.5 sm:px-3 py-2 rounded-xl text-base font-bold transition-all truncate min-w-0 ${
+                className={`min-h-[36px] px-1.5 sm:px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all truncate min-w-0 ${
                   groupSectionTab === t.id
                     ? `${accent.bgClass} shadow-2xs`
                     : 'text-slate-700 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white'
@@ -564,10 +570,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('eventos')}
-                className={`min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold ${accent.textClass} hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5 shrink-0 transition-colors`}
+                className={`min-h-[34px] px-2.5 py-1 rounded-xl text-xs sm:text-sm font-bold ${accent.textClass} hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1 shrink-0 transition-colors`}
               >
                 <span>{isLeader ? 'Administrar' : 'Ver todos'}</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
@@ -911,12 +917,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   return (
     <div className="space-y-4 w-full max-w-full min-w-0">
       {/* 1. BIENVENIDA PERSONAL MINIMALISTA + RED DE AMIGOS EN UNA SOLA LÍNEA */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-3.5 sm:px-5 sm:py-4 shadow-2xs flex items-center justify-between gap-2.5 min-w-0">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-3 sm:px-5 sm:py-4 shadow-2xs flex items-center justify-between gap-2.5 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
             onClick={() => onOpenMusicianProfile(resolvedUserId, 'perfil')}
-            className={`min-h-[44px] min-w-[44px] w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-base font-bold shrink-0 overflow-hidden shadow-xs ${accent.bgClass}`}
+            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden shadow-xs ${accent.bgClass}`}
             title="Ver Mi Perfil de Músico"
           >
             {activeMember.avatarUrl ? (
@@ -949,12 +955,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         <button
           type="button"
           onClick={() => onOpenMusicianProfile(resolvedUserId, 'amigos')}
-          className="min-h-[44px] px-3 py-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-base font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
+          className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-xs sm:text-sm font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5 transition-colors shrink-0 whitespace-nowrap"
         >
-          <Users className="w-4 h-4 shrink-0" />
+          <Users className="w-3.5 h-3.5 shrink-0" />
           <span>Amigos ({friendsCount})</span>
           {pendingFriendRequestsCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-xs font-bold">
+            <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">
               {pendingFriendRequestsCount}
             </span>
           )}
@@ -970,9 +976,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={onOpenAuthModal}
-            className="min-h-[44px] px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-base font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 shrink-0"
+            className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 shrink-0"
           >
-            <FolderPlus className="w-4 h-4 text-amber-500 shrink-0" />
+            <FolderPlus className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             <span>+ Grupo</span>
           </button>
         </div>
@@ -1041,7 +1047,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   <ChevronRight className="w-4 h-4 text-amber-500 shrink-0" />
                 </div>
 
-                {/* Propuesta A: Acceso directo en 1 toque a Cancionero y Fechas con botones táctiles de 44px */}
+                {/* Propuesta A: Acceso directo en 1 toque a Cancionero y Fechas */}
                 <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-slate-200/70 dark:border-slate-800">
                   <button
                     type="button"
@@ -1052,9 +1058,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       }
                       onNavigate('cancionero');
                     }}
-                    className={`min-h-[44px] px-2.5 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 transition-all truncate min-w-0 ${grpAccent.bgClass}`}
+                    className={`min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all truncate min-w-0 ${grpAccent.bgClass}`}
                   >
-                    <Music className="w-4 h-4 shrink-0" />
+                    <Music className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">Canciones ({grp.songs.length})</span>
                   </button>
 
@@ -1067,9 +1073,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       }
                       onNavigate('eventos');
                     }}
-                    className="min-h-[44px] px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-base font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1.5 transition-colors truncate min-w-0"
+                    className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1.5 transition-colors truncate min-w-0"
                   >
-                    <Calendar className="w-4 h-4 text-amber-500 shrink-0" />
+                    <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     <span className="truncate">
                       Fechas ({grpUpcomingCount})
                     </span>
@@ -1093,7 +1099,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <button
               type="button"
               onClick={() => onNavigate('eventos')}
-              className={`min-h-[44px] px-2.5 py-1 rounded-xl text-base font-bold shrink-0 ${accent.textClass} hover:underline`}
+              className={`min-h-[34px] px-2 py-1 rounded-xl text-xs sm:text-sm font-bold shrink-0 ${accent.textClass} hover:underline`}
             >
               Calendario →
             </button>
@@ -1214,13 +1220,13 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                             </span>
                           </button>
 
-                          <div className="grid grid-cols-2 gap-2.5">
+                          <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={() =>
                                 handleUpdateAllMyRolesInEvent('confirmed')
                               }
-                              className="min-h-[44px] px-3 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 transition-all bg-emerald-600 hover:bg-emerald-500 text-white"
+                              className="min-h-[38px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all bg-emerald-600 hover:bg-emerald-500 text-white"
                             >
                               <CheckCircle2 className="w-4 h-4 shrink-0" />
                               <span>Aceptar</span>
@@ -1231,7 +1237,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                               onClick={() =>
                                 handleUpdateAllMyRolesInEvent('declined')
                               }
-                              className="min-h-[44px] px-3 py-2 rounded-xl text-base font-bold flex items-center justify-center gap-1.5 transition-all bg-white dark:bg-slate-900 border border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white"
+                              className="min-h-[38px] px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all bg-white dark:bg-slate-900 border border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white"
                             >
                               <XCircle className="w-4 h-4 shrink-0" />
                               <span>Declinar</span>
@@ -1251,7 +1257,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigate('eventos')}
-                  className={`min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold ${accent.textClass} shrink-0`}
+                  className={`min-h-[36px] px-2.5 py-1 rounded-xl text-xs sm:text-sm font-bold ${accent.textClass} shrink-0`}
                 >
                   Eventos
                 </button>
@@ -1268,8 +1274,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <span>Novedades de Tus Grupos</span>
             </h2>
 
-            {/* Filtro táctil del Feed de Novedades en una sola línea deslizable */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full flex-nowrap">
+            {/* Filtro del Feed de Novedades en una sola línea deslizable */}
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-full flex-nowrap">
               {[
                 { id: 'all', label: 'Todo' },
                 { id: 'eventos', label: 'Eventos' },
@@ -1282,7 +1288,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   onClick={() =>
                     setNovedadesFilter(f.id as typeof novedadesFilter)
                   }
-                  className={`min-h-[44px] px-3 py-1.5 rounded-xl text-base font-bold transition-colors whitespace-nowrap shrink-0 ${
+                  className={`min-h-[32px] px-2.5 py-1 rounded-lg text-xs font-bold transition-colors whitespace-nowrap shrink-0 ${
                     novedadesFilter === f.id
                       ? `${accent.bgClass}`
                       : 'bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
