@@ -459,7 +459,8 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
     if (chatMode === 'social') {
       if (!selectedFriend || !onSendDirectMessage) return;
       const sharedSong = attachedSongId
-        ? songs.find((s) => s.id === attachedSongId)
+        ? currentGroupSongs.find((s) => s.id === attachedSongId) ||
+          songs.find((s) => s.id === attachedSongId)
         : undefined;
       onSendDirectMessage(
         selectedFriend,
@@ -590,12 +591,22 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
         </div>
 
         <div className="flex flex-col items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center"
+          <button
+            type="button"
+            onClick={() => onOpenMusicianProfile && onOpenMusicianProfile(activeMember.id)}
+            className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-amber-400 transition-all"
             title={`${activeMember.name} (${myMusicianCode})`}
           >
-            {activeMember.avatarInitials}
-          </div>
+            {activeMember.avatarUrl ? (
+              <img
+                src={activeMember.avatarUrl}
+                alt={activeMember.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              activeMember.avatarInitials
+            )}
+          </button>
         </div>
       </aside>
 
@@ -1360,16 +1371,29 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
           </div>
 
           {/* Barra Inferior de Usuario Activo */}
-          <div className="p-3 bg-[#232428] flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenMusicianProfile && onOpenMusicianProfile(activeMember.id)}
+            className="p-3 bg-[#232428] hover:bg-[#292b2f] flex items-center justify-between gap-2 w-full text-left transition-colors"
+            title="Ver mi perfil de músico"
+          >
             <div className="flex items-center gap-2.5 min-w-0">
               <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden ${
                   activeMember.role === 'leader'
                     ? 'bg-amber-500 text-slate-950'
                     : 'bg-sky-500 text-white'
                 }`}
               >
-                {activeMember.avatarInitials}
+                {activeMember.avatarUrl ? (
+                  <img
+                    src={activeMember.avatarUrl}
+                    alt={activeMember.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  activeMember.avatarInitials
+                )}
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-white truncate">
@@ -1386,7 +1410,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
               </div>
             </div>
             <Volume2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          </div>
+          </button>
         </div>
       </div>
 
@@ -2075,7 +2099,8 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
 
                   {channelMessages.map((msg) => {
                     const attachedSong = msg.attachedSongId
-                      ? songs.find((s) => s.id === msg.attachedSongId)
+                      ? currentGroupSongs.find((s) => s.id === msg.attachedSongId) ||
+                        songs.find((s) => s.id === msg.attachedSongId)
                       : undefined;
                     const prayedByMe = msg.prayedByMemberIds?.includes(
                       activeMember.id
@@ -2469,12 +2494,22 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                     LÍDER / ADMIN — {leaders.length}
                   </p>
                   {leaders.map((m) => (
-                    <div
+                    <button
                       key={m.id}
-                      className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-[#35373c]"
+                      type="button"
+                      onClick={() => onOpenMusicianProfile && onOpenMusicianProfile(m.id)}
+                      className="w-full text-left flex items-center gap-2.5 p-2 rounded-xl hover:bg-[#35373c] transition-colors"
                     >
-                      <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center shrink-0">
-                        {m.avatarInitials}
+                      <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden">
+                        {m.avatarUrl ? (
+                          <img
+                            src={m.avatarUrl}
+                            alt={m.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          m.avatarInitials
+                        )}
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-amber-400 truncate">
@@ -2484,7 +2519,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                           {m.instruments.join(', ')}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
 
@@ -2493,12 +2528,22 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                     TITULARES — {regularMembers.length}
                   </p>
                   {regularMembers.map((m) => (
-                    <div
+                    <button
                       key={m.id}
-                      className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-[#35373c]"
+                      type="button"
+                      onClick={() => onOpenMusicianProfile && onOpenMusicianProfile(m.id)}
+                      className="w-full text-left flex items-center gap-2.5 p-2 rounded-xl hover:bg-[#35373c] transition-colors"
                     >
-                      <div className="w-8 h-8 rounded-full bg-[#383a40] text-slate-200 font-bold text-xs flex items-center justify-center shrink-0">
-                        {m.avatarInitials}
+                      <div className="w-8 h-8 rounded-full bg-[#383a40] text-slate-200 font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden">
+                        {m.avatarUrl ? (
+                          <img
+                            src={m.avatarUrl}
+                            alt={m.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          m.avatarInitials
+                        )}
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-slate-200 truncate">
@@ -2508,7 +2553,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                           {m.instruments.join(', ')}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
 
@@ -2518,12 +2563,22 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                       SUPLENTES / INVITADOS — {guestMembers.length}
                     </p>
                     {guestMembers.map((m) => (
-                      <div
+                      <button
                         key={m.id}
-                        className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-[#35373c]"
+                        type="button"
+                        onClick={() => onOpenMusicianProfile && onOpenMusicianProfile(m.id)}
+                        className="w-full text-left flex items-center gap-2.5 p-2 rounded-xl hover:bg-[#35373c] transition-colors"
                       >
-                        <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-300 font-bold text-xs flex items-center justify-center shrink-0">
-                          {m.avatarInitials}
+                        <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-300 font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden">
+                          {m.avatarUrl ? (
+                            <img
+                              src={m.avatarUrl}
+                              alt={m.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            m.avatarInitials
+                          )}
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-slate-200 truncate">
@@ -2533,7 +2588,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
                             Invitado · {m.instruments.join(', ')}
                           </p>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}

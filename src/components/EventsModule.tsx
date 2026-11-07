@@ -1364,105 +1364,107 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
         </div>
       )}
 
-      {/* Barra compacta de Filtros + Acciones en fila ordenada sin desbordar márgenes */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 shadow-xs w-full max-w-full overflow-hidden">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full min-w-0 flex-nowrap">
-          {[
-            { id: 'all', label: 'Próximos' },
-            { id: 'sunday', label: 'Domingos' },
-            { id: 'special', label: 'Especiales' },
-            {
-              id: 'past',
-              label: pastEventsCount > 0 ? `Pasados (${pastEventsCount})` : 'Pasados',
-            },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setFilterType(tab.id as typeof filterType)}
-              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap shrink-0 ${
-                filterType === tab.id
-                  ? `${accent.bgClass} shadow-xs`
-                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-
-          <button
-            type="button"
-            onClick={() => setOnlyMyEvents((prev) => !prev)}
-            className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-              onlyMyEvents
-                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-            title="Ver únicamente eventos donde estás convocado"
-          >
-            <User className="w-3.5 h-3.5 shrink-0" />
-            <span>Mis Eventos</span>
-          </button>
-
-          {filterType === 'past' && pastEventsCount > 0 && isLeader && (
-            <button
-              type="button"
-              onClick={() => {
-                events
-                  .filter((ev) => ev.date < todayStr)
-                  .forEach((ev) => onDeleteEvent(ev.id));
-              }}
-              className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold whitespace-nowrap shrink-0 flex items-center gap-1.5"
-              title="Limpiar todos los eventos pasados"
-            >
-              <Trash2 className="w-3.5 h-3.5 shrink-0" />
-              <span>Limpiar pasados</span>
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap">
-          <button
-            type="button"
-            onClick={() => setShowAvailabilityModal(true)}
-            className="min-h-[36px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500/60 transition-colors flex-1 sm:flex-initial min-w-0 truncate"
-            title="Mi Disponibilidad / Bloquear Fechas"
-          >
-            <CalendarOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-            <span className="truncate">Disponibilidad</span>
-            {availabilityRecords.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 font-mono text-[11px] shrink-0">
-                {availabilityRecords.length}
-              </span>
-            )}
-          </button>
-
-          {isLeader && (
-            <>
+      {/* Barra compacta de Filtros + Acciones (solo en vista de lista de eventos) */}
+      {(!openedEventId || !activeEvent) && (
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-2xl border border-slate-300/80 dark:border-slate-700/80 shadow-xs w-full max-w-full overflow-hidden">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full min-w-0 flex-nowrap">
+            {[
+              { id: 'all', label: 'Próximos' },
+              { id: 'sunday', label: 'Domingos' },
+              { id: 'special', label: 'Especiales' },
+              {
+                id: 'past',
+                label: pastEventsCount > 0 ? `Pasados (${pastEventsCount})` : 'Pasados',
+              },
+            ].map((tab) => (
               <button
+                key={tab.id}
                 type="button"
-                onClick={() => setShowAlertModal(true)}
-                className="min-h-[36px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 flex-1 sm:flex-initial min-w-0 truncate"
-                title="Publicar Aviso"
+                onClick={() => setFilterType(tab.id as typeof filterType)}
+                className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-colors whitespace-nowrap shrink-0 ${
+                  filterType === tab.id
+                    ? `${accent.bgClass} shadow-xs`
+                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
               >
-                <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span className="truncate">Aviso</span>
+                {tab.label}
               </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setOnlyMyEvents((prev) => !prev)}
+              className={`min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold border transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                onlyMyEvents
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              title="Ver únicamente eventos donde estás convocado"
+            >
+              <User className="w-3.5 h-3.5 shrink-0" />
+              <span>Mis Eventos</span>
+            </button>
+
+            {filterType === 'past' && pastEventsCount > 0 && isLeader && (
               <button
                 type="button"
                 onClick={() => {
-                  setSongSearchCreate('');
-                  setShowCreateModal(true);
+                  events
+                    .filter((ev) => ev.date < todayStr)
+                    .forEach((ev) => onDeleteEvent(ev.id));
                 }}
-                className={`min-h-[36px] flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-xs flex-1 sm:flex-initial min-w-0 truncate ${accent.bgClass}`}
+                className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-bold whitespace-nowrap shrink-0 flex items-center gap-1.5"
+                title="Limpiar todos los eventos pasados"
               >
-                <Plus className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Nuevo Evento</span>
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Limpiar pasados</span>
               </button>
-            </>
-          )}
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 w-full lg:w-auto min-w-0 max-w-full overflow-x-auto no-scrollbar flex-nowrap">
+            <button
+              type="button"
+              onClick={() => setShowAvailabilityModal(true)}
+              className="min-h-[36px] flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500/60 transition-colors shrink-0 whitespace-nowrap"
+              title="Mi Disponibilidad / Bloquear Fechas"
+            >
+              <CalendarOff className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+              <span>Disponibilidad</span>
+              {availabilityRecords.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 font-mono text-[11px] shrink-0">
+                  {availabilityRecords.length}
+                </span>
+              )}
+            </button>
+
+            {isLeader && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowAlertModal(true)}
+                  className="min-h-[36px] flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 hover:border-amber-500/60 transition-colors shrink-0 whitespace-nowrap"
+                  title="Publicar Aviso"
+                >
+                  <Bell className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>Aviso</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSongSearchCreate('');
+                    setShowCreateModal(true);
+                  }}
+                  className={`min-h-[36px] flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold shadow-xs shrink-0 whitespace-nowrap ${accent.bgClass}`}
+                >
+                  <Plus className="w-3.5 h-3.5 shrink-0" />
+                  <span>Nuevo Evento</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Layout Principal: 1) Vista de Tarjetas Resumidas vs 2) Detalle Completo al tocar una Tarjeta */}
       {filteredEvents.length === 0 ? (
@@ -1852,9 +1854,14 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 1. INVITACIÓN PERSONAL: RESUMIDA SI YA FUE ACEPTADA
                =============================================================== */}
             {(() => {
+              const isMyAssignment = (a: ServiceAssignment) =>
+                a.memberId === activeMember.id ||
+                a.memberName.trim().toLowerCase() ===
+                  activeMember.name.trim().toLowerCase();
+
               const myAssignments = activeEvent.assignments
                 .map((a, idx) => ({ assign: a, idx }))
-                .filter((item) => item.assign.memberId === activeMember.id);
+                .filter((item) => isMyAssignment(item.assign));
 
               if (myAssignments.length === 0) {
                 return (
@@ -1880,29 +1887,53 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                 )
               );
 
-              const handleUpdateMyOwnRSVP = (newStatus: RSVPStatus) => {
-                myAssignments.forEach(({ assign, idx }) => {
-                  onUpdateRSVP(
-                    activeEvent.id,
-                    assign.role,
-                    newStatus,
-                    idx,
-                    assign.id
-                  );
-                });
-              };
-
               const handleSaveMyRsvpNote = (newStatus?: RSVPStatus) => {
-                if (newStatus) {
-                  handleUpdateMyOwnRSVP(newStatus);
-                }
                 const cleanNote = rsvpNoteDraft.trim();
+                const currentSavedNote = (
+                  activeEvent.rsvpNotes?.[activeMember.id] || ''
+                ).trim();
+
+                if (!newStatus && cleanNote === currentSavedNote) {
+                  return;
+                }
+
                 const nextNotes = { ...(activeEvent.rsvpNotes || {}) };
                 if (cleanNote) {
                   nextNotes[activeMember.id] = cleanNote;
                 } else {
                   delete nextNotes[activeMember.id];
                 }
+
+                if (newStatus) {
+                  const updatedAssignments = activeEvent.assignments.map((a) =>
+                    isMyAssignment(a) ? { ...a, rsvpStatus: newStatus } : a
+                  );
+                  const updatedRehearsals = (activeEvent.rehearsals || []).map(
+                    (reh) => ({
+                      ...reh,
+                      rsvpByMemberId: {
+                        ...(reh.rsvpByMemberId || {}),
+                        [activeMember.id]: newStatus,
+                      },
+                    })
+                  );
+
+                  onUpdateEvent({
+                    ...activeEvent,
+                    assignments: updatedAssignments,
+                    rehearsals: updatedRehearsals,
+                    rsvpNotes: nextNotes,
+                  });
+
+                  setEventNotesSavedNotice(
+                    newStatus === 'confirmed'
+                      ? '¡Tu asistencia ha sido confirmada!'
+                      : 'Has declinado la invitación a este evento.'
+                  );
+                  setTimeout(() => setEventNotesSavedNotice(''), 3000);
+                  return;
+                }
+
                 onUpdateEvent({
                   ...activeEvent,
                   rsvpNotes: nextNotes,
@@ -2023,7 +2054,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                     >
                       <Plus className="w-3.5 h-3.5 shrink-0" />
                       <span>
-                        {showAddRehearsalInDetail ? 'Cerrar' : '+ Ensayo'}
+                        {showAddRehearsalInDetail ? 'Cerrar' : 'Ensayo'}
                       </span>
                     </button>
                   )}
@@ -2443,7 +2474,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                   >
                     <Plus className="w-3.5 h-3.5 shrink-0" />
                     <span>
-                      {showAddMemberInDetail ? 'Cerrar' : '+ Integrante'}
+                      {showAddMemberInDetail ? 'Cerrar' : 'Integrante'}
                     </span>
                   </button>
                 )}
@@ -3789,7 +3820,7 @@ export const EventsModule: React.FC<EventsModuleProps> = ({
                       className="min-h-[34px] px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>+ Agregar Fecha de Ensayo</span>
+                      <span>Agregar Fecha de Ensayo</span>
                     </button>
                   </div>
                 </div>

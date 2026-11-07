@@ -2276,40 +2276,82 @@ export default function App() {
     assignmentIndex?: number,
     assignmentId?: string
   ) => {
-    const targetEv = activeGroup.events.find((e) => e.id === eventId);
-    updateActiveGroup((g) => ({
-      ...g,
-      events: g.events.map((ev) => {
-        if (ev.id !== eventId) return ev;
-        return {
-          ...ev,
-          assignments: ev.assignments.map((a, idx) => {
-            if (assignmentId && a.id === assignmentId) {
-              return { ...a, rsvpStatus: status };
-            }
-            if (assignmentIndex !== undefined) {
-              return idx === assignmentIndex ? { ...a, rsvpStatus: status } : a;
-            }
-            if (a.memberId === activeMember.id) {
-              return { ...a, rsvpStatus: status };
-            }
-            return a;
-          }),
-        };
-      }),
-    }));
+    setGroups((prev) =>
+      prev.map((g) => {
+        const targetEv = g.events.find((e) => e.id === eventId);
+        if (!targetEv) return g;
 
-    if (status === 'confirmed' && targetEv) {
-      pushActivity({
-        type: 'rsvp_confirmed',
-        actorName: activeMember.name,
-        actorRole: userRole,
-        title: `Asistencia Confirmada (${role})`,
-        description: `Confirmó su participación para «${targetEv.title}» (${targetEv.date}).`,
-        targetTab: 'eventos',
-        targetId: eventId,
-      });
-    }
+        const memberInGroup =
+          g.members.find(
+            (m) =>
+              m.id === activeMember.id ||
+              (currentUser &&
+                (m.id === currentUser.id ||
+                  (currentUser.email &&
+                    m.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+                  (currentUser.username &&
+                    m.username?.toLowerCase() ===
+                      currentUser.username.toLowerCase())))
+          ) || activeMember;
+
+        const updatedEvents = g.events.map((ev) => {
+          if (ev.id !== eventId) return ev;
+          return {
+            ...ev,
+            assignments: ev.assignments.map((a, idx) => {
+              if (assignmentId && a.id === assignmentId) {
+                return { ...a, rsvpStatus: status };
+              }
+              if (assignmentIndex !== undefined && idx === assignmentIndex) {
+                return { ...a, rsvpStatus: status };
+              }
+              if (
+                a.memberId === activeMember.id ||
+                a.memberId === memberInGroup.id ||
+                (currentUser && a.memberId === currentUser.id) ||
+                a.memberName.trim().toLowerCase() ===
+                  memberInGroup.name.trim().toLowerCase()
+              ) {
+                return { ...a, rsvpStatus: status };
+              }
+              return a;
+            }),
+            rehearsals: (ev.rehearsals || []).map((reh) => ({
+              ...reh,
+              rsvpByMemberId: {
+                ...(reh.rsvpByMemberId || {}),
+                [memberInGroup.id]: status,
+                [activeMember.id]: status,
+              },
+            })),
+          };
+        });
+
+        let nextActivityFeed = g.activityFeed;
+        if (status === 'confirmed') {
+          const newItem: ActivityFeedItem = {
+            id: `feed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: 'rsvp_confirmed',
+            actorName: memberInGroup.name,
+            actorRole: memberInGroup.role || userRole,
+            title: `Asistencia Confirmada (${role})`,
+            description: `Confirmó su participación para «${targetEv.title}» (${targetEv.date}).`,
+            timestamp: 'Justo ahora',
+            targetTab: 'eventos',
+            targetId: eventId,
+          };
+          nextActivityFeed = [newItem, ...g.activityFeed].slice(0, 5);
+        }
+
+        const updatedGroup: WorshipGroup = {
+          ...g,
+          events: updatedEvents,
+          activityFeed: nextActivityFeed,
+        };
+        syncGroupToFirestore(updatedGroup);
+        return updatedGroup;
+      })
+    );
   };
 
   const handleReassignRole = (

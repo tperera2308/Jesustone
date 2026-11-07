@@ -979,7 +979,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-amber-500/60 text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 shrink-0"
           >
             <FolderPlus className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span>+ Grupo</span>
+            <span>Grupo</span>
           </button>
         </div>
 
@@ -1123,18 +1123,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                       const handleUpdateAllMyRolesInEvent = (
                         nextStatus: RSVPStatus
                       ) => {
-                        if (!isActiveGroup && onSelectGroup) {
-                          onSelectGroup(groupId);
-                        }
-                        myAssigns.forEach(({ assignment, index }) => {
-                          onUpdateRSVP(
-                            event.id,
-                            assignment.role,
-                            nextStatus,
-                            index,
-                            assignment.id
-                          );
-                        });
+                        const firstAssign = myAssigns[0]?.assignment;
+                        onUpdateRSVP(
+                          event.id,
+                          firstAssign?.role || 'Coros',
+                          nextStatus,
+                          undefined,
+                          undefined
+                        );
                       };
 
                       const handleOpenThisEvent = () => {
